@@ -95,6 +95,19 @@ fn test_task_completion_start_and_complete_publishes_lazy_result() {
 }
 
 #[test]
+fn test_task_completion_pair_default_creates_usable_pair() {
+    let pair = TaskCompletionPair::<usize, io::Error>::default();
+    let (handle, completion) = pair.into_parts();
+
+    completion.complete(Ok(42));
+
+    assert_eq!(
+        handle.get().expect("default pair should publish result"),
+        42
+    );
+}
+
+#[test]
 fn test_task_completion_start_and_complete_skips_cancelled_task() {
     let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
 

@@ -23,6 +23,7 @@ impl<R, E> TaskHandleInner<R, E> {
     /// Notifies every waiter that the shared task state may have changed.
     ///
     /// This wakes blocking waiters parked in [`Monitor::wait_until`].
+    #[inline]
     pub(crate) fn notify_completion(&self) {
         self.state.notify_all();
     }

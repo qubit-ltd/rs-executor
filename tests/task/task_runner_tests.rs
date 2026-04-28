@@ -10,13 +10,16 @@
 
 use std::io;
 
-use qubit_executor::TaskCompletionPair;
+use qubit_executor::{
+    TaskCompletionPair,
+    TaskRunner,
+};
 
 #[test]
-fn test_run_task_executes_through_completion() {
+fn test_runner_executes_through_completion() {
     let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
 
-    qubit_executor::task_runner::run_task(|| Ok::<usize, io::Error>(42), completion);
+    TaskRunner::new(|| Ok::<usize, io::Error>(42)).run(completion);
 
-    assert_eq!(handle.get().expect("run_task should publish result"), 42);
+    assert_eq!(handle.get().expect("runner should publish result"), 42);
 }

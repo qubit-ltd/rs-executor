@@ -31,6 +31,7 @@ impl<R, E> TaskCompletionPair<R, E> {
     /// # Returns
     ///
     /// A pair that can be split once into its handle and completion endpoints.
+    #[inline]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(TaskHandleInner {
@@ -50,6 +51,7 @@ impl<R, E> TaskCompletionPair<R, E> {
     /// # Returns
     ///
     /// A [`TaskHandle`] for the caller and a [`TaskCompletion`] for the runner.
+    #[inline]
     pub fn into_parts(self) -> (TaskHandle<R, E>, TaskCompletion<R, E>) {
         let handle = TaskHandle {
             inner: Arc::clone(&self.inner),
@@ -61,6 +63,7 @@ impl<R, E> TaskCompletionPair<R, E> {
 
 impl<R, E> Default for TaskCompletionPair<R, E> {
     /// Creates a new unsplit task completion pair.
+    #[inline]
     fn default() -> Self {
         Self::new()
     }

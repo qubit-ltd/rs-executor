@@ -13,7 +13,7 @@ use qubit_function::Callable;
 use crate::{
     TaskCompletionPair,
     TaskHandle,
-    task_runner::run_callable,
+    TaskRunner,
 };
 
 use super::Executor;
@@ -80,7 +80,7 @@ impl Executor for ThreadPerTaskExecutor {
     {
         let (handle, completion) = TaskCompletionPair::new().into_parts();
         thread::spawn(move || {
-            completion.start_and_complete(|| run_callable(task));
+            TaskRunner::new(task).run(completion);
         });
         handle
     }

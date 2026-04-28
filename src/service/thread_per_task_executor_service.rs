@@ -27,7 +27,7 @@ use qubit_function::Callable;
 use crate::{
     TaskCompletionPair,
     TaskHandle,
-    task_runner::run_callable,
+    TaskRunner,
 };
 
 use super::{
@@ -57,6 +57,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// # Returns
     ///
     /// A guard for the submission lock.
+    #[inline]
     fn lock_submission(&self) -> MutexGuard<'_, ()> {
         self.submission_lock
             .lock()
@@ -68,6 +69,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// # Returns
     ///
     /// A guard for the mutex paired with the termination condition variable.
+    #[inline]
     fn lock_termination(&self) -> MutexGuard<'_, ()> {
         self.termination_lock
             .lock()
@@ -75,6 +77,7 @@ impl ThreadPerTaskExecutorServiceState {
     }
 
     /// Wakes termination waiters when shutdown and task completion allow it.
+    #[inline]
     fn notify_if_terminated(&self) {
         if self.shutdown.load() && self.active_tasks.is_zero() {
             self.termination.notify_all();
@@ -158,7 +161,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         let (handle, completion) = TaskCompletionPair::new().into_parts();
         let state = Arc::clone(&self.state);
         thread::spawn(move || {
-            completion.start_and_complete(|| run_callable(task));
+            TaskRunner::new(task).run(completion);
             if state.active_tasks.dec() == 0 {
                 state.notify_if_terminated();
             }
@@ -192,11 +195,13 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     }
 
     /// Returns whether shutdown has been requested.
+    #[inline]
     fn is_shutdown(&self) -> bool {
         self.state.shutdown.load()
     }
 
     /// Returns whether shutdown was requested and all tasks are finished.
+    #[inline]
     fn is_terminated(&self) -> bool {
         self.is_shutdown() && self.state.active_tasks.is_zero()
     }
@@ -210,6 +215,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// A future that resolves after shutdown has been requested and all
     /// accepted OS-thread tasks have completed.
+    #[inline]
     fn await_termination(&self) -> Self::Termination<'_> {
         Box::pin(async move {
             self.state.wait_for_termination();

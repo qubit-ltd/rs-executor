@@ -17,7 +17,7 @@ pub mod task_execution_error;
 pub mod task_handle;
 pub mod task_handle_inner;
 pub mod task_handle_state;
-pub mod task_runner;
+mod task_runner;
 
 pub use task_completion::TaskCompletion;
 pub use task_completion_pair::TaskCompletionPair;
@@ -26,3 +26,4 @@ pub use task_execution_error::{
     TaskResult,
 };
 pub use task_handle::TaskHandle;
+pub use task_runner::TaskRunner;

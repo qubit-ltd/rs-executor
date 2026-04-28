@@ -18,12 +18,11 @@ pub mod executor;
 pub mod service;
 mod task;
 
-#[doc(hidden)]
-pub use crate::task::task_runner;
 pub use crate::task::{
     TaskCompletion,
     TaskCompletionPair,
     TaskHandle,
+    TaskRunner,
 };
 pub use crate::task::{
     TaskExecutionError,

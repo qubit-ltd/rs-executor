@@ -31,6 +31,7 @@ impl<R, E> Clone for TaskCompletion<R, E> {
     /// # Returns
     ///
     /// A completion endpoint sharing the same task state.
+    #[inline]
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -64,6 +65,7 @@ impl<R, E> TaskCompletion<R, E> {
     ///
     /// * `result` - Final task result to publish if the task is not already
     ///   completed.
+    #[inline]
     pub fn complete(&self, result: TaskResult<R, E>) {
         self.finish(result, |_| true);
     }
@@ -83,6 +85,7 @@ impl<R, E> TaskCompletion<R, E> {
     ///
     /// `true` if the closure was executed and its result was published, or
     /// `false` if the task had already been completed by cancellation.
+    #[inline]
     pub fn start_and_complete<F>(&self, task: F) -> bool
     where
         F: FnOnce() -> TaskResult<R, E>,
@@ -100,6 +103,7 @@ impl<R, E> TaskCompletion<R, E> {
     ///
     /// `true` if this call published a cancellation result, or `false` if the
     /// task was already started or completed.
+    #[inline]
     pub fn cancel(&self) -> bool {
         self.finish(Err(TaskExecutionError::Cancelled), |state| !state.started)
     }
