@@ -11,6 +11,7 @@ use std::thread;
 use qubit_function::Callable;
 
 use crate::{
+    TaskCompletionPair,
     TaskHandle,
     task_runner::run_callable,
 };
@@ -77,7 +78,7 @@ impl Executor for ThreadPerTaskExecutor {
         R: Send + 'static,
         E: std::fmt::Display + Send + 'static,
     {
-        let (handle, completion) = TaskHandle::completion_pair();
+        let (handle, completion) = TaskCompletionPair::new().into_parts();
         thread::spawn(move || {
             completion.start_and_complete(|| run_callable(task));
         });

@@ -25,6 +25,7 @@ use qubit_atomic::{
 use qubit_function::Callable;
 
 use crate::{
+    TaskCompletionPair,
     TaskHandle,
     task_runner::run_callable,
 };
@@ -154,7 +155,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         self.state.active_tasks.inc();
         drop(submission_guard);
 
-        let (handle, completion) = TaskHandle::completion_pair();
+        let (handle, completion) = TaskCompletionPair::new().into_parts();
         let state = Arc::clone(&self.state);
         thread::spawn(move || {
             completion.start_and_complete(|| run_callable(task));

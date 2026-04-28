@@ -22,6 +22,7 @@ mod task;
 pub use crate::task::task_runner;
 pub use crate::task::{
     TaskCompletion,
+    TaskCompletionPair,
     TaskHandle,
 };
 pub use crate::task::{

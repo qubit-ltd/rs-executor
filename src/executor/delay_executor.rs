@@ -14,6 +14,7 @@ use std::{
 use qubit_function::Callable;
 
 use crate::{
+    TaskCompletionPair,
     TaskHandle,
     task_runner::run_callable,
 };
@@ -84,7 +85,7 @@ impl Executor for DelayExecutor {
         R: Send + 'static,
         E: std::fmt::Display + Send + 'static,
     {
-        let (handle, completion) = TaskHandle::completion_pair();
+        let (handle, completion) = TaskCompletionPair::new().into_parts();
         let delay = self.delay;
         thread::spawn(move || {
             if !delay.is_zero() {

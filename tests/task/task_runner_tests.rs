@@ -10,11 +10,11 @@
 
 use std::io;
 
-use qubit_executor::TaskHandle;
+use qubit_executor::TaskCompletionPair;
 
 #[test]
 fn test_run_task_executes_through_completion() {
-    let (handle, completion) = TaskHandle::<usize, io::Error>::completion_pair();
+    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
 
     qubit_executor::task_runner::run_task(|| Ok::<usize, io::Error>(42), completion);
 

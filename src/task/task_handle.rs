@@ -16,13 +16,9 @@ use std::{
     },
 };
 
-use qubit_atomic::Atomic;
-use qubit_lock::Monitor;
-
 use super::TaskResult;
 use super::task_completion::TaskCompletion;
 use super::task_handle_inner::TaskHandleInner;
-use super::task_handle_state::TaskHandleState;
 
 /// Handle for a task running outside the caller's current stack.
 ///
@@ -40,32 +36,10 @@ use super::task_handle_state::TaskHandleState;
 /// Haixing Hu
 pub struct TaskHandle<R, E> {
     /// Shared state observed by the handle and updated by completion endpoints.
-    inner: Arc<TaskHandleInner<R, E>>,
+    pub(crate) inner: Arc<TaskHandleInner<R, E>>,
 }
 
 impl<R, E> TaskHandle<R, E> {
-    /// Creates a handle and completion endpoint used by a task runner.
-    ///
-    /// # Returns
-    ///
-    /// A handle for the caller and a completion endpoint for the runner.
-    pub fn completion_pair() -> (Self, TaskCompletion<R, E>) {
-        let inner = Arc::new(TaskHandleInner {
-            state: Monitor::new(TaskHandleState {
-                result: None,
-                started: false,
-                completed: false,
-                waker: None,
-            }),
-            done: Atomic::new(false),
-        });
-        let handle = Self {
-            inner: Arc::clone(&inner),
-        };
-        let completion = TaskCompletion { inner };
-        (handle, completion)
-    }
-
     /// Waits for the task to finish and returns its final result.
     ///
     /// This method blocks the current thread until a result is available.

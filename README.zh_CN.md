@@ -24,7 +24,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 - 提供 `ThreadPerTaskExecutor`，用于每个任务启动一个 OS 线程且不管理队列。
 - 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`shutdown_now` 和等待终止。
 - 提供 `ThreadPerTaskExecutorService` 作为基础托管服务实现。
-- 提供 `TaskHandle`、`TaskCompletion`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
+- 提供 `TaskCompletionPair`、`TaskHandle`、`TaskCompletion`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
 - 通过 `RejectedExecution` 与 `ShutdownReport` 提供共享的拒绝执行原因和关闭报告类型。
 
 ## Executor 与 ExecutorService

@@ -19,8 +19,8 @@ use std::{
 };
 
 use qubit_executor::{
+    TaskCompletionPair,
     TaskExecutionError,
-    TaskHandle,
     executor::{
         Executor,
         ThreadPerTaskExecutor,
@@ -84,7 +84,7 @@ fn test_task_handle_cancel_after_start_returns_false() {
 
 #[test]
 fn test_task_completion_start_and_complete_publishes_lazy_result() {
-    let (handle, completion) = TaskHandle::<usize, io::Error>::completion_pair();
+    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
 
     assert!(completion.start_and_complete(|| Ok(42)));
 
@@ -96,7 +96,7 @@ fn test_task_completion_start_and_complete_publishes_lazy_result() {
 
 #[test]
 fn test_task_completion_start_and_complete_skips_cancelled_task() {
-    let (handle, completion) = TaskHandle::<usize, io::Error>::completion_pair();
+    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
 
     assert!(handle.cancel());
     assert!(!completion.start_and_complete(|| {
@@ -108,7 +108,7 @@ fn test_task_completion_start_and_complete_skips_cancelled_task() {
 
 #[test]
 fn test_task_completion_clone_can_complete_task() {
-    let (handle, completion) = TaskHandle::<usize, io::Error>::completion_pair();
+    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
     let cloned = completion.clone();
 
     cloned.complete(Ok(42));
