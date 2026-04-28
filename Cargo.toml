@@ -28,9 +28,9 @@ doctest = true
 [dependencies]
 thiserror = "2.0"
 
-qubit-atomic = "0.10"
-qubit-function = "0.10"
-qubit-lock = "0.3"
+qubit-atomic = { path = "../rs-atomic", version = "0.10" }
+qubit-function = { path = "../rs-function", version = "0.10" }
+qubit-lock = { path = "../rs-lock", version = "0.3" }
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
