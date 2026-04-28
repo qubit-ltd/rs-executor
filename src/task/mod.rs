@@ -1,0 +1,26 @@
+/*******************************************************************************
+ *
+ *    Copyright (c) 2025 - 2026.
+ *    Haixing Hu, Qubit Co. Ltd.
+ *
+ *    All rights reserved.
+ *
+ ******************************************************************************/
+//! Task-related internal modules.
+//!
+//! This module groups task handle, execution error, and runner utilities that
+//! used to live at the crate root. They are reorganized under `task/`.
+
+pub mod task_completion;
+pub mod task_execution_error;
+pub mod task_handle;
+pub mod task_handle_inner;
+pub mod task_handle_state;
+pub mod task_runner;
+
+pub use task_completion::TaskCompletion;
+pub use task_execution_error::{
+    TaskExecutionError,
+    TaskResult,
+};
+pub use task_handle::TaskHandle;

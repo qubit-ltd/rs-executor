@@ -1,0 +1,36 @@
+[package]
+name = "qubit-executor"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+authors = ["Haixing Hu <starfish.hu@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/qubit-ltd/rs-executor"
+description = "Executor abstractions, task handles, and basic executor implementations for Qubit Rust libraries"
+homepage = "https://github.com/qubit-ltd/rs-executor"
+documentation = "https://docs.rs/qubit-executor"
+readme = "README.md"
+keywords = ["executor", "task", "concurrency", "service"]
+categories = ["concurrency", "asynchronous"]
+exclude = [
+    "coverage.sh",
+    "COVERAGE.md",
+    "COVERAGE.zh_CN.md",
+    ".circleci/*",
+    "ci-check.sh",
+    ".llvm-cov.toml",
+]
+
+[lib]
+name = "qubit_executor"
+doctest = true
+
+[dependencies]
+thiserror = "2.0"
+
+qubit-atomic = "0.10"
+qubit-function = "0.10"
+qubit-lock = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
