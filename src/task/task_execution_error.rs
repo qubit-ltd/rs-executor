@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use std::{
@@ -24,9 +25,6 @@ pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 ///
 /// * `E` - The error type returned by the task itself.
 ///
-/// # Author
-///
-/// Haixing Hu
 #[derive(Debug)]
 pub enum TaskExecutionError<E> {
     /// The task ran and returned `Err(E)`.

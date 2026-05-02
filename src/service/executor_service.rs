@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use std::future::Future;
@@ -30,9 +31,6 @@ use super::{
 /// has started or succeeded. The task's final result is observed through the
 /// returned handle.
 ///
-/// # Author
-///
-/// Haixing Hu
 pub trait ExecutorService: Send + Sync {
     /// Handle returned for an accepted task.
     type Handle<R, E>

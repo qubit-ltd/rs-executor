@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use std::{
@@ -19,9 +20,6 @@ use thiserror::Error;
 /// execution success or failure; accepted tasks report their final result
 /// through the handle returned by the service.
 ///
-/// # Author
-///
-/// Haixing Hu
 #[derive(Debug, Clone, Error)]
 pub enum RejectedExecution {
     /// The service has been shut down and no longer accepts new tasks.

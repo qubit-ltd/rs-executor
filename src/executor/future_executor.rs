@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use super::Executor;
@@ -20,7 +21,4 @@ use super::Executor;
 /// Rust cannot currently express this contract for all `R` and `E` directly in
 /// the trait definition, so implementations must document and uphold it.
 ///
-/// # Author
-///
-/// Haixing Hu
 pub trait FutureExecutor: Executor {}

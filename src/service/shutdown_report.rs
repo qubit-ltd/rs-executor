@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 /// Summary returned by an immediate executor-service shutdown request.
@@ -12,9 +13,6 @@
 /// pending tasks may have different result and error types, so returning a
 /// strongly typed list of unstarted tasks is not generally meaningful.
 ///
-/// # Author
-///
-/// Haixing Hu
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ShutdownReport {
     /// Number of tasks that were still queued when shutdown was requested.

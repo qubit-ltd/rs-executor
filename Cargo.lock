@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-executor"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "qubit-atomic",
  "qubit-function",

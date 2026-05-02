@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use std::{
@@ -28,9 +29,6 @@ use super::Executor;
 /// the configured delay and then runs the task. Dropping the handle does not
 /// cancel the helper thread.
 ///
-/// # Author
-///
-/// Haixing Hu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelayExecutor {
     /// Duration to sleep before each submitted task starts.

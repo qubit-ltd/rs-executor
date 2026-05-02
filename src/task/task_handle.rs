@@ -1,9 +1,10 @@
 /*******************************************************************************
  *
- *    Copyright (c) 2025 - 2026.
- *    Haixing Hu, Qubit Co. Ltd.
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
  *
- *    All rights reserved.
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
 use std::{
@@ -31,9 +32,6 @@ use super::task_handle_inner::TaskHandleInner;
 /// * `R` - The task success value.
 /// * `E` - The task error value.
 ///
-/// # Author
-///
-/// Haixing Hu
 pub struct TaskHandle<R, E> {
     /// Shared state observed by the handle and updated by completion endpoints.
     pub(crate) inner: Arc<TaskHandleInner<R, E>>,
