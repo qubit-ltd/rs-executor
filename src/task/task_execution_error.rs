@@ -7,10 +7,8 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    error::Error,
-    fmt,
-};
+use std::error::Error;
+use std::fmt;
 
 /// Result type used by managed task handles.
 pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;

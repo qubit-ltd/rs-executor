@@ -7,6 +7,9 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+#[allow(unused_imports)]
+use std::fmt::Display;
+
 use super::Executor;
 
 /// Marker trait for executors whose execution carrier is a future.

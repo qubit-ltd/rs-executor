@@ -27,10 +27,10 @@ libraries can depend only on the abstraction level they need.
 - `DirectExecutor` for deterministic same-thread execution.
 - `DelayExecutor` for delaying work before passing it to another executor.
 - `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
-- Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `shutdown_now`, and termination waiting.
+- Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and termination waiting.
 - `ThreadPerTaskExecutorService` as a basic managed service implementation.
 - `TaskHandle`, `TaskCompletion`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
-- Shared rejection and shutdown report types through `RejectedExecution` and `ShutdownReport`.
+- Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `RejectedExecution`, and `StopReport`.
 
 ## Executor vs ExecutorService
 

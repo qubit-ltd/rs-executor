@@ -22,6 +22,7 @@ use std::{
 };
 
 use qubit_executor::{
+    ExecutorServiceLifecycle,
     TaskExecutionError,
     service::{
         ExecutorService,
@@ -99,7 +100,7 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
     let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
 
     assert!(matches!(result, Err(RejectedExecution::Shutdown)));
-    assert!(service.is_shutdown());
+    assert!(service.is_not_running());
     assert!(service.is_terminated());
 }
 
@@ -118,14 +119,30 @@ fn test_thread_per_task_executor_service_await_termination_waits_for_tasks() {
         .expect("service should accept task");
 
     service.shutdown();
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::ShuttingDown);
+    assert!(service.is_shutting_down());
+    assert!(service.is_not_running());
     create_runtime().block_on(service.await_termination());
 
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());
     assert!(completed.load(Ordering::Acquire));
 }
 
 #[test]
-fn test_thread_per_task_executor_service_shutdown_now_reports_running_tasks() {
+fn test_thread_per_task_executor_service_lifecycle_defaults_to_running() {
+    let service = ThreadPerTaskExecutorService::new();
+
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Running);
+    assert!(service.is_running());
+    assert!(!service.is_not_running());
+    assert!(!service.is_shutting_down());
+    assert!(!service.is_stopping());
+    assert!(!service.is_terminated());
+}
+
+#[test]
+fn test_thread_per_task_executor_service_stop_reports_running_tasks() {
     let service = ThreadPerTaskExecutorService::new();
     let _handle = service
         .submit(|| {
@@ -134,9 +151,20 @@ fn test_thread_per_task_executor_service_shutdown_now_reports_running_tasks() {
         })
         .expect("service should accept task");
 
-    let report = service.shutdown_now();
+    let report = service.stop();
 
     assert_eq!(report.queued, 0);
     assert_eq!(report.cancelled, 0);
-    assert!(service.is_shutdown());
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Stopping);
+    assert!(service.is_stopping());
+    assert!(service.is_not_running());
+}
+
+#[test]
+fn test_thread_per_task_executor_service_stop_transitions_to_terminated() {
+    let service = ThreadPerTaskExecutorService::new();
+    service.stop();
+
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
+    assert!(service.is_terminated());
 }

@@ -16,6 +16,7 @@ pub mod executor;
 pub mod service;
 mod task;
 
+pub use crate::service::ExecutorServiceLifecycle;
 pub use crate::task::{
     TaskCompletion,
     TaskCompletionPair,

@@ -7,6 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use std::fmt::Display;
 use std::thread;
 
 use qubit_function::Callable;
@@ -61,7 +62,7 @@ impl Executor for ThreadPerTaskExecutor {
         = TaskHandle<R, E>
     where
         R: Send + 'static,
-        E: std::fmt::Display + Send + 'static;
+        E: Display + Send + 'static;
 
     /// Spawns one OS thread for the callable and returns a handle to its result.
     ///
@@ -77,7 +78,7 @@ impl Executor for ThreadPerTaskExecutor {
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
-        E: std::fmt::Display + Send + 'static,
+        E: Display + Send + 'static,
     {
         let (handle, completion) = TaskCompletionPair::new().into_parts();
         thread::spawn(move || {

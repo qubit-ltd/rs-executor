@@ -15,14 +15,15 @@ use std::{
         Condvar,
         Mutex,
         MutexGuard,
+        atomic::{
+            AtomicU8,
+            Ordering,
+        },
     },
     thread,
 };
 
-use qubit_atomic::{
-    Atomic,
-    AtomicCount,
-};
+use qubit_atomic::AtomicCount;
 use qubit_function::Callable;
 
 use crate::{
@@ -33,15 +34,16 @@ use crate::{
 
 use super::{
     ExecutorService,
+    ExecutorServiceLifecycle,
     RejectedExecution,
-    ShutdownReport,
+    StopReport,
 };
 
 /// Shared state for [`ThreadPerTaskExecutorService`].
 #[derive(Default)]
 struct ThreadPerTaskExecutorServiceState {
-    /// Whether shutdown has been requested.
-    shutdown: Atomic<bool>,
+    /// Current lifecycle state encoded as an [`ExecutorServiceLifecycle`] discriminant.
+    lifecycle: AtomicU8,
     /// Number of accepted OS-thread tasks that have not completed.
     active_tasks: AtomicCount,
     /// Serializes task submission and shutdown transitions.
@@ -77,10 +79,31 @@ impl ThreadPerTaskExecutorServiceState {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    /// Returns the currently stored lifecycle state.
+    ///
+    /// # Returns
+    ///
+    /// The lifecycle represented by the internal atomic discriminant.
+    #[inline]
+    fn lifecycle(&self) -> ExecutorServiceLifecycle {
+        ExecutorServiceLifecycle::from_u8(self.lifecycle.load(Ordering::Acquire))
+    }
+
+    /// Stores a new lifecycle state.
+    ///
+    /// # Parameters
+    ///
+    /// * `lifecycle` - New lifecycle state to publish.
+    #[inline]
+    fn set_lifecycle(&self, lifecycle: ExecutorServiceLifecycle) {
+        self.lifecycle.store(lifecycle as u8, Ordering::Release);
+    }
+
     /// Wakes termination waiters when shutdown and task completion allow it.
     #[inline]
     fn notify_if_terminated(&self) {
-        if self.shutdown.load() && self.active_tasks.is_zero() {
+        if self.lifecycle() != ExecutorServiceLifecycle::Running && self.active_tasks.is_zero() {
+            self.set_lifecycle(ExecutorServiceLifecycle::Terminated);
             self.termination.notify_all();
         }
     }
@@ -88,7 +111,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// Blocks the current thread until the service is terminated.
     fn wait_for_termination(&self) {
         let mut guard = self.lock_termination();
-        while !(self.shutdown.load() && self.active_tasks.is_zero()) {
+        while self.lifecycle() != ExecutorServiceLifecycle::Terminated {
             guard = self
                 .termination
                 .wait(guard)
@@ -153,7 +176,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         let submission_guard = self.state.lock_submission();
-        if self.state.shutdown.load() {
+        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
             return Err(RejectedExecution::Shutdown);
         }
         self.state.active_tasks.inc();
@@ -175,7 +198,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     /// Already accepted threads are allowed to finish.
     fn shutdown(&self) {
         let _guard = self.state.lock_submission();
-        self.state.shutdown.store(true);
+        if self.state.lifecycle() == ExecutorServiceLifecycle::Running {
+            self.state
+                .set_lifecycle(ExecutorServiceLifecycle::ShuttingDown);
+        }
         self.state.notify_if_terminated();
     }
 
@@ -187,24 +213,20 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// A report with zero queued tasks, the observed active thread count, and
     /// zero cancelled tasks.
-    fn shutdown_now(&self) -> ShutdownReport {
+    fn stop(&self) -> StopReport {
         let _guard = self.state.lock_submission();
-        self.state.shutdown.store(true);
+        if self.state.lifecycle() != ExecutorServiceLifecycle::Terminated {
+            self.state.set_lifecycle(ExecutorServiceLifecycle::Stopping);
+        }
         let running = self.state.active_tasks.get();
         self.state.notify_if_terminated();
-        ShutdownReport::new(0, running, 0)
+        StopReport::new(0, running, 0)
     }
 
-    /// Returns whether shutdown has been requested.
+    /// Returns the current lifecycle state.
     #[inline]
-    fn is_shutdown(&self) -> bool {
-        self.state.shutdown.load()
-    }
-
-    /// Returns whether shutdown was requested and all tasks are finished.
-    #[inline]
-    fn is_terminated(&self) -> bool {
-        self.is_shutdown() && self.state.active_tasks.is_zero()
+    fn lifecycle(&self) -> ExecutorServiceLifecycle {
+        self.state.lifecycle()
     }
 
     /// Waits for all accepted tasks to complete after shutdown.

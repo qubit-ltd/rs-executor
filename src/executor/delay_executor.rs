@@ -8,6 +8,7 @@
  *
  ******************************************************************************/
 use std::{
+    fmt::Display,
     thread,
     time::Duration,
 };
@@ -66,7 +67,7 @@ impl Executor for DelayExecutor {
         = TaskHandle<R, E>
     where
         R: Send + 'static,
-        E: std::fmt::Display + Send + 'static;
+        E: Display + Send + 'static;
 
     /// Starts a helper thread that waits and then runs the callable.
     ///
@@ -81,7 +82,7 @@ impl Executor for DelayExecutor {
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
-        E: std::fmt::Display + Send + 'static,
+        E: Display + Send + 'static,
     {
         let (handle, completion) = TaskCompletionPair::new().into_parts();
         let delay = self.delay;

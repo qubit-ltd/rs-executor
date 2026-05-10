@@ -11,11 +11,13 @@
 //!
 
 mod executor_service;
+mod executor_service_lifecycle;
 mod rejected_execution;
-mod shutdown_report;
+mod stop_report;
 mod thread_per_task_executor_service;
 
 pub use executor_service::ExecutorService;
+pub use executor_service_lifecycle::ExecutorServiceLifecycle;
 pub use rejected_execution::RejectedExecution;
-pub use shutdown_report::ShutdownReport;
+pub use stop_report::StopReport;
 pub use thread_per_task_executor_service::ThreadPerTaskExecutorService;
