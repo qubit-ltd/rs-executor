@@ -16,7 +16,7 @@ use std::{
 use qubit_executor::service::{
     ExecutorService,
     ExecutorServiceLifecycle,
-    RejectedExecution,
+    SubmissionError,
     ThreadPerTaskExecutorService,
 };
 
@@ -44,7 +44,7 @@ fn test_executor_service_submit_default_and_shutdown_rejection() {
         Err(error) => error,
     };
 
-    assert_eq!(rejected, RejectedExecution::Shutdown);
+    assert_eq!(rejected, SubmissionError::Shutdown);
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_not_running());
 }

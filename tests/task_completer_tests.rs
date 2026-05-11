@@ -11,13 +11,13 @@ use std::io;
 
 use qubit_executor::{
     TaskExecutionError,
-    task::TaskCompletionPair,
+    task::TaskEndpointPair,
 };
 
 /// Test task completion start, completion, and cancellation races through public endpoints.
 #[test]
-fn test_task_completion_start_complete_and_cancel_paths() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+fn test_task_completer_start_complete_and_cancel_paths() {
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     assert!(completion.start());
     assert!(!completion.cancel());
     completion.complete(Ok(42));
@@ -26,7 +26,7 @@ fn test_task_completion_start_complete_and_cancel_paths() {
         42
     );
 
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     assert!(completion.cancel());
     assert!(!completion.start());
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));

@@ -13,13 +13,15 @@
 mod executor_build_error;
 mod executor_service;
 mod executor_service_lifecycle;
-mod rejected_execution;
 mod stop_report;
+mod submission_error;
 mod thread_per_task_executor_service;
+mod thread_per_task_executor_service_builder;
 
 pub use executor_build_error::ExecutorBuildError;
 pub use executor_service::ExecutorService;
 pub use executor_service_lifecycle::ExecutorServiceLifecycle;
-pub use rejected_execution::RejectedExecution;
 pub use stop_report::StopReport;
+pub use submission_error::SubmissionError;
 pub use thread_per_task_executor_service::ThreadPerTaskExecutorService;
+pub use thread_per_task_executor_service_builder::ThreadPerTaskExecutorServiceBuilder;

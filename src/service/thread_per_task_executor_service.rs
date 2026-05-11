@@ -25,7 +25,7 @@ use crate::{
     TaskHandle,
     TrackedTask,
     task::{
-        TaskCompletionPair,
+        TaskEndpointPair,
         TaskRunner,
     },
 };
@@ -33,8 +33,9 @@ use crate::{
 use super::{
     ExecutorService,
     ExecutorServiceLifecycle,
-    RejectedExecution,
     StopReport,
+    SubmissionError,
+    ThreadPerTaskExecutorServiceBuilder,
 };
 
 type Worker = Box<dyn FnOnce() + Send + 'static>;
@@ -87,12 +88,12 @@ impl ThreadPerTaskExecutorServiceState {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution::Shutdown`] if the service is not running.
+    /// Returns [`SubmissionError::Shutdown`] if the service is not running.
     #[inline]
-    fn accept_task(&self) -> Result<(), RejectedExecution> {
+    fn accept_task(&self) -> Result<(), SubmissionError> {
         let mut state = self.state.lock();
         if state.lifecycle != ExecutorServiceLifecycle::Running {
-            return Err(RejectedExecution::Shutdown);
+            return Err(SubmissionError::Shutdown);
         }
         state.active_tasks += 1;
         Ok(())
@@ -182,24 +183,49 @@ impl ThreadPerTaskExecutorService {
         Self::default()
     }
 
-    /// Creates a service with an explicit worker thread stack size.
+    /// Creates a service with the supplied worker stack size configuration.
     ///
     /// # Parameters
     ///
-    /// * `stack_size` - Stack size in bytes for each spawned worker thread.
+    /// * `stack_size` - Optional stack size in bytes for spawned workers.
     ///
     /// # Returns
     ///
-    /// A service that applies the supplied stack size to each worker thread.
+    /// A service using the supplied worker stack size configuration.
     #[inline]
-    pub fn with_stack_size(stack_size: usize) -> Self {
+    pub(crate) fn from_stack_size(stack_size: Option<usize>) -> Self {
         Self {
             state: Arc::default(),
-            stack_size: Some(stack_size),
+            stack_size,
         }
     }
 
-    fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), RejectedExecution> {
+    /// Creates a builder for configuring this service.
+    ///
+    /// # Returns
+    ///
+    /// A builder initialized with default worker thread options.
+    #[inline]
+    pub const fn builder() -> ThreadPerTaskExecutorServiceBuilder {
+        ThreadPerTaskExecutorServiceBuilder::new()
+    }
+
+    /// Spawns one accepted worker thread.
+    ///
+    /// # Parameters
+    ///
+    /// * `worker` - Closure to run on the worker OS thread.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the worker was spawned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
+    /// refuses to create the worker thread. The accepted task count is rolled
+    /// back before the error is returned.
+    fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
         let mut builder = thread::Builder::new();
         if let Some(stack_size) = self.stack_size {
             builder = builder.stack_size(stack_size);
@@ -208,7 +234,7 @@ impl ThreadPerTaskExecutorService {
             Ok(()) => Ok(()),
             Err(error) => {
                 self.state.reject_accepted_task();
-                Err(RejectedExecution::worker_spawn_failed(error))
+                Err(SubmissionError::worker_spawn_failed(error))
             }
         }
     }
@@ -239,9 +265,9 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution::Shutdown`] if shutdown has already been
+    /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
     /// requested before the task is accepted.
-    fn submit<T, E>(&self, task: T) -> Result<(), RejectedExecution>
+    fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -251,7 +277,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         let state = Arc::clone(&self.state);
         self.spawn_worker_after_accept(Box::new(move || {
             let mut task = task;
-            let _ignored = TaskRunner::new(move || task.run()).call::<(), E>();
+            TaskRunner::new(move || task.run()).run_detached::<(), E>();
             state.finish_task();
         }))
     }
@@ -268,12 +294,9 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution::Shutdown`] if shutdown has already been
+    /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
     /// requested before the task is accepted.
-    fn submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, RejectedExecution>
+    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -281,7 +304,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     {
         self.state.accept_task()?;
 
-        let (handle, completion) = TaskCompletionPair::new().into_parts();
+        let (handle, completion) = TaskEndpointPair::new().into_parts();
         let state = Arc::clone(&self.state);
         self.spawn_worker_after_accept(Box::new(move || {
             TaskRunner::new(task).run(completion);
@@ -294,7 +317,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     fn submit_tracked_callable<C, R, E>(
         &self,
         task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, RejectedExecution>
+    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -302,7 +325,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     {
         self.state.accept_task()?;
 
-        let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
+        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
         let state = Arc::clone(&self.state);
         self.spawn_worker_after_accept(Box::new(move || {
             TaskRunner::new(task).run(completion);

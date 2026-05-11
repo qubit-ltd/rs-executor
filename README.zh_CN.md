@@ -24,7 +24,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 - 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`stop`、生命周期查询和阻塞式等待终止。
 - 提供 `ThreadPerTaskExecutorService` 作为基础托管服务实现。
 - 提供 `TaskHandle`、`TrackedTask`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
-- 通过 `ExecutorServiceLifecycle`、`RejectedExecution` 与 `StopReport` 提供共享的生命周期、拒绝执行原因和停止报告类型。
+- 通过 `ExecutorServiceLifecycle`、`SubmissionError` 与 `StopReport` 提供共享的生命周期、拒绝执行原因和停止报告类型。
 
 ## Executor 与 ExecutorService
 
@@ -73,7 +73,7 @@ use std::io;
 use qubit_executor::executor::{DirectExecutor, Executor};
 
 let executor = DirectExecutor;
-let value = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
+let value = executor.call(|| Ok::<usize, io::Error>(40 + 2))??;
 assert_eq!(value, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

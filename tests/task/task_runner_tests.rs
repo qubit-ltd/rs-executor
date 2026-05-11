@@ -12,13 +12,13 @@
 use std::io;
 
 use qubit_executor::task::{
-    TaskCompletionPair,
+    TaskEndpointPair,
     TaskRunner,
 };
 
 #[test]
 fn test_runner_executes_through_completion() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     TaskRunner::new(|| Ok::<usize, io::Error>(42)).run(completion);
 

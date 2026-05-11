@@ -25,8 +25,9 @@ use qubit_executor::{
     ExecutorServiceLifecycle,
     TaskExecutionError,
     service::{
+        ExecutorBuildError,
         ExecutorService,
-        RejectedExecution,
+        SubmissionError,
         ThreadPerTaskExecutorService,
     },
 };
@@ -89,7 +90,7 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
 
     let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
 
-    assert!(matches!(result, Err(RejectedExecution::Shutdown)));
+    assert!(matches!(result, Err(SubmissionError::Shutdown)));
     assert!(service.is_not_running());
     assert!(service.is_terminated());
 }
@@ -160,15 +161,73 @@ fn test_thread_per_task_executor_service_stop_transitions_to_terminated() {
 }
 
 #[test]
-fn test_thread_per_task_executor_service_reports_worker_spawn_failure() {
-    let service = ThreadPerTaskExecutorService::with_stack_size(usize::MAX);
+fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_failure() {
+    let service = ThreadPerTaskExecutorService::builder()
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
 
     let result = service.submit_callable(|| Ok::<usize, io::Error>(42));
 
     assert!(matches!(
         result,
-        Err(RejectedExecution::WorkerSpawnFailed { .. })
+        Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
     service.shutdown();
     service.wait_termination();
+}
+
+#[test]
+fn test_thread_per_task_executor_service_submit_reports_worker_spawn_failure() {
+    let service = ThreadPerTaskExecutorService::builder()
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
+
+    let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
+
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. })
+    ));
+    service.shutdown();
+    service.wait_termination();
+}
+
+#[test]
+fn test_thread_per_task_executor_service_submit_tracked_reports_worker_spawn_failure() {
+    let service = ThreadPerTaskExecutorService::builder()
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
+
+    let result = service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
+
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. })
+    ));
+    service.shutdown();
+    service.wait_termination();
+}
+
+#[test]
+fn test_thread_per_task_executor_service_repeated_shutdown_and_stop_are_idempotent() {
+    let service = ThreadPerTaskExecutorService::new();
+
+    service.shutdown();
+    service.shutdown();
+    let report = service.stop();
+
+    assert_eq!(report.running, 0);
+    assert!(service.is_terminated());
+}
+
+#[test]
+fn test_thread_per_task_executor_service_builder_rejects_zero_stack_size() {
+    let result = ThreadPerTaskExecutorService::builder()
+        .stack_size(0)
+        .build();
+
+    assert!(matches!(result, Err(ExecutorBuildError::ZeroStackSize)));
 }

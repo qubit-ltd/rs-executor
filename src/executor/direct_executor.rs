@@ -9,6 +9,12 @@
  ******************************************************************************/
 use qubit_function::Callable;
 
+use crate::{
+    TaskResult,
+    service::SubmissionError,
+    task::TaskRunner,
+};
+
 use super::Executor;
 
 /// Executes tasks immediately on the caller thread.
@@ -19,8 +25,8 @@ use super::Executor;
 pub struct DirectExecutor;
 
 impl Executor for DirectExecutor {
-    type Execution<R, E>
-        = Result<R, E>
+    type Output<R, E>
+        = TaskResult<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
@@ -33,14 +39,14 @@ impl Executor for DirectExecutor {
     ///
     /// # Returns
     ///
-    /// The exact `Result<R, E>` returned by the callable.
+    /// The ready task result produced by the callable.
     #[inline]
-    fn call<C, R, E>(&self, mut task: C) -> Self::Execution<R, E>
+    fn call<C, R, E>(&self, task: C) -> Result<Self::Output<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        task.call()
+        Ok(TaskRunner::new(task).call())
     }
 }

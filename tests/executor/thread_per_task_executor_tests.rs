@@ -23,7 +23,10 @@ use qubit_executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
-    service::RejectedExecution,
+    service::{
+        ExecutorBuildError,
+        SubmissionError,
+    },
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -95,13 +98,23 @@ fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
 }
 
 #[test]
-fn test_thread_per_task_executor_reports_worker_spawn_failure() {
-    let executor = ThreadPerTaskExecutor::with_stack_size(usize::MAX);
+fn test_thread_per_task_executor_builder_rejects_zero_stack_size() {
+    let result = ThreadPerTaskExecutor::builder().stack_size(0).build();
+
+    assert!(matches!(result, Err(ExecutorBuildError::ZeroStackSize)));
+}
+
+#[test]
+fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
+    let executor = ThreadPerTaskExecutor::builder()
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
 
     let result = executor.call(|| Ok::<usize, io::Error>(42));
 
     assert!(matches!(
         result,
-        Err(RejectedExecution::WorkerSpawnFailed { .. })
+        Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
 }

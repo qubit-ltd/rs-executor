@@ -15,7 +15,7 @@ use std::panic::{
 use qubit_function::Callable;
 
 use super::{
-    TaskCompletion,
+    TaskCompleter,
     TaskExecutionError,
     TaskResult,
 };
@@ -24,7 +24,7 @@ use super::{
 ///
 /// `TaskRunner` owns the accepted callable, converts task failures and panics
 /// into [`TaskExecutionError`], and can publish the final result through a
-/// [`TaskCompletion`] endpoint.
+/// [`TaskCompleter`] endpoint.
 pub struct TaskRunner<C> {
     /// Callable task owned by this runner.
     task: C,
@@ -74,10 +74,22 @@ impl<C> TaskRunner<C> {
     /// `true` if the task started and its result was published, or `false` if
     /// the completion endpoint had already been completed by cancellation.
     #[inline]
-    pub fn run<R, E>(self, completion: TaskCompletion<R, E>) -> bool
+    pub fn run<R, E>(self, completion: TaskCompleter<R, E>) -> bool
     where
         C: Callable<R, E>,
     {
         completion.start_and_complete(|| self.call())
+    }
+
+    /// Runs this task and discards its final result.
+    ///
+    /// This is intended for detached runnable submissions whose caller only
+    /// observes acceptance. The callable is still wrapped in panic conversion,
+    /// but success, task failure, and panic results are intentionally dropped.
+    pub fn run_detached<R, E>(self)
+    where
+        C: Callable<R, E>,
+    {
+        let _ignored = self.call::<R, E>();
     }
 }

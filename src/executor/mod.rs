@@ -15,8 +15,10 @@ mod direct_executor;
 #[allow(clippy::module_inception)]
 mod executor;
 mod thread_per_task_executor;
+mod thread_per_task_executor_builder;
 
 pub use delay_executor::DelayExecutor;
 pub use direct_executor::DirectExecutor;
 pub use executor::Executor;
 pub use thread_per_task_executor::ThreadPerTaskExecutor;
+pub use thread_per_task_executor_builder::ThreadPerTaskExecutorBuilder;

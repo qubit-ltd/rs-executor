@@ -21,12 +21,12 @@ use super::task_status::TaskStatus;
 /// while still returning the standard [`crate::TaskHandle`]. Normal callers
 /// should use [`crate::TaskHandle`] and executor/service submission methods
 /// instead.
-pub struct TaskCompletion<R, E> {
+pub struct TaskCompleter<R, E> {
     /// Shared state updated by this completion endpoint.
     pub(crate) inner: Arc<TaskHandleInner<R, E>>,
 }
 
-impl<R, E> Clone for TaskCompletion<R, E> {
+impl<R, E> Clone for TaskCompleter<R, E> {
     /// Clones the completion endpoint for mutually exclusive finish paths.
     ///
     /// # Returns
@@ -40,7 +40,7 @@ impl<R, E> Clone for TaskCompletion<R, E> {
     }
 }
 
-impl<R, E> TaskCompletion<R, E> {
+impl<R, E> TaskCompleter<R, E> {
     /// Marks the task as started if it was not cancelled first.
     ///
     /// # Returns
