@@ -22,7 +22,7 @@ use super::task_status::{
 };
 
 /// Number of event codes represented by [`TaskStatusEvent`].
-const TASK_STATUS_EVENT_COUNT: usize = 8;
+const TASK_STATUS_EVENT_COUNT: usize = 6;
 
 /// Shared task status machine used by all task handles.
 static TASK_STATUS_MACHINE: LazyLock<FastStateMachine> = LazyLock::new(build_task_status_machine);
@@ -41,12 +41,8 @@ enum TaskStatusEvent {
     CompleteFailed = 3,
     /// Complete a running task after panic conversion.
     CompletePanicked = 4,
-    /// Complete a running task with a cancellation result.
-    CompleteCancelled = 5,
-    /// Complete a running task with a dropped-result error.
-    CompleteDropped = 6,
     /// Drop a pending or running task slot before normal completion.
-    DropUnfinished = 7,
+    DropUnfinished = 5,
 }
 
 impl TaskStatusEvent {
@@ -60,23 +56,25 @@ impl TaskStatusEvent {
         self as usize
     }
 
-    /// Returns the completion event matching a terminal task status.
+    /// Returns the completion event matching a normal running-task terminal status.
     ///
     /// # Parameters
     ///
-    /// * `status` - Terminal status represented by a task result.
+    /// * `status` - Terminal status represented by a normal task result.
     ///
     /// # Returns
     ///
-    /// `Some(event)` for terminal statuses and `None` for non-terminal states.
+    /// `Some(event)` for success, failure, and panic statuses; `None` for
+    /// non-terminal states and terminal states owned by explicit cancel/drop APIs.
     const fn from_completion_status(status: TaskStatus) -> Option<Self> {
         match status {
             TaskStatus::Succeeded => Some(Self::CompleteSucceeded),
             TaskStatus::Failed => Some(Self::CompleteFailed),
             TaskStatus::Panicked => Some(Self::CompletePanicked),
-            TaskStatus::Cancelled => Some(Self::CompleteCancelled),
-            TaskStatus::Dropped => Some(Self::CompleteDropped),
-            TaskStatus::Pending | TaskStatus::Running => None,
+            TaskStatus::Pending
+            | TaskStatus::Running
+            | TaskStatus::Cancelled
+            | TaskStatus::Dropped => None,
         }
     }
 }
@@ -117,16 +115,6 @@ fn build_task_status_machine() -> FastStateMachine {
             running,
             TaskStatusEvent::CompletePanicked.as_usize(),
             panicked,
-        )
-        .transition(
-            running,
-            TaskStatusEvent::CompleteCancelled.as_usize(),
-            cancelled,
-        )
-        .transition(
-            running,
-            TaskStatusEvent::CompleteDropped.as_usize(),
-            dropped,
         )
         .transition(pending, TaskStatusEvent::DropUnfinished.as_usize(), dropped)
         .transition(running, TaskStatusEvent::DropUnfinished.as_usize(), dropped)
@@ -187,15 +175,16 @@ impl AtomicTaskStatus {
         self.try_transition(TaskStatusEvent::CancelPending)
     }
 
-    /// Attempts to complete a running task with a terminal status.
+    /// Attempts to complete a running task with a normal terminal status.
     ///
     /// # Parameters
     ///
-    /// * `status` - Terminal status represented by the task result.
+    /// * `status` - Success, failure, or panic status represented by the task result.
     ///
     /// # Returns
     ///
-    /// `true` if the state changed from running to `status`.
+    /// `true` if the state changed from running to `status`; `false` for
+    /// cancellation or dropped statuses, which are handled by explicit APIs.
     #[inline]
     pub(crate) fn try_complete(&self, status: TaskStatus) -> bool {
         let Some(event) = TaskStatusEvent::from_completion_status(status) else {
@@ -240,9 +229,7 @@ mod task_status_event_encoding_tests {
         assert_eq!(TaskStatusEvent::CompleteSucceeded.as_usize(), 2);
         assert_eq!(TaskStatusEvent::CompleteFailed.as_usize(), 3);
         assert_eq!(TaskStatusEvent::CompletePanicked.as_usize(), 4);
-        assert_eq!(TaskStatusEvent::CompleteCancelled.as_usize(), 5);
-        assert_eq!(TaskStatusEvent::CompleteDropped.as_usize(), 6);
-        assert_eq!(TaskStatusEvent::DropUnfinished.as_usize(), 7);
+        assert_eq!(TaskStatusEvent::DropUnfinished.as_usize(), 5);
     }
 
     #[test]
@@ -253,8 +240,6 @@ mod task_status_event_encoding_tests {
             TaskStatusEvent::CompleteSucceeded,
             TaskStatusEvent::CompleteFailed,
             TaskStatusEvent::CompletePanicked,
-            TaskStatusEvent::CompleteCancelled,
-            TaskStatusEvent::CompleteDropped,
             TaskStatusEvent::DropUnfinished,
         ];
         for (i, event) in events.iter().enumerate() {
