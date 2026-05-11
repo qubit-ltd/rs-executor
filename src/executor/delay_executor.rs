@@ -134,15 +134,12 @@ impl Executor for DelayExecutor {
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
         self.hook.on_accepted(handle.task_id());
         let delay = self.delay;
-        if let Err(error) = Self::spawn_worker(Box::new(move || {
+        Self::spawn_worker(Box::new(move || {
             if !delay.is_zero() {
                 thread::sleep(delay);
             }
             slot.run(task);
-        })) {
-            self.hook.on_rejected(&error);
-            return Err(error);
-        }
+        }))?;
         Ok(handle)
     }
 }

@@ -159,12 +159,10 @@ impl Executor for ThreadPerTaskExecutor {
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
         self.hook.on_accepted(handle.task_id());
-        if let Err(error) = self.spawn_worker(move || {
+        self.spawn_worker(move || {
             slot.run(task);
-        }) {
-            self.hook.on_rejected(&error);
-            return Err(error);
-        }
+        })
+        .inspect_err(|error| self.hook.on_rejected(error))?;
         Ok(handle)
     }
 }

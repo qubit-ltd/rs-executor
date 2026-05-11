@@ -98,7 +98,7 @@ impl Executor for ScheduleExecutor {
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
         self.hook.on_accepted(handle.task_id());
         let instant = self.instant;
-        if let Err(error) = thread::Builder::new()
+        thread::Builder::new()
             .spawn(move || {
                 let now = Instant::now();
                 if instant > now {
@@ -107,11 +107,7 @@ impl Executor for ScheduleExecutor {
                 slot.run(task);
             })
             .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)
-        {
-            self.hook.on_rejected(&error);
-            return Err(error);
-        }
+            .map_err(SubmissionError::worker_spawn_failed)?;
         Ok(handle)
     }
 }
