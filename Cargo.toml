@@ -1,6 +1,6 @@
 [package]
 name = "qubit-executor"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -15,12 +15,13 @@ categories = ["concurrency", "asynchronous"]
 exclude = [
     "align-ci.sh",
     "coverage.sh",
-    "COVERAGE.md",
-    "COVERAGE.zh_CN.md",
     "ci-check.sh",
+    "style-check.sh",
+    "update-submodule.sh",
     ".github/*",
     ".llvm-cov.toml",
     ".rs-ci/*",
+    ".qubit-style-allowlist",
 ]
 
 [lib]
