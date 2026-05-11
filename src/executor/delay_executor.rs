@@ -135,22 +135,32 @@ impl Executor for DelayExecutor {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let delay = self.delay;
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            Self::spawn_worker(Box::new(move || {
+                worker_gate.wait();
+                if !delay.is_zero() {
+                    thread::sleep(delay);
+                }
+                slot.run(task);
+            }))
+            .inspect_err(|error| {
+                if let Some(hook) = &self.hook {
+                    notify_rejected(hook.as_ref(), error);
+                }
+            })?;
+            handle.accept();
+            gate.open();
+            return Ok(handle);
+        }
         Self::spawn_worker(Box::new(move || {
-            worker_gate.wait();
             if !delay.is_zero() {
                 thread::sleep(delay);
             }
             slot.run(task);
-        }))
-        .inspect_err(|error| {
-            if let Some(hook) = &self.hook {
-                notify_rejected(hook.as_ref(), error);
-            }
-        })?;
+        }))?;
         handle.accept();
-        gate.open();
         Ok(handle)
     }
 }

@@ -90,11 +90,31 @@ impl Executor for ScheduleExecutor {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            thread::Builder::new()
+                .spawn(move || {
+                    worker_gate.wait();
+                    let now = Instant::now();
+                    if instant > now {
+                        thread::sleep(instant.duration_since(now));
+                    }
+                    slot.run(task);
+                })
+                .map(drop)
+                .map_err(SubmissionError::worker_spawn_failed)
+                .inspect_err(|error| {
+                    if let Some(hook) = &self.hook {
+                        notify_rejected(hook.as_ref(), error);
+                    }
+                })?;
+            handle.accept();
+            gate.open();
+            return Ok(handle);
+        }
         thread::Builder::new()
             .spawn(move || {
-                worker_gate.wait();
                 let now = Instant::now();
                 if instant > now {
                     thread::sleep(instant.duration_since(now));
@@ -102,14 +122,8 @@ impl Executor for ScheduleExecutor {
                 slot.run(task);
             })
             .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)
-            .inspect_err(|error| {
-                if let Some(hook) = &self.hook {
-                    notify_rejected(hook.as_ref(), error);
-                }
-            })?;
+            .map_err(SubmissionError::worker_spawn_failed)?;
         handle.accept();
-        gate.open();
         Ok(handle)
     }
 }

@@ -156,19 +156,26 @@ impl Executor for ThreadPerTaskExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            self.spawn_worker(move || {
+                worker_gate.wait();
+                slot.run(task);
+            })
+            .inspect_err(|error| {
+                if let Some(hook) = &self.hook {
+                    notify_rejected(hook.as_ref(), error);
+                }
+            })?;
+            handle.accept();
+            gate.open();
+            return Ok(handle);
+        }
         self.spawn_worker(move || {
-            worker_gate.wait();
             slot.run(task);
-        })
-        .inspect_err(|error| {
-            if let Some(hook) = &self.hook {
-                notify_rejected(hook.as_ref(), error);
-            }
         })?;
         handle.accept();
-        gate.open();
         Ok(handle)
     }
 }
