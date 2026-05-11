@@ -113,8 +113,8 @@ impl<R, E> TaskState<R, E> {
     /// `true` if this call started the task, or `false` if the task was already
     /// running or terminal.
     #[inline]
-    pub(crate) fn start(&self, notify_hook: bool) -> bool {
-        let started = self.status.start();
+    pub(crate) fn try_start(&self, notify_hook: bool) -> bool {
+        let started = self.status.try_start();
         if started
             && notify_hook
             && let Some(hook) = &self.hook
@@ -130,12 +130,15 @@ impl<R, E> TaskState<R, E> {
     ///
     /// `true` if this call published a cancellation result.
     #[inline]
-    pub(crate) fn cancel_pending(&self) -> bool {
-        self.finish(
-            Err(TaskExecutionError::Cancelled),
-            self.is_accepted(),
-            |status| status == TaskStatus::Pending,
-        )
+    pub(crate) fn try_cancel_pending(&self) -> bool {
+        let notify_hook = self.is_accepted();
+        let result = Err(TaskExecutionError::Cancelled);
+        let status = TaskStatus::from_result(&result);
+        if !self.status.try_cancel_pending() {
+            return false;
+        }
+        self.publish_terminal_result(result, notify_hook, status);
+        true
     }
 
     /// Publishes a dropped-result error if no terminal result exists.
@@ -144,47 +147,55 @@ impl<R, E> TaskState<R, E> {
     ///
     /// `true` if this call published a dropped-result error.
     #[inline]
-    pub(crate) fn drop_unfinished(&self, notify_hook: bool) -> bool {
-        self.finish(Err(TaskExecutionError::Dropped), notify_hook, |_| true)
+    pub(crate) fn try_drop_unfinished(&self, notify_hook: bool) -> bool {
+        let result = Err(TaskExecutionError::Dropped);
+        let status = TaskStatus::from_result(&result);
+        if !self.status.try_drop_unfinished() {
+            return false;
+        }
+        self.publish_terminal_result(result, notify_hook, status);
+        true
     }
 
-    /// Attempts to publish a terminal result when the current status allows it.
+    /// Attempts to complete a running task with its final result.
     ///
     /// # Parameters
     ///
     /// * `result` - Final task result to publish.
-    /// * `can_finish` - Predicate deciding whether the current status may
-    ///   transition to a terminal state.
+    /// * `notify_hook` - Whether to emit the finished hook after publication.
     ///
     /// # Returns
     ///
-    /// `true` if this call published the terminal result, or `false` if another
-    /// path already won or `can_finish` rejected the observed status.
-    pub(crate) fn finish<F>(
+    /// `true` if this call published the terminal result, or `false` if the
+    /// task was not running or another terminal path already won.
+    pub(crate) fn try_complete(&self, result: TaskResult<R, E>, notify_hook: bool) -> bool {
+        let status = TaskStatus::from_result(&result);
+        if !self.status.try_complete(status) {
+            return false;
+        }
+        self.publish_terminal_result(result, notify_hook, status);
+        true
+    }
+
+    /// Sends the terminal result and emits the finished hook after a won transition.
+    ///
+    /// # Parameters
+    ///
+    /// * `result` - Terminal result to send to the task handle.
+    /// * `notify_hook` - Whether to emit the finished hook.
+    /// * `status` - Terminal status installed before this call.
+    fn publish_terminal_result(
         &self,
         result: TaskResult<R, E>,
         notify_hook: bool,
-        mut can_finish: F,
-    ) -> bool
-    where
-        F: FnMut(TaskStatus) -> bool,
-    {
-        let next = TaskStatus::from_result(&result);
-        loop {
-            let current = self.status();
-            if current.is_done() || !can_finish(current) {
-                return false;
-            }
-            if self.status.compare_set(current, next) {
-                let sender = self.sender.lock().take();
-                if let Some(sender) = sender {
-                    let _ignored = sender.send(result);
-                }
-                if notify_hook && let Some(hook) = &self.hook {
-                    notify_finished(hook.as_ref(), self.task_id, next);
-                }
-                return true;
-            }
+        status: TaskStatus,
+    ) {
+        let sender = self.sender.lock().take();
+        if let Some(sender) = sender {
+            let _ignored = sender.send(result);
+        }
+        if notify_hook && let Some(hook) = &self.hook {
+            notify_finished(hook.as_ref(), self.task_id, status);
         }
     }
 }

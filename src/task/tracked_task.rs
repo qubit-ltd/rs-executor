@@ -127,7 +127,7 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
-        if self.handle.state.cancel_pending() {
+        if self.handle.state.try_cancel_pending() {
             return CancelResult::Cancelled;
         }
         match self.status() {

@@ -15,7 +15,6 @@ use super::{
     TaskResult,
     task_runner::TaskRunner,
     task_state::TaskState,
-    task_status::TaskStatus,
 };
 
 /// Runner-side slot for one task submission.
@@ -51,7 +50,7 @@ impl<R, E> TaskSlot<R, E> {
     /// `true` if the runner should execute the task, or `false` if the task was
     /// already completed through cancellation.
     pub(crate) fn start(&self) -> bool {
-        self.state.start(self.state.is_accepted())
+        self.state.try_start(self.state.is_accepted())
     }
 
     /// Completes the task with its final result.
@@ -64,7 +63,7 @@ impl<R, E> TaskSlot<R, E> {
     ///   completed.
     #[inline]
     pub(crate) fn complete(&self, result: TaskResult<R, E>) {
-        self.finish(result, |_| true);
+        let _completed = self.state.try_complete(result, self.state.is_accepted());
     }
 
     /// Starts the task and completes it with a lazily produced result.
@@ -94,27 +93,6 @@ impl<R, E> TaskSlot<R, E> {
         true
     }
 
-    /// Publishes a terminal result when the supplied predicate allows it.
-    ///
-    /// # Parameters
-    ///
-    /// * `result` - Terminal result to store.
-    /// * `can_finish` - Predicate evaluated against the observed task status to
-    ///   decide whether this path may publish the result.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the result was published and waiters were notified, or
-    /// `false` if another completion path already won or `can_finish`
-    /// rejected the transition.
-    fn finish<F>(&self, result: TaskResult<R, E>, can_finish: F) -> bool
-    where
-        F: FnMut(TaskStatus) -> bool,
-    {
-        self.state
-            .finish(result, self.state.is_accepted(), can_finish)
-    }
-
     /// Starts this slot and runs a callable to completion.
     ///
     /// # Parameters
@@ -138,6 +116,6 @@ impl<R, E> Drop for TaskSlot<R, E> {
     /// Publishes a dropped-result error when the runner endpoint is abandoned.
     #[inline]
     fn drop(&mut self) {
-        let _ignored = self.state.drop_unfinished(self.state.is_accepted());
+        let _ignored = self.state.try_drop_unfinished(self.state.is_accepted());
     }
 }

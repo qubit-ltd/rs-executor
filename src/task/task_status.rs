@@ -47,13 +47,13 @@ impl TaskStatus {
         )
     }
 
-    /// Converts this status to its compact atomic representation.
+    /// Converts this status to its compact state-machine representation.
     ///
     /// # Returns
     ///
-    /// A stable byte code used by task completion state.
+    /// A stable integer code used by task completion state.
     #[inline]
-    pub(crate) const fn as_u8(self) -> u8 {
+    pub(crate) const fn as_usize(self) -> usize {
         match self {
             Self::Pending => 0,
             Self::Running => 1,
@@ -65,11 +65,11 @@ impl TaskStatus {
         }
     }
 
-    /// Converts a compact atomic representation into a task status.
+    /// Converts a compact state-machine representation into a task status.
     ///
     /// # Parameters
     ///
-    /// * `value` - Byte value previously produced by [`Self::as_u8`].
+    /// * `value` - Integer value previously produced by [`Self::as_usize`].
     ///
     /// # Returns
     ///
@@ -79,7 +79,7 @@ impl TaskStatus {
     ///
     /// Panics if `value` is not a valid task status code.
     #[inline]
-    pub(crate) const fn from_u8(value: u8) -> Self {
+    pub(crate) const fn from_usize(value: usize) -> Self {
         match value {
             0 => Self::Pending,
             1 => Self::Running,
