@@ -8,7 +8,6 @@
  *
  ******************************************************************************/
 mod executor;
-mod hook_tests;
+mod hook;
 mod service;
 mod task;
-mod task_execution_error_tests;

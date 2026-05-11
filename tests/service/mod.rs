@@ -8,4 +8,7 @@
  *
  ******************************************************************************/
 mod executor_service_builder_error_tests;
+mod executor_service_tests;
+mod stop_report_tests;
+mod submission_error_tests;
 mod thread_per_task_executor_service_tests;

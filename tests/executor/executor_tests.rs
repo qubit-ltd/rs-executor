@@ -11,17 +11,11 @@ use std::{
     io,
     sync::{
         Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
-use qubit_executor::executor::{
-    DirectExecutor,
-    Executor,
-};
+use qubit_executor::executor::{DirectExecutor, Executor};
 
 /// Test the default runnable execution method on the executor trait.
 #[test]

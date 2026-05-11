@@ -12,29 +12,16 @@
 use std::{
     io,
     sync::{
-        Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
 use qubit_executor::{
-    TaskExecutionError,
-    executor::{
-        Executor,
-        ThreadPerTaskExecutor,
-    },
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        TaskId,
-    },
-    service::{
-        ExecutorServiceBuilderError,
-        SubmissionError,
-    },
+    TaskExecutionError, TaskStatus,
+    executor::{Executor, ThreadPerTaskExecutor},
+    hook::{NoopTaskHook, TaskHook, TaskId},
+    service::{ExecutorServiceBuilderError, SubmissionError},
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -43,6 +30,7 @@ static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
 struct CountingHook {
     accepted: AtomicUsize,
     rejected: AtomicUsize,
+    finished: AtomicUsize,
 }
 
 impl TaskHook for CountingHook {
@@ -52,6 +40,47 @@ impl TaskHook for CountingHook {
 
     fn on_rejected(&self, _error: &SubmissionError) {
         self.rejected.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
+        self.finished.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
+#[derive(Default)]
+struct RecordingHook {
+    events: Mutex<Vec<&'static str>>,
+}
+
+impl RecordingHook {
+    fn events(&self) -> Vec<&'static str> {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .clone()
+    }
+}
+
+impl TaskHook for RecordingHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push("accepted");
+    }
+
+    fn on_started(&self, _task_id: TaskId) {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push("started");
+    }
+
+    fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push("finished");
     }
 }
 
@@ -90,6 +119,20 @@ fn test_thread_per_task_executor_call_returns_value() {
             .expect("thread-per-task executor should return callable value"),
         42,
     );
+}
+
+#[test]
+fn test_thread_per_task_executor_hook_events_are_ordered() {
+    let hook = Arc::new(RecordingHook::default());
+    let executor = ThreadPerTaskExecutor::new().with_hook(hook.clone());
+
+    executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn")
+        .get()
+        .expect("task should succeed");
+
+    assert_eq!(hook.events(), vec!["accepted", "started", "finished"]);
 }
 
 #[test]
@@ -148,4 +191,5 @@ fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
     ));
     assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
     assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
+    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
 }

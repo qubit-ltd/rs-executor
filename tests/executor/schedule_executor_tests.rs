@@ -11,20 +11,11 @@
 
 use std::{
     io,
-    sync::{
-        Arc,
-        mpsc,
-    },
-    time::{
-        Duration,
-        Instant,
-    },
+    sync::{Arc, mpsc},
+    time::{Duration, Instant},
 };
 
-use qubit_executor::executor::{
-    Executor,
-    ScheduleExecutor,
-};
+use qubit_executor::executor::{Executor, ScheduleExecutor};
 use qubit_executor::hook::NoopTaskHook;
 
 #[test]

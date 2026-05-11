@@ -9,10 +9,7 @@
  ******************************************************************************/
 use std::io;
 
-use qubit_executor::{
-    TaskExecutionError,
-    task::spi::TaskEndpointPair,
-};
+use qubit_executor::{CancelResult, TaskExecutionError, task::spi::TaskEndpointPair};
 
 /// Test task completion start, completion, and cancellation races through public endpoints.
 #[test]
@@ -24,8 +21,8 @@ fn test_task_slot_start_run_and_cancel_paths() {
         42
     );
 
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
-    assert!(completion.cancel());
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(!completion.run(|| Ok(42)));
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 }

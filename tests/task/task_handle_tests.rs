@@ -11,29 +11,16 @@
 
 use std::{
     io,
-    sync::{
-        Arc,
-        mpsc,
-    },
+    sync::{Arc, mpsc},
     thread,
     time::Duration,
 };
 
 use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    TaskStatus,
-    TryGet,
-    executor::{
-        Executor,
-        ThreadPerTaskExecutor,
-    },
+    CancelResult, TaskExecutionError, TaskStatus, TryGet,
+    executor::{Executor, ThreadPerTaskExecutor},
     service::SubmissionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskResultHandle,
-        TrackedTaskHandle,
-    },
+    task::spi::{TaskEndpointPair, TaskResultHandle, TrackedTaskHandle},
 };
 
 #[tokio::test]

@@ -7,8 +7,4 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-mod delay_executor_tests;
-mod direct_executor_tests;
-mod executor_tests;
-mod schedule_executor_tests;
-mod thread_per_task_executor_tests;
+mod hook_tests;

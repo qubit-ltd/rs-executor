@@ -8,31 +8,15 @@
  *
  ******************************************************************************/
 use std::{
-    io,
-    panic,
-    sync::{
-        Arc,
-        Mutex,
-        Once,
-    },
+    io, panic,
+    sync::{Arc, Mutex, Once},
 };
 
-use log::{
-    LevelFilter,
-    Metadata,
-    Record,
-};
+use log::{LevelFilter, Metadata, Record};
 use qubit_executor::{
     TaskStatus,
-    executor::{
-        DirectExecutor,
-        Executor,
-    },
-    hook::{
-        LoggingTaskHook,
-        TaskHook,
-        TaskId,
-    },
+    executor::{DirectExecutor, Executor},
+    hook::{LoggingTaskHook, TaskHook, TaskId},
     service::SubmissionError,
 };
 

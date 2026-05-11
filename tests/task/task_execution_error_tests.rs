@@ -9,7 +9,7 @@
  ******************************************************************************/
 //! Tests for TaskExecutionError helpers and Display.
 
-use std::io;
+use std::{error::Error, io};
 
 use qubit_executor::TaskExecutionError;
 
@@ -33,4 +33,12 @@ fn test_task_execution_error_predicates_and_display() {
     assert!(dropped.is_dropped());
     assert!(!dropped.is_cancelled());
     assert_eq!(format!("{dropped}"), "task result was dropped");
+}
+
+#[test]
+fn test_task_execution_error_implements_error() {
+    let error = TaskExecutionError::Failed(io::Error::other("failed"));
+    let as_error: &dyn Error = &error;
+
+    assert_eq!(as_error.to_string(), "task failed: failed");
 }
