@@ -69,12 +69,13 @@ impl<R, E> TrackedTask<R, E> {
         <Self as TaskResultHandle<R, E>>::try_get(self)
     }
 
-    /// Returns whether the tracked task has reached a terminal state.
+    /// Returns whether the tracked task has installed a terminal state.
     ///
     /// # Returns
     ///
     /// `true` after the task succeeds, fails, panics, is cancelled, or loses
-    /// its completion endpoint.
+    /// its completion endpoint. The final result send may still be racing with
+    /// this status observation.
     #[inline]
     pub fn is_done(&self) -> bool
     where

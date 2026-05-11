@@ -104,11 +104,13 @@ impl<R, E> TaskHandle<R, E> {
         }
     }
 
-    /// Returns whether the task has reported completion.
+    /// Returns whether the task has installed a terminal state.
     ///
     /// # Returns
     ///
-    /// `true` after the task runner has produced or abandoned its final result.
+    /// `true` after the task succeeds, fails, panics, is cancelled, or loses
+    /// its completion endpoint. The final result send may still be racing with
+    /// this status observation.
     #[inline]
     pub fn is_done(&self) -> bool {
         self.state.status().is_done()
@@ -120,7 +122,7 @@ where
     R: Send,
     E: Send,
 {
-    /// Returns whether the result channel has a message or is closed.
+    /// Returns whether the tracked task state is terminal.
     #[inline]
     fn is_done(&self) -> bool {
         Self::is_done(self)

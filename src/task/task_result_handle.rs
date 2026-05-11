@@ -14,12 +14,12 @@ use super::{
 
 /// Common interface for handles that expose a submitted task's final result.
 pub trait TaskResultHandle<R, E>: Send {
-    /// Returns whether the task result is ready or otherwise terminal.
+    /// Returns whether the task has installed a terminal state.
     ///
     /// # Returns
     ///
-    /// `true` after the task result can be retrieved or the completion channel
-    /// has been closed.
+    /// `true` after the task has reached a terminal lifecycle state. Result
+    /// publication to the handle may still be racing with this observation.
     fn is_done(&self) -> bool;
 
     /// Blocks until the task produces its final result.

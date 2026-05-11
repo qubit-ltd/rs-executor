@@ -42,9 +42,9 @@ use super::{
 /// * **Blocking or async wait** — [`TrackedTask::get`] blocks the calling thread,
 ///   while awaiting the handle uses a waker and does not block the polling
 ///   thread.
-/// * **Completion probe** — [`TrackedTask::is_done`] reads an atomic flag set
-///   after the worker publishes the result; it does not retrieve the value
-///   (you still need [`TrackedTask::get`] for that).
+/// * **Completion probe** — [`TrackedTask::is_done`] reads the terminal task
+///   state; result publication to the handle may still be racing with that
+///   observation (you still need [`TrackedTask::get`] for the value).
 ///
 /// # Examples
 ///
