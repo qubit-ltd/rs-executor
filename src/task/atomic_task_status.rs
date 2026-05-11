@@ -7,18 +7,19 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+// qubit-style: allow inline-tests
 use std::sync::LazyLock;
 
-use qubit_cas::FastCasState;
-use qubit_state_machine::{
+use qubit_cas::{
     FastCasPolicy,
-    FastStateMachine,
+    FastCasState,
 };
+use qubit_state_machine::FastStateMachine;
 
-use super::task_status::TaskStatus;
-
-/// Number of task status codes represented by [`TaskStatus`].
-const TASK_STATUS_COUNT: usize = 7;
+use super::task_status::{
+    TASK_STATUS_COUNT,
+    TaskStatus,
+};
 
 /// Number of event codes represented by [`TaskStatusEvent`].
 const TASK_STATUS_EVENT_COUNT: usize = 8;
@@ -26,25 +27,26 @@ const TASK_STATUS_EVENT_COUNT: usize = 8;
 /// Shared task status machine used by all task handles.
 static TASK_STATUS_MACHINE: LazyLock<FastStateMachine> = LazyLock::new(build_task_status_machine);
 
-/// Event codes accepted by the task status state machine.
+/// Event codes accepted by the task status state machine (`#[repr(usize)]` discriminants `0..8`).
+#[repr(usize)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum TaskStatusEvent {
     /// Start running a pending task.
-    Start,
+    Start = 0,
     /// Cancel a task before it starts.
-    CancelPending,
+    CancelPending = 1,
     /// Complete a running task successfully.
-    CompleteSucceeded,
+    CompleteSucceeded = 2,
     /// Complete a running task with a user error.
-    CompleteFailed,
+    CompleteFailed = 3,
     /// Complete a running task after panic conversion.
-    CompletePanicked,
+    CompletePanicked = 4,
     /// Complete a running task with a cancellation result.
-    CompleteCancelled,
+    CompleteCancelled = 5,
     /// Complete a running task with a dropped-result error.
-    CompleteDropped,
+    CompleteDropped = 6,
     /// Drop a pending or running task slot before normal completion.
-    DropUnfinished,
+    DropUnfinished = 7,
 }
 
 impl TaskStatusEvent {
@@ -53,17 +55,9 @@ impl TaskStatusEvent {
     /// # Returns
     ///
     /// A stable integer code in `0..TASK_STATUS_EVENT_COUNT`.
+    #[inline]
     const fn as_usize(self) -> usize {
-        match self {
-            Self::Start => 0,
-            Self::CancelPending => 1,
-            Self::CompleteSucceeded => 2,
-            Self::CompleteFailed => 3,
-            Self::CompletePanicked => 4,
-            Self::CompleteCancelled => 5,
-            Self::CompleteDropped => 6,
-            Self::DropUnfinished => 7,
-        }
+        self as usize
     }
 
     /// Returns the completion event matching a terminal task status.
@@ -232,5 +226,48 @@ impl AtomicTaskStatus {
     #[inline]
     fn try_transition(&self, event: TaskStatusEvent) -> bool {
         TASK_STATUS_MACHINE.try_trigger(&self.value, event.as_usize())
+    }
+}
+
+#[cfg(test)]
+mod task_status_event_encoding_tests {
+    use super::TaskStatusEvent;
+
+    #[test]
+    fn task_status_event_as_usize_matches_stable_discriminants() {
+        assert_eq!(TaskStatusEvent::Start.as_usize(), 0);
+        assert_eq!(TaskStatusEvent::CancelPending.as_usize(), 1);
+        assert_eq!(TaskStatusEvent::CompleteSucceeded.as_usize(), 2);
+        assert_eq!(TaskStatusEvent::CompleteFailed.as_usize(), 3);
+        assert_eq!(TaskStatusEvent::CompletePanicked.as_usize(), 4);
+        assert_eq!(TaskStatusEvent::CompleteCancelled.as_usize(), 5);
+        assert_eq!(TaskStatusEvent::CompleteDropped.as_usize(), 6);
+        assert_eq!(TaskStatusEvent::DropUnfinished.as_usize(), 7);
+    }
+
+    #[test]
+    fn task_status_event_codes_are_zero_through_seven_in_declaration_order() {
+        let events = [
+            TaskStatusEvent::Start,
+            TaskStatusEvent::CancelPending,
+            TaskStatusEvent::CompleteSucceeded,
+            TaskStatusEvent::CompleteFailed,
+            TaskStatusEvent::CompletePanicked,
+            TaskStatusEvent::CompleteCancelled,
+            TaskStatusEvent::CompleteDropped,
+            TaskStatusEvent::DropUnfinished,
+        ];
+        for (i, event) in events.iter().enumerate() {
+            assert_eq!(event.as_usize(), i, "event index {i}");
+        }
+    }
+
+    #[test]
+    fn task_status_event_count_matches_variants() {
+        assert_eq!(
+            TaskStatusEvent::DropUnfinished as usize + 1,
+            super::TASK_STATUS_EVENT_COUNT,
+            "last event discriminant + 1 must equal TASK_STATUS_EVENT_COUNT"
+        );
     }
 }

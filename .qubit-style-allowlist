@@ -1,0 +1,9 @@
+# Project style exceptions (rs-executor).
+#
+# Rules that require BOTH an inline `// qubit-style: allow ...` and a row below:
+#   multiple-public-types | <path> | <reason>
+#   coverage-cfg | <path> | <reason>
+#
+# inline-tests is exempted only via file-level `// qubit-style: allow inline-tests`
+# (see src/task/task_status.rs and src/task/atomic_task_status.rs for pub(crate) /
+# private compact-encoding unit tests that cannot live under tests/).
