@@ -17,7 +17,7 @@ use qubit_function::Callable;
 use crate::{
     TrackedTask,
     service::SubmissionError,
-    task::{
+    task::spi::{
         TaskEndpointPair,
         TaskRunner,
     },
@@ -88,12 +88,6 @@ impl DelayExecutor {
 }
 
 impl Executor for DelayExecutor {
-    type Output<R, E>
-        = TrackedTask<R, E>
-    where
-        R: Send + 'static,
-        E: Send + 'static;
-
     /// Starts a helper thread that waits and then runs the callable.
     ///
     /// # Parameters
@@ -108,7 +102,7 @@ impl Executor for DelayExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
     /// cannot be created.
-    fn call<C, R, E>(&self, task: C) -> Result<Self::Output<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

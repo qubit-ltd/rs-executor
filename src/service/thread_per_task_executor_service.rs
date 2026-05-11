@@ -24,7 +24,7 @@ use qubit_function::{
 use crate::{
     TaskHandle,
     TrackedTask,
-    task::{
+    task::spi::{
         TaskEndpointPair,
         TaskRunner,
     },
@@ -69,6 +69,36 @@ struct ThreadPerTaskExecutorServiceState {
     termination: Condvar,
 }
 
+/// Guard that records completion for one accepted task when dropped.
+struct ActiveTaskGuard {
+    /// Shared service state to update when the worker exits.
+    state: Arc<ThreadPerTaskExecutorServiceState>,
+}
+
+impl ActiveTaskGuard {
+    /// Creates a guard for one accepted active task.
+    ///
+    /// # Parameters
+    ///
+    /// * `state` - Shared service state whose active count should be decremented.
+    ///
+    /// # Returns
+    ///
+    /// A guard that finishes the accepted task on drop.
+    #[inline]
+    fn new(state: Arc<ThreadPerTaskExecutorServiceState>) -> Self {
+        Self { state }
+    }
+}
+
+impl Drop for ActiveTaskGuard {
+    /// Records task completion when the worker closure exits.
+    #[inline]
+    fn drop(&mut self) {
+        self.state.finish_task();
+    }
+}
+
 impl ThreadPerTaskExecutorServiceState {
     /// Returns the currently stored lifecycle state.
     ///
@@ -97,12 +127,6 @@ impl ThreadPerTaskExecutorServiceState {
         }
         state.active_tasks += 1;
         Ok(())
-    }
-
-    /// Reverts a previously accepted task that could not be started.
-    #[inline]
-    fn reject_accepted_task(&self) {
-        self.finish_task();
     }
 
     /// Records one task completion and wakes termination waiters if appropriate.
@@ -223,20 +247,17 @@ impl ThreadPerTaskExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
-    /// refuses to create the worker thread. The accepted task count is rolled
-    /// back before the error is returned.
+    /// refuses to create the worker thread. Accepted task accounting is handled
+    /// by the active-task guard captured by `worker`.
     fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
         let mut builder = thread::Builder::new();
         if let Some(stack_size) = self.stack_size {
             builder = builder.stack_size(stack_size);
         }
-        match builder.spawn(worker).map(drop) {
-            Ok(()) => Ok(()),
-            Err(error) => {
-                self.state.reject_accepted_task();
-                Err(SubmissionError::worker_spawn_failed(error))
-            }
-        }
+        builder
+            .spawn(worker)
+            .map(drop)
+            .map_err(SubmissionError::worker_spawn_failed)
     }
 }
 
@@ -274,11 +295,11 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     {
         self.state.accept_task()?;
 
-        let state = Arc::clone(&self.state);
+        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         self.spawn_worker_after_accept(Box::new(move || {
+            let _guard = guard;
             let mut task = task;
             TaskRunner::new(move || task.run()).run_detached::<(), E>();
-            state.finish_task();
         }))
     }
 
@@ -305,10 +326,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         self.state.accept_task()?;
 
         let (handle, completion) = TaskEndpointPair::new().into_parts();
-        let state = Arc::clone(&self.state);
+        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         self.spawn_worker_after_accept(Box::new(move || {
+            let _guard = guard;
             TaskRunner::new(task).run(completion);
-            state.finish_task();
         }))?;
         Ok(handle)
     }
@@ -326,10 +347,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         self.state.accept_task()?;
 
         let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
-        let state = Arc::clone(&self.state);
+        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         self.spawn_worker_after_accept(Box::new(move || {
+            let _guard = guard;
             TaskRunner::new(task).run(completion);
-            state.finish_task();
         }))?;
         Ok(handle)
     }

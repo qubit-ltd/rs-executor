@@ -10,9 +10,12 @@
 use qubit_function::Callable;
 
 use crate::{
-    TaskResult,
+    TrackedTask,
     service::SubmissionError,
-    task::TaskRunner,
+    task::spi::{
+        TaskEndpointPair,
+        TaskRunner,
+    },
 };
 
 use super::Executor;
@@ -25,13 +28,7 @@ use super::Executor;
 pub struct DirectExecutor;
 
 impl Executor for DirectExecutor {
-    type Output<R, E>
-        = TaskResult<R, E>
-    where
-        R: Send + 'static,
-        E: Send + 'static;
-
-    /// Executes the callable inline and returns its result.
+    /// Executes the callable inline and returns an already completed handle.
     ///
     /// # Parameters
     ///
@@ -39,14 +36,16 @@ impl Executor for DirectExecutor {
     ///
     /// # Returns
     ///
-    /// The ready task result produced by the callable.
+    /// An already completed tracked task carrying the callable result.
     #[inline]
-    fn call<C, R, E>(&self, task: C) -> Result<Self::Output<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        Ok(TaskRunner::new(task).call())
+        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
+        TaskRunner::new(task).run(completion);
+        Ok(handle)
     }
 }

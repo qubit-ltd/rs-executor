@@ -15,9 +15,9 @@ use std::panic::{
 use qubit_function::Callable;
 
 use super::{
-    TaskCompleter,
     TaskExecutionError,
     TaskResult,
+    task_completer::TaskCompleter,
 };
 
 /// Runner that executes a callable task with standard task-handle semantics.

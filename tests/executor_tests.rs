@@ -36,6 +36,7 @@ fn test_executor_execute_default_delegates_to_call() {
             Ok::<(), io::Error>(())
         })
         .expect("direct executor should accept the runnable")
+        .get()
         .expect("direct executor should run the runnable");
 
     assert_eq!(calls.load(Ordering::Acquire), 1);

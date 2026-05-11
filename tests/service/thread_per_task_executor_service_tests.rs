@@ -25,8 +25,8 @@ use qubit_executor::{
     ExecutorServiceLifecycle,
     TaskExecutionError,
     service::{
-        ExecutorBuildError,
         ExecutorService,
+        ExecutorServiceBuilderError,
         SubmissionError,
         ThreadPerTaskExecutorService,
     },
@@ -229,5 +229,8 @@ fn test_thread_per_task_executor_service_builder_rejects_zero_stack_size() {
         .stack_size(0)
         .build();
 
-    assert!(matches!(result, Err(ExecutorBuildError::ZeroStackSize)));
+    assert!(matches!(
+        result,
+        Err(ExecutorServiceBuilderError::ZeroStackSize)
+    ));
 }

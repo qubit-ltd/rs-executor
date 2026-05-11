@@ -12,29 +12,21 @@ use qubit_function::{
     Runnable,
 };
 
-use crate::service::SubmissionError;
+use crate::{
+    TrackedTask,
+    service::SubmissionError,
+};
 
 /// Executes fallible one-time tasks according to an implementation-defined strategy.
 ///
 /// `Executor` models an execution strategy, not a managed task service. An
-/// executor may run a task immediately, retry it, delay it, schedule it on
-/// another runtime, or return a handle that represents work running elsewhere.
-/// The associated [`Self::Output`] type describes how this executor exposes the
-/// accepted task's result. The outer `Result` returned by [`Self::call`] and
-/// [`Self::execute`] always reports submission failure only.
+/// executor may run a task immediately, retry it, delay it, or schedule it on
+/// another runtime. Accepted task results are always exposed through a
+/// [`TrackedTask`]. The outer `Result` returned by [`Self::call`] and
+/// [`Self::execute`] reports submission failure only.
 ///
 pub trait Executor: Send + Sync {
-    /// The result carrier returned for one accepted execution.
-    ///
-    /// Implementations choose the carrier that matches their execution model.
-    /// For example, a direct executor can use a ready task result, while a
-    /// threaded executor can use a task handle.
-    type Output<R, E>
-    where
-        R: Send + 'static,
-        E: Send + 'static;
-
-    /// Submits a runnable task and returns this executor's accepted-task output.
+    /// Submits a runnable task and returns a tracked task handle.
     ///
     /// This is the unit-returning counterpart of [`Self::call`]. The returned
     /// carrier reports the runnable's `Result<(), E>` according to the concrete
@@ -46,13 +38,13 @@ pub trait Executor: Send + Sync {
     ///
     /// # Returns
     ///
-    /// The accepted-task output for the submitted runnable.
+    /// A tracked handle for the accepted runnable.
     ///
     /// # Errors
     ///
     /// Returns [`SubmissionError`] if this executor cannot accept the runnable.
     #[inline]
-    fn execute<T, E>(&self, task: T) -> Result<Self::Output<(), E>, SubmissionError>
+    fn execute<T, E>(&self, task: T) -> Result<TrackedTask<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -61,7 +53,7 @@ pub trait Executor: Send + Sync {
         self.call(move || task.run())
     }
 
-    /// Submits a callable task and returns this executor's accepted-task output.
+    /// Submits a callable task and returns a tracked task handle.
     ///
     /// # Parameters
     ///
@@ -69,13 +61,12 @@ pub trait Executor: Send + Sync {
     ///
     /// # Returns
     ///
-    /// The accepted-task output for the submitted callable. Its exact behavior is
-    /// defined by the concrete executor.
+    /// A tracked handle for the accepted callable.
     ///
     /// # Errors
     ///
     /// Returns [`SubmissionError`] if this executor cannot accept the callable.
-    fn call<C, R, E>(&self, task: C) -> Result<Self::Output<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

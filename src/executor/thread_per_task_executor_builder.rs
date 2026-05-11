@@ -7,7 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use crate::service::ExecutorBuildError;
+use crate::service::ExecutorServiceBuilderError;
 
 use super::ThreadPerTaskExecutor;
 
@@ -52,12 +52,12 @@ impl ThreadPerTaskExecutorBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`ExecutorBuildError::ZeroStackSize`] if the configured stack
+    /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured stack
     /// size is zero.
     #[inline]
-    pub fn build(self) -> Result<ThreadPerTaskExecutor, ExecutorBuildError> {
+    pub fn build(self) -> Result<ThreadPerTaskExecutor, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
-            return Err(ExecutorBuildError::ZeroStackSize);
+            return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }
         Ok(ThreadPerTaskExecutor {
             stack_size: self.stack_size,

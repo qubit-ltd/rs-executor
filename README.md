@@ -22,7 +22,7 @@ libraries can depend only on the abstraction level they need.
 
 ## Features
 
-- Strategy-level `Executor` trait for executing one task and returning an implementation-specific result carrier.
+- Strategy-level `Executor` trait for executing one task and returning a `TrackedTask` handle.
 - `DirectExecutor` for deterministic same-thread execution.
 - `DelayExecutor` for delaying work before passing it to another executor.
 - `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
@@ -34,8 +34,8 @@ libraries can depend only on the abstraction level they need.
 ## Executor vs ExecutorService
 
 `Executor` is a low-level execution strategy. It answers: “how should this one
-task run, and what type represents the result?” A direct executor can return a
-plain `Result`, while a thread-backed executor can return a `TaskHandle`.
+task run?” Accepted task results are exposed uniformly through `TrackedTask`,
+even when the concrete executor runs the task inline.
 
 `ExecutorService` is a managed service. It answers: “can this service accept a
 task, track it, shut down, and eventually terminate?” A successful `submit`
@@ -101,7 +101,8 @@ use std::io;
 use qubit_executor::executor::{DirectExecutor, Executor};
 
 let executor = DirectExecutor;
-let value = executor.call(|| Ok::<usize, io::Error>(40 + 2))??;
+let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
+let value = handle.get()?;
 assert_eq!(value, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

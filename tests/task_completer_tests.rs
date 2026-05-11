@@ -11,7 +11,7 @@ use std::io;
 
 use qubit_executor::{
     TaskExecutionError,
-    task::TaskEndpointPair,
+    task::spi::TaskEndpointPair,
 };
 
 /// Test task completion start, completion, and cancellation races through public endpoints.

@@ -18,7 +18,7 @@ use super::SubmissionError;
 /// This error is shared by executor-service implementations whose construction
 /// may validate worker, queue, timeout, stack, or thread-spawn configuration.
 #[derive(Debug, Error)]
-pub enum ExecutorBuildError {
+pub enum ExecutorServiceBuilderError {
     /// The configured maximum pool size is zero.
     #[error("executor service maximum pool size must be greater than zero")]
     ZeroMaximumPoolSize,
@@ -48,17 +48,17 @@ pub enum ExecutorBuildError {
     ZeroKeepAlive,
 
     /// A worker thread could not be spawned.
-    #[error("failed to spawn executor service worker {index}: {source}")]
+    #[error("failed to spawn executor service worker {}: {source}", format_worker_index(*index))]
     SpawnWorker {
-        /// Index of the worker that failed to spawn.
-        index: usize,
+        /// Index of the worker that failed to spawn when the builder knows it.
+        index: Option<usize>,
 
         /// I/O error reported by [`std::thread::Builder::spawn`].
         source: io::Error,
     },
 }
 
-impl ExecutorBuildError {
+impl ExecutorServiceBuilderError {
     /// Converts a runtime worker-spawn rejection into a build error.
     ///
     /// # Parameters
@@ -71,22 +71,37 @@ impl ExecutorBuildError {
     pub fn from_submission_error(error: SubmissionError) -> Self {
         match error {
             SubmissionError::WorkerSpawnFailed { source } => Self::SpawnWorker {
-                index: 0,
+                index: None,
                 source: io::Error::new(source.kind(), source.to_string()),
             },
             SubmissionError::Shutdown => Self::SpawnWorker {
-                index: 0,
+                index: None,
                 source: io::Error::other("executor service shut down during prestart"),
             },
             SubmissionError::Saturated => Self::SpawnWorker {
-                index: 0,
+                index: None,
                 source: io::Error::other("executor service saturated during prestart"),
             },
         }
     }
 }
 
-impl From<SubmissionError> for ExecutorBuildError {
+/// Formats an optional worker index for display.
+///
+/// # Parameters
+///
+/// * `index` - Known worker index, if the builder has one.
+///
+/// # Returns
+///
+/// A display fragment for the worker index.
+fn format_worker_index(index: Option<usize>) -> String {
+    index
+        .map(|index| index.to_string())
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
+impl From<SubmissionError> for ExecutorServiceBuilderError {
     /// Converts rejected-execution reasons into build-time executor errors.
     ///
     /// # Parameters

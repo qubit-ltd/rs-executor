@@ -7,11 +7,9 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-//! Task-related internal modules.
-//!
-//! This module groups task handle, execution error, and runner utilities that
-//! used to live at the crate root. They are reorganized under `task/`.
+//! Task handles and task-result types.
 
+mod atomic_task_status;
 mod cancel_result;
 mod task_completer;
 mod task_endpoint_pair;
@@ -27,17 +25,25 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
-pub use task_completer::TaskCompleter;
-pub use task_endpoint_pair::TaskEndpointPair;
 pub use task_execution_error::{
     TaskExecutionError,
     TaskResult,
 };
 pub use task_handle::TaskHandle;
 pub use task_handle_future::TaskHandleFuture;
-pub use task_result_handle::TaskResultHandle;
-pub use task_runner::TaskRunner;
 pub use task_status::TaskStatus;
 pub use tracked_task::TrackedTask;
-pub use tracked_task_handle::TrackedTaskHandle;
 pub use try_get::TryGet;
+
+/// Service-provider interfaces for custom executor implementations.
+///
+/// These low-level building blocks are intended for crates that implement
+/// executor services or execution strategies. Ordinary users should prefer
+/// [`TaskHandle`], [`TrackedTask`], and the executor/service traits.
+pub mod spi {
+    pub use super::task_completer::TaskCompleter;
+    pub use super::task_endpoint_pair::TaskEndpointPair;
+    pub use super::task_result_handle::TaskResultHandle;
+    pub use super::task_runner::TaskRunner;
+    pub use super::tracked_task_handle::TrackedTaskHandle;
+}

@@ -13,19 +13,19 @@ use std::{
 };
 
 use qubit_executor::service::{
-    ExecutorBuildError,
+    ExecutorServiceBuilderError,
     SubmissionError,
 };
 
 /// Tests executor build error display and configuration variants.
 #[test]
-fn test_executor_build_error_configuration_variants() {
+fn test_executor_service_builder_error_configuration_variants() {
     assert_eq!(
-        ExecutorBuildError::ZeroMaximumPoolSize.to_string(),
+        ExecutorServiceBuilderError::ZeroMaximumPoolSize.to_string(),
         "executor service maximum pool size must be greater than zero",
     );
     assert_eq!(
-        ExecutorBuildError::CorePoolSizeExceedsMaximum {
+        ExecutorServiceBuilderError::CorePoolSizeExceedsMaximum {
             core_pool_size: 4,
             maximum_pool_size: 2,
         }
@@ -33,33 +33,46 @@ fn test_executor_build_error_configuration_variants() {
         "executor service core pool size 4 exceeds maximum pool size 2",
     );
     assert_eq!(
-        ExecutorBuildError::ZeroQueueCapacity.to_string(),
+        ExecutorServiceBuilderError::ZeroQueueCapacity.to_string(),
         "executor service queue capacity must be greater than zero",
     );
     assert_eq!(
-        ExecutorBuildError::ZeroStackSize.to_string(),
+        ExecutorServiceBuilderError::ZeroStackSize.to_string(),
         "executor service stack size must be greater than zero",
     );
     assert_eq!(
-        ExecutorBuildError::ZeroKeepAlive.to_string(),
+        ExecutorServiceBuilderError::ZeroKeepAlive.to_string(),
         "executor service keep-alive timeout must be greater than zero",
     );
 }
 
 /// Tests conversion from rejected execution to build error.
 #[test]
-fn test_executor_build_error_from_submission_error() {
-    let spawned = ExecutorBuildError::from_submission_error(SubmissionError::WorkerSpawnFailed {
-        source: Arc::new(io::Error::other("spawn failed")),
-    });
-    let ExecutorBuildError::SpawnWorker { index, source } = spawned else {
+fn test_executor_service_builder_error_from_submission_error() {
+    let spawned =
+        ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed {
+            source: Arc::new(io::Error::other("spawn failed")),
+        });
+    assert_eq!(
+        spawned.to_string(),
+        "failed to spawn executor service worker unknown: spawn failed",
+    );
+    let ExecutorServiceBuilderError::SpawnWorker { index, source } = spawned else {
         panic!("worker spawn rejection should convert to spawn build error");
     };
-    assert_eq!(index, 0);
+    assert_eq!(index, None);
     assert_eq!(source.to_string(), "spawn failed");
+    assert_eq!(
+        ExecutorServiceBuilderError::SpawnWorker {
+            index: Some(7),
+            source: io::Error::other("indexed spawn failed"),
+        }
+        .to_string(),
+        "failed to spawn executor service worker 7: indexed spawn failed",
+    );
 
-    let shutdown: ExecutorBuildError = SubmissionError::Shutdown.into();
-    let ExecutorBuildError::SpawnWorker { source, .. } = shutdown else {
+    let shutdown: ExecutorServiceBuilderError = SubmissionError::Shutdown.into();
+    let ExecutorServiceBuilderError::SpawnWorker { source, .. } = shutdown else {
         panic!("shutdown during prestart should convert to spawn build error");
     };
     assert_eq!(
@@ -67,8 +80,8 @@ fn test_executor_build_error_from_submission_error() {
         "executor service shut down during prestart"
     );
 
-    let saturated = ExecutorBuildError::from(SubmissionError::Saturated);
-    let ExecutorBuildError::SpawnWorker { source, .. } = saturated else {
+    let saturated = ExecutorServiceBuilderError::from(SubmissionError::Saturated);
+    let ExecutorServiceBuilderError::SpawnWorker { source, .. } = saturated else {
         panic!("saturation during prestart should convert to spawn build error");
     };
     assert_eq!(

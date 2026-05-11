@@ -13,6 +13,7 @@ use std::{
     io,
     sync::{
         Arc,
+        Barrier,
         mpsc,
     },
     thread,
@@ -22,16 +23,18 @@ use std::{
 use qubit_executor::{
     CancelResult,
     TaskExecutionError,
-    TaskResultHandle,
     TaskStatus,
-    TrackedTaskHandle,
     TryGet,
     executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
     service::SubmissionError,
-    task::TaskEndpointPair,
+    task::spi::{
+        TaskEndpointPair,
+        TaskResultHandle,
+        TrackedTaskHandle,
+    },
 };
 
 #[tokio::test]
@@ -139,6 +142,34 @@ fn test_task_completer_clone_can_complete_task() {
     cloned.complete(Ok(42));
 
     assert_eq!(handle.get().expect("cloned completion should publish"), 42);
+}
+
+#[test]
+fn test_task_completer_concurrent_completion_has_one_winner() {
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    assert!(completion.start());
+
+    let contenders = 8;
+    let barrier = Arc::new(Barrier::new(contenders));
+    let mut workers = Vec::with_capacity(contenders);
+    for index in 0..contenders {
+        let completion = completion.clone();
+        let barrier = Arc::clone(&barrier);
+        workers.push(thread::spawn(move || {
+            barrier.wait();
+            completion.complete(Ok(index));
+        }));
+    }
+    for worker in workers {
+        worker
+            .join()
+            .expect("completion contender should not panic");
+    }
+
+    let value = handle
+        .get()
+        .expect("one completion contender should publish a value");
+    assert!(value < contenders);
 }
 
 #[test]

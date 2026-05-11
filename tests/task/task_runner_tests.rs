@@ -11,7 +11,7 @@
 
 use std::io;
 
-use qubit_executor::task::{
+use qubit_executor::task::spi::{
     TaskEndpointPair,
     TaskRunner,
 };

@@ -25,9 +25,6 @@ pub use crate::task::{
 };
 pub use crate::task::{
     TaskHandle,
-    TaskHandleFuture,
-    TaskResultHandle,
     TrackedTask,
-    TrackedTaskHandle,
     TryGet,
 };

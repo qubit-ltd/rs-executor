@@ -12,7 +12,7 @@ use qubit_function::{
     Runnable,
 };
 
-use crate::{
+use crate::task::spi::{
     TaskResultHandle,
     TrackedTaskHandle,
 };

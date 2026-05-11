@@ -24,7 +24,7 @@ use qubit_executor::{
         ThreadPerTaskExecutor,
     },
     service::{
-        ExecutorBuildError,
+        ExecutorServiceBuilderError,
         SubmissionError,
     },
 };
@@ -101,7 +101,10 @@ fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
 fn test_thread_per_task_executor_builder_rejects_zero_stack_size() {
     let result = ThreadPerTaskExecutor::builder().stack_size(0).build();
 
-    assert!(matches!(result, Err(ExecutorBuildError::ZeroStackSize)));
+    assert!(matches!(
+        result,
+        Err(ExecutorServiceBuilderError::ZeroStackSize)
+    ));
 }
 
 #[test]

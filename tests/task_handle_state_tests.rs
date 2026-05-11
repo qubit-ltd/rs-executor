@@ -12,7 +12,7 @@ use std::io;
 use qubit_executor::{
     CancelResult,
     TaskExecutionError,
-    task::TaskEndpointPair,
+    task::spi::TaskEndpointPair,
 };
 
 /// Test observable handle state transitions before and after terminal completion.

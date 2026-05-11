@@ -9,17 +9,17 @@
  ******************************************************************************/
 use oneshot::Sender;
 use parking_lot::Mutex;
-use qubit_atomic::Atomic;
 
 use super::{
     TaskResult,
+    atomic_task_status::AtomicTaskStatus,
     task_status::TaskStatus,
 };
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskHandleInner<R, E> {
-    /// Compact task status used for start, completion, and cancellation races.
-    pub(crate) status: Atomic<u8>,
+    /// Atomic task status used for start, completion, and cancellation races.
+    pub(crate) status: AtomicTaskStatus,
     /// Sender used once by the winner of the terminal state race.
     pub(crate) sender: Mutex<Option<Sender<TaskResult<R, E>>>>,
 }
@@ -37,7 +37,7 @@ impl<R, E> TaskHandleInner<R, E> {
     #[inline]
     pub(crate) fn new(sender: Sender<TaskResult<R, E>>) -> Self {
         Self {
-            status: Atomic::new(TaskStatus::Pending.as_u8()),
+            status: AtomicTaskStatus::new(TaskStatus::Pending),
             sender: Mutex::new(Some(sender)),
         }
     }
@@ -49,7 +49,7 @@ impl<R, E> TaskHandleInner<R, E> {
     /// The task status represented by the internal atomic state.
     #[inline]
     pub(crate) fn status(&self) -> TaskStatus {
-        TaskStatus::from_u8(self.status.load())
+        self.status.load()
     }
 
     /// Attempts to move the task from pending to running.
@@ -60,9 +60,7 @@ impl<R, E> TaskHandleInner<R, E> {
     /// running or terminal.
     #[inline]
     pub(crate) fn start(&self) -> bool {
-        self.status
-            .compare_set(TaskStatus::Pending.as_u8(), TaskStatus::Running.as_u8())
-            .is_ok()
+        self.status.start()
     }
 
     /// Attempts to publish a terminal result when the current status allows it.
@@ -87,11 +85,7 @@ impl<R, E> TaskHandleInner<R, E> {
             if current.is_done() || !can_finish(current) {
                 return false;
             }
-            if self
-                .status
-                .compare_set(current.as_u8(), next.as_u8())
-                .is_ok()
-            {
+            if self.status.compare_set(current, next) {
                 let sender = self.sender.lock().take();
                 if let Some(sender) = sender {
                     let _ignored = sender.send(result);
