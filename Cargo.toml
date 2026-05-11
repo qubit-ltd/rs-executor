@@ -29,6 +29,7 @@ doctest = true
 
 [dependencies]
 oneshot = { version = "0.2", features = ["async", "std"] }
+parking_lot = "0.12"
 thiserror = "2.0"
 
 qubit-atomic = "0.10"

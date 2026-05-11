@@ -10,20 +10,19 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        MutexGuard,
-        atomic::{
-            AtomicU8,
-            Ordering,
-        },
-    },
+    sync::Arc,
     thread,
 };
 
-use qubit_atomic::AtomicCount;
+use parking_lot::{
+    Condvar,
+    Mutex,
+    MutexGuard,
+};
+use qubit_atomic::{
+    Atomic,
+    AtomicCount,
+};
 use qubit_function::{
     Callable,
     Runnable,
@@ -47,7 +46,7 @@ use super::{
 #[derive(Default)]
 struct ThreadPerTaskExecutorServiceState {
     /// Current lifecycle state encoded as an [`ExecutorServiceLifecycle`] discriminant.
-    lifecycle: AtomicU8,
+    lifecycle: Atomic<u8>,
     /// Number of accepted OS-thread tasks that have not completed.
     active_tasks: AtomicCount,
     /// Serializes task submission and shutdown transitions.
@@ -59,28 +58,24 @@ struct ThreadPerTaskExecutorServiceState {
 }
 
 impl ThreadPerTaskExecutorServiceState {
-    /// Acquires the submission lock while tolerating poisoned locks.
+    /// Acquires the submission lock.
     ///
     /// # Returns
     ///
     /// A guard for the submission lock.
     #[inline]
     fn lock_submission(&self) -> MutexGuard<'_, ()> {
-        self.submission_lock
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.submission_lock.lock()
     }
 
-    /// Acquires the termination lock while tolerating poisoned locks.
+    /// Acquires the termination lock.
     ///
     /// # Returns
     ///
     /// A guard for the mutex paired with the termination condition variable.
     #[inline]
     fn lock_termination(&self) -> MutexGuard<'_, ()> {
-        self.termination_lock
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.termination_lock.lock()
     }
 
     /// Returns the currently stored lifecycle state.
@@ -90,7 +85,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// The lifecycle represented by the internal atomic discriminant.
     #[inline]
     fn lifecycle(&self) -> ExecutorServiceLifecycle {
-        ExecutorServiceLifecycle::from_u8(self.lifecycle.load(Ordering::Acquire))
+        ExecutorServiceLifecycle::from_u8(self.lifecycle.load())
     }
 
     /// Stores a new lifecycle state.
@@ -100,7 +95,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// * `lifecycle` - New lifecycle state to publish.
     #[inline]
     fn set_lifecycle(&self, lifecycle: ExecutorServiceLifecycle) {
-        self.lifecycle.store(lifecycle as u8, Ordering::Release);
+        self.lifecycle.store(lifecycle as u8);
     }
 
     /// Wakes termination waiters when shutdown and task completion allow it.
@@ -116,10 +111,7 @@ impl ThreadPerTaskExecutorServiceState {
     fn wait_for_termination(&self) {
         let mut guard = self.lock_termination();
         while self.lifecycle() != ExecutorServiceLifecycle::Terminated {
-            guard = self
-                .termination
-                .wait(guard)
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            self.termination.wait(&mut guard);
         }
     }
 }
