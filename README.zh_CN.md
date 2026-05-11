@@ -72,7 +72,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 ```rust
 use std::io;
 
-use qubit_executor::executor::{DirectExecutor, Executor};
+use qubit_executor::{DirectExecutor, Executor};
 
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
@@ -86,7 +86,7 @@ assert_eq!(value, 42);
 ```rust
 use std::io;
 
-use qubit_executor::executor::{Executor, ThreadPerTaskExecutor};
+use qubit_executor::{Executor, ThreadPerTaskExecutor};
 
 let executor = ThreadPerTaskExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
@@ -99,7 +99,7 @@ assert_eq!(handle.get()?, 42);
 ```rust
 use std::io;
 
-use qubit_executor::service::{ExecutorService, ThreadPerTaskExecutorService};
+use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
 
 let service = ThreadPerTaskExecutorService::new();
 let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;

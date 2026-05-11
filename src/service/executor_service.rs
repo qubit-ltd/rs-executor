@@ -26,7 +26,7 @@ use super::{
 /// Managed task service with submission and lifecycle control.
 ///
 /// `ExecutorService` is intentionally separate from
-/// [`Executor`](crate::executor::Executor). An executor describes an
+/// [`Executor`](crate::Executor). An executor describes an
 /// execution strategy; an executor service accepts tasks into a managed service
 /// that may queue, schedule, assign workers, and track lifecycle.
 ///

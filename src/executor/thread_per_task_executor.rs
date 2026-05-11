@@ -51,10 +51,7 @@ use super::{
 /// ```rust
 /// use std::io;
 ///
-/// use qubit_executor::executor::{
-///     Executor,
-///     ThreadPerTaskExecutor,
-/// };
+/// use qubit_executor::{Executor, ThreadPerTaskExecutor};
 ///
 /// let executor = ThreadPerTaskExecutor::new();
 /// let handle = executor

@@ -17,7 +17,23 @@ pub mod hook;
 pub mod service;
 pub mod task;
 
-pub use crate::service::ExecutorServiceLifecycle;
+pub use crate::executor::{
+    DelayExecutor,
+    DirectExecutor,
+    Executor,
+    ScheduleExecutor,
+    ThreadPerTaskExecutor,
+    ThreadPerTaskExecutorBuilder,
+};
+pub use crate::service::{
+    ExecutorService,
+    ExecutorServiceBuilderError,
+    ExecutorServiceLifecycle,
+    StopReport,
+    SubmissionError,
+    ThreadPerTaskExecutorService,
+    ThreadPerTaskExecutorServiceBuilder,
+};
 pub use crate::task::{
     CancelResult,
     TaskExecutionError,
