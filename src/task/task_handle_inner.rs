@@ -7,6 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use oneshot::Sender;
 use parking_lot::Mutex;
 use qubit_atomic::Atomic;
 
@@ -20,7 +21,7 @@ pub(crate) struct TaskHandleInner<R, E> {
     /// Compact task status used for start, completion, and cancellation races.
     pub(crate) status: Atomic<u8>,
     /// Sender used once by the winner of the terminal state race.
-    pub(crate) sender: Mutex<Option<oneshot::Sender<TaskResult<R, E>>>>,
+    pub(crate) sender: Mutex<Option<Sender<TaskResult<R, E>>>>,
 }
 
 impl<R, E> TaskHandleInner<R, E> {
@@ -34,7 +35,7 @@ impl<R, E> TaskHandleInner<R, E> {
     ///
     /// Shared completion state initialized as pending.
     #[inline]
-    pub(crate) fn new(sender: oneshot::Sender<TaskResult<R, E>>) -> Self {
+    pub(crate) fn new(sender: Sender<TaskResult<R, E>>) -> Self {
         Self {
             status: Atomic::new(TaskStatus::Pending.as_u8()),
             sender: Mutex::new(Some(sender)),

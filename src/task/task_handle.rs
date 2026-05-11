@@ -7,6 +7,10 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use oneshot::{
+    Receiver,
+    TryRecvError,
+};
 use std::future::IntoFuture;
 
 use super::{
@@ -24,7 +28,7 @@ use super::{
 /// or be awaited by value.
 pub struct TaskHandle<R, E> {
     /// One-shot receiver for the final task result.
-    receiver: oneshot::Receiver<TaskResult<R, E>>,
+    receiver: Receiver<TaskResult<R, E>>,
 }
 
 impl<R, E> TaskHandle<R, E> {
@@ -38,7 +42,7 @@ impl<R, E> TaskHandle<R, E> {
     ///
     /// A task result handle.
     #[inline]
-    pub(crate) const fn new(receiver: oneshot::Receiver<TaskResult<R, E>>) -> Self {
+    pub(crate) const fn new(receiver: Receiver<TaskResult<R, E>>) -> Self {
         Self { receiver }
     }
 
@@ -68,10 +72,8 @@ impl<R, E> TaskHandle<R, E> {
     pub fn try_get(self) -> TryGet<Self, R, E> {
         match self.receiver.try_recv() {
             Ok(result) => TryGet::Ready(result),
-            Err(oneshot::TryRecvError::Empty) => TryGet::Pending(self),
-            Err(oneshot::TryRecvError::Disconnected) => {
-                TryGet::Ready(Err(TaskExecutionError::Cancelled))
-            }
+            Err(TryRecvError::Empty) => TryGet::Pending(self),
+            Err(TryRecvError::Disconnected) => TryGet::Ready(Err(TaskExecutionError::Cancelled)),
         }
     }
 

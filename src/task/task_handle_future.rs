@@ -16,6 +16,8 @@ use std::{
     },
 };
 
+use oneshot::AsyncReceiver;
+
 use super::{
     TaskExecutionError,
     TaskResult,
@@ -24,7 +26,7 @@ use super::{
 /// Future returned when awaiting a task handle by value.
 pub struct TaskHandleFuture<R, E> {
     /// Async receiver created from the task result receiver.
-    receiver: oneshot::AsyncReceiver<TaskResult<R, E>>,
+    receiver: AsyncReceiver<TaskResult<R, E>>,
 }
 
 impl<R, E> TaskHandleFuture<R, E> {
@@ -38,7 +40,7 @@ impl<R, E> TaskHandleFuture<R, E> {
     ///
     /// A future resolving to the final task result.
     #[inline]
-    pub(crate) const fn new(receiver: oneshot::AsyncReceiver<TaskResult<R, E>>) -> Self {
+    pub(crate) const fn new(receiver: AsyncReceiver<TaskResult<R, E>>) -> Self {
         Self { receiver }
     }
 }
