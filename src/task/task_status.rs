@@ -7,7 +7,10 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use super::{TaskExecutionError, TaskResult};
+use super::{
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Observable lifecycle status for a submitted task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

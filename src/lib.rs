@@ -18,5 +18,14 @@ pub mod service;
 pub mod task;
 
 pub use crate::service::ExecutorServiceLifecycle;
-pub use crate::task::{CancelResult, TaskExecutionError, TaskResult, TaskStatus};
-pub use crate::task::{TaskHandle, TrackedTask, TryGet};
+pub use crate::task::{
+    CancelResult,
+    TaskExecutionError,
+    TaskResult,
+    TaskStatus,
+};
+pub use crate::task::{
+    TaskHandle,
+    TrackedTask,
+    TryGet,
+};

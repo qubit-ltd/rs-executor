@@ -9,7 +9,10 @@
  ******************************************************************************/
 use std::sync::Arc;
 
-use crate::{hook::TaskHook, service::ExecutorServiceBuilderError};
+use crate::{
+    hook::TaskHook,
+    service::ExecutorServiceBuilderError,
+};
 
 use super::ThreadPerTaskExecutor;
 

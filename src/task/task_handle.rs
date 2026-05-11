@@ -7,12 +7,22 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use oneshot::{Receiver, TryRecvError};
-use std::{future::IntoFuture, sync::Arc};
+use oneshot::{
+    Receiver,
+    TryRecvError,
+};
+use std::{
+    future::IntoFuture,
+    sync::Arc,
+};
 
 use super::{
-    TaskExecutionError, TaskResult, task_handle_future::TaskHandleFuture,
-    task_result_handle::TaskResultHandle, task_state::TaskState, try_get::TryGet,
+    TaskExecutionError,
+    TaskResult,
+    task_handle_future::TaskHandleFuture,
+    task_result_handle::TaskResultHandle,
+    task_state::TaskState,
+    try_get::TryGet,
 };
 use crate::hook::TaskId;
 

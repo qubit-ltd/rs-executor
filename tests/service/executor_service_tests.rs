@@ -7,10 +7,17 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{io, sync::mpsc, time::Duration};
+use std::{
+    io,
+    sync::mpsc,
+    time::Duration,
+};
 
 use qubit_executor::service::{
-    ExecutorService, ExecutorServiceLifecycle, SubmissionError, ThreadPerTaskExecutorService,
+    ExecutorService,
+    ExecutorServiceLifecycle,
+    SubmissionError,
+    ThreadPerTaskExecutorService,
 };
 
 /// Test default runnable submission and lifecycle rejection through the service trait.

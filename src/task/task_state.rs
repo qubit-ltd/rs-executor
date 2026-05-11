@@ -9,16 +9,26 @@
  ******************************************************************************/
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
 use oneshot::Sender;
 use parking_lot::Mutex;
 
 use super::{
-    TaskExecutionError, TaskResult, atomic_task_status::AtomicTaskStatus, task_status::TaskStatus,
+    TaskExecutionError,
+    TaskResult,
+    atomic_task_status::AtomicTaskStatus,
+    task_status::TaskStatus,
 };
-use crate::hook::{TaskId, notify_finished, notify_started};
+use crate::hook::{
+    TaskId,
+    notify_finished,
+    notify_started,
+};
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskState<R, E> {

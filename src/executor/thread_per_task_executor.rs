@@ -13,12 +13,22 @@ use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{TaskHook, notify_rejected},
+    hook::{
+        TaskHook,
+        notify_rejected_optional,
+    },
     service::SubmissionError,
-    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
+    task::{
+        spi::TaskEndpointPair,
+        task_admission_gate::TaskAdmissionGate,
+    },
 };
 
-use super::{Executor, ThreadPerTaskExecutorBuilder, thread_spawn_config::ThreadSpawnConfig};
+use super::{
+    Executor,
+    ThreadPerTaskExecutorBuilder,
+    thread_spawn_config::ThreadSpawnConfig,
+};
 
 /// Executes each task on a dedicated OS thread.
 ///
@@ -153,26 +163,16 @@ impl Executor for ThreadPerTaskExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
-        if self.hook.is_some() {
-            let gate = TaskAdmissionGate::new();
-            let worker_gate = gate.clone();
-            self.spawn_worker(move || {
-                worker_gate.wait();
-                slot.run(task);
-            })
-            .inspect_err(|error| {
-                if let Some(hook) = &self.hook {
-                    notify_rejected(hook.as_ref(), error);
-                }
-            })?;
-            handle.accept();
-            gate.open();
-            return Ok(handle);
-        }
+        let gate = TaskAdmissionGate::new(self.hook.is_some());
+        let worker_gate = gate.clone();
+        let hook = self.hook.clone();
         self.spawn_worker(move || {
+            worker_gate.wait();
             slot.run(task);
-        })?;
+        })
+        .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
+        gate.open();
         Ok(handle)
     }
 }

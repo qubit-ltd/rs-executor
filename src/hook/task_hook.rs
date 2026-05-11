@@ -7,9 +7,18 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::{
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+    },
+    sync::Arc,
+};
 
-use crate::{TaskStatus, service::SubmissionError};
+use crate::{
+    TaskStatus,
+    service::SubmissionError,
+};
 
 use super::TaskId;
 
@@ -100,6 +109,19 @@ pub(crate) fn notify_accepted(hook: &dyn TaskHook, task_id: TaskId) {
 #[inline]
 pub(crate) fn notify_rejected(hook: &dyn TaskHook, error: &SubmissionError) {
     contain_hook_panic(|| hook.on_rejected(error));
+}
+
+/// Notifies an optional hook that a task was rejected.
+///
+/// # Parameters
+///
+/// * `hook` - Optional hook to notify.
+/// * `error` - Submission error explaining the rejection.
+#[inline]
+pub(crate) fn notify_rejected_optional(hook: Option<&Arc<dyn TaskHook>>, error: &SubmissionError) {
+    if let Some(hook) = hook {
+        notify_rejected(hook.as_ref(), error);
+    }
 }
 
 /// Notifies a hook that a task started.

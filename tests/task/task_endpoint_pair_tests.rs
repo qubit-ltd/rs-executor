@@ -11,7 +11,10 @@ use std::io;
 
 use std::sync::Arc;
 
-use qubit_executor::{hook::NoopTaskHook, task::spi::TaskEndpointPair};
+use qubit_executor::{
+    hook::NoopTaskHook,
+    task::spi::TaskEndpointPair,
+};
 
 /// Test a completion pair can be created with default and split into usable endpoints.
 #[test]

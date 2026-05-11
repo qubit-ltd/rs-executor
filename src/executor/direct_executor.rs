@@ -11,7 +11,12 @@ use std::sync::Arc;
 
 use qubit_function::Callable;
 
-use crate::{TrackedTask, hook::TaskHook, service::SubmissionError, task::spi::TaskEndpointPair};
+use crate::{
+    TrackedTask,
+    hook::TaskHook,
+    service::SubmissionError,
+    task::spi::TaskEndpointPair,
+};
 
 use super::Executor;
 

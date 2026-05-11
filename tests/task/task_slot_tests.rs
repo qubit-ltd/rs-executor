@@ -9,7 +9,11 @@
  ******************************************************************************/
 use std::io;
 
-use qubit_executor::{CancelResult, TaskExecutionError, task::spi::TaskEndpointPair};
+use qubit_executor::{
+    CancelResult,
+    TaskExecutionError,
+    task::spi::TaskEndpointPair,
+};
 
 /// Test task completion start, completion, and cancellation races through public endpoints.
 #[test]

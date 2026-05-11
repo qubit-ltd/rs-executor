@@ -14,12 +14,19 @@ use std::{
     sync::Arc,
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use qubit_executor::{
-    CancelResult, TaskExecutionError,
-    executor::{DelayExecutor, Executor},
+    CancelResult,
+    TaskExecutionError,
+    executor::{
+        DelayExecutor,
+        Executor,
+    },
     hook::NoopTaskHook,
     service::SubmissionError,
 };

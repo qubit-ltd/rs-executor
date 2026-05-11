@@ -7,18 +7,31 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{sync::Arc, thread, time::Instant};
+use std::{
+    sync::Arc,
+    thread,
+    time::Instant,
+};
 
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{TaskHook, notify_rejected},
+    hook::{
+        TaskHook,
+        notify_rejected_optional,
+    },
     service::SubmissionError,
-    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
+    task::{
+        spi::TaskEndpointPair,
+        task_admission_gate::TaskAdmissionGate,
+    },
 };
 
-use super::{Executor, thread_spawn_config::ThreadSpawnConfig};
+use super::{
+    Executor,
+    thread_spawn_config::ThreadSpawnConfig,
+};
 
 /// Executor that starts each task at a specified monotonic instant.
 ///
@@ -108,35 +121,21 @@ impl Executor for ScheduleExecutor {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
-        if self.hook.is_some() {
-            let gate = TaskAdmissionGate::new();
-            let worker_gate = gate.clone();
-            ThreadSpawnConfig::new(self.stack_size)
-                .spawn(move || {
-                    worker_gate.wait();
-                    let now = Instant::now();
-                    if instant > now {
-                        thread::sleep(instant.duration_since(now));
-                    }
-                    slot.run(task);
-                })
-                .inspect_err(|error| {
-                    if let Some(hook) = &self.hook {
-                        notify_rejected(hook.as_ref(), error);
-                    }
-                })?;
-            handle.accept();
-            gate.open();
-            return Ok(handle);
-        }
-        ThreadSpawnConfig::new(self.stack_size).spawn(move || {
-            let now = Instant::now();
-            if instant > now {
-                thread::sleep(instant.duration_since(now));
-            }
-            slot.run(task);
-        })?;
+        let gate = TaskAdmissionGate::new(self.hook.is_some());
+        let worker_gate = gate.clone();
+        let hook = self.hook.clone();
+        ThreadSpawnConfig::new(self.stack_size)
+            .spawn(move || {
+                worker_gate.wait();
+                let now = Instant::now();
+                if instant > now {
+                    thread::sleep(instant.duration_since(now));
+                }
+                slot.run(task);
+            })
+            .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
+        gate.open();
         Ok(handle)
     }
 }

@@ -12,16 +12,31 @@
 use std::{
     io,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 
 use qubit_executor::{
-    TaskExecutionError, TaskStatus,
-    executor::{Executor, ThreadPerTaskExecutor},
-    hook::{NoopTaskHook, TaskHook, TaskId},
-    service::{ExecutorServiceBuilderError, SubmissionError},
+    TaskExecutionError,
+    TaskStatus,
+    executor::{
+        Executor,
+        ThreadPerTaskExecutor,
+    },
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+        TaskId,
+    },
+    service::{
+        ExecutorServiceBuilderError,
+        SubmissionError,
+    },
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);

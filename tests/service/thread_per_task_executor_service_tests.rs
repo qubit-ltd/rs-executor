@@ -12,17 +12,31 @@
 use std::{
     io,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use qubit_executor::{
-    ExecutorServiceLifecycle, TaskExecutionError, TaskStatus,
-    hook::{NoopTaskHook, TaskHook, TaskId},
+    ExecutorServiceLifecycle,
+    TaskExecutionError,
+    TaskStatus,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+        TaskId,
+    },
     service::{
-        ExecutorService, ExecutorServiceBuilderError, SubmissionError, ThreadPerTaskExecutorService,
+        ExecutorService,
+        ExecutorServiceBuilderError,
+        SubmissionError,
+        ThreadPerTaskExecutorService,
     },
 };
 
@@ -211,6 +225,23 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
     let tracked_result =
         service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
     assert!(matches!(tracked_result, Err(SubmissionError::Shutdown)));
+}
+
+#[test]
+fn test_thread_per_task_executor_service_shutdown_rejection_notifies_hook() {
+    let hook = Arc::new(CountingHook::default());
+    let service = ThreadPerTaskExecutorService::builder()
+        .hook(hook.clone())
+        .build()
+        .expect("service should build");
+    service.shutdown();
+
+    let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
+
+    assert!(matches!(result, Err(SubmissionError::Shutdown)));
+    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
+    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
+    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
 }
 
 #[test]
