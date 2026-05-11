@@ -13,18 +13,12 @@ use std::{
     io,
     sync::mpsc,
     thread,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::{Duration, Instant},
 };
 
 use qubit_executor::{
-    TaskExecutionError,
-    executor::{
-        DelayExecutor,
-        Executor,
-    },
+    CancelResult, TaskExecutionError,
+    executor::{DelayExecutor, Executor},
 };
 
 fn delayed_value_task() -> Result<usize, io::Error> {
@@ -71,7 +65,7 @@ fn test_delay_executor_cancel_before_start_skips_callable() {
 
     let handle = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
 
-    assert!(handle.cancel());
+    assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     thread::sleep(Duration::from_millis(120));
 }

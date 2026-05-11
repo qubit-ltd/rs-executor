@@ -8,17 +8,11 @@
  *
  ******************************************************************************/
 use std::{
-    future::{
-        Ready,
-        ready,
-    },
+    future::{Ready, ready},
     io,
 };
 
-use qubit_executor::executor::{
-    Executor,
-    FutureExecutor,
-};
+use qubit_executor::executor::{Executor, FutureExecutor};
 use qubit_function::Callable;
 
 #[derive(Debug, Default)]

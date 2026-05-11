@@ -13,22 +13,14 @@ use std::{
     io,
     sync::{
         Arc,
-        atomic::{
-            AtomicBool,
-            Ordering,
-        },
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
 
 use qubit_executor::{
-    ExecutorServiceLifecycle,
-    TaskExecutionError,
-    service::{
-        ExecutorService,
-        RejectedExecution,
-        ThreadPerTaskExecutorService,
-    },
+    ExecutorServiceLifecycle, TaskExecutionError,
+    service::{ExecutorService, RejectedExecution, ThreadPerTaskExecutorService},
 };
 
 /// Creates a current-thread Tokio runtime for driving async termination APIs in sync tests.
@@ -53,12 +45,10 @@ fn test_thread_per_task_executor_service_submit_acceptance_is_not_task_success()
 
     service
         .submit(ok_unit_task as fn() -> Result<(), io::Error>)
-        .expect("service should accept the shared runnable")
-        .get()
-        .expect("shared runnable should complete successfully");
+        .expect("service should accept the shared runnable");
 
     let handle = service
-        .submit(|| Err::<(), _>(io::Error::other("task failed")))
+        .submit_callable(|| Err::<(), _>(io::Error::other("task failed")))
         .expect("service should accept the runnable");
 
     let err = handle
@@ -86,7 +76,7 @@ fn test_thread_per_task_executor_service_reports_panicked_task() {
     let service = ThreadPerTaskExecutorService::new();
 
     let handle = service
-        .submit(|| -> Result<(), io::Error> { panic!("thread per task service panic") })
+        .submit_callable(|| -> Result<(), io::Error> { panic!("thread per task service panic") })
         .expect("service should accept panicking task");
 
     assert!(matches!(handle.get(), Err(TaskExecutionError::Panicked)));

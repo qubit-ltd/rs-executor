@@ -7,26 +7,18 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    fmt::Display,
-    thread,
-    time::Duration,
-};
+use std::{fmt::Display, thread, time::Duration};
 
 use qubit_function::Callable;
 
-use crate::{
-    TaskCompletionPair,
-    TaskHandle,
-    TaskRunner,
-};
+use crate::{TaskCompletionPair, TaskRunner, TrackedTask};
 
 use super::Executor;
 
 /// Executor that starts each task after a fixed delay.
 ///
 /// `DelayExecutor` models delayed start, not minimum execution duration. The
-/// returned [`TaskHandle`] is created immediately. A helper thread sleeps for
+/// returned [`TrackedTask`] is created immediately. A helper thread sleeps for
 /// the configured delay and then runs the task. Dropping the handle does not
 /// cancel the helper thread.
 ///
@@ -64,7 +56,7 @@ impl DelayExecutor {
 
 impl Executor for DelayExecutor {
     type Execution<R, E>
-        = TaskHandle<R, E>
+        = TrackedTask<R, E>
     where
         R: Send + 'static,
         E: Display + Send + 'static;
@@ -77,14 +69,14 @@ impl Executor for DelayExecutor {
     ///
     /// # Returns
     ///
-    /// A [`TaskHandle`] for the delayed task.
+    /// A [`TrackedTask`] for the delayed task.
     fn call<C, R, E>(&self, task: C) -> Self::Execution<R, E>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Display + Send + 'static,
     {
-        let (handle, completion) = TaskCompletionPair::new().into_parts();
+        let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
         let delay = self.delay;
         thread::spawn(move || {
             if !delay.is_zero() {

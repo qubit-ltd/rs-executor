@@ -33,9 +33,30 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 
 `ExecutorService` 是托管服务。它回答的是：“这个服务是否能接受任务、跟踪任务、关闭并最终终止？”`submit` 成功只表示服务接受了任务，不表示任务已经开始或成功完成。
 
+## ExecutorService 生命周期
+
+所有托管服务都遵循相同的高层生命周期：
+
+| 状态 | 含义 |
+| --- | --- |
+| `Running` | 服务接受新任务，并且可能已有已接受的任务正在排队、等待调度或运行。 |
+| `ShuttingDown` | 已调用 `shutdown()` 请求有序关闭。新提交会被拒绝，已接受的工作会被允许正常完成。 |
+| `Stopping` | 已调用 `stop()` 请求立即停止。新提交会被拒绝，服务会尝试取消或 abort 仍可停止的已接受工作。 |
+| `Terminated` | 已请求 shutdown 或 stop，且没有任何已接受工作仍处于活动状态。 |
+
+`shutdown()` 和 `stop()` 都是终止性的接收开关：调用任一方法后，服务都不再处于 running 状态，也不会再次接受新任务。两者的区别在于如何处理已经接受的工作。
+
+`shutdown()` 是优雅关闭。它保留已接受的工作，并允许排队中、等待调度中或运行中的任务按照具体服务的正常执行规则完成。
+
+`stop()` 是立即停止，并且是尽力而为。它会请求取消排队中、等待调度中或尚未开始的工作；如果运行时支持 abort，也可以 abort 由运行时管理的任务。它不能强行中断任意 Rust 代码、blocking 调用或已经运行的 OS 线程，因此服务终止仍可能等待这些工作自行返回。返回的 `StopReport` 描述处理 stop 请求时观察到的 queued、running 与 cancelled 工作数量。
+
+`await_termination()` 会等待到 shutdown 或 stop 已经被请求，并且所有已接受工作都已经完成、失败、panic、被取消或按照具体服务能力被 abort。
+
 ## 任务结果
 
-`TaskHandle` 表示已被接受的任务。它支持通过 `get` 阻塞等待、作为 `Future` 异步等待、通过 `is_done` 检查完成状态，以及在任务开始前进行尽力取消。
+`TaskHandle` 表示已接受 callable 任务的结果。它支持通过 `get` 阻塞等待、按值 await、通过 `try_get` 非阻塞尝试获取结果，以及通过 `is_done` 检查完成状态。
+
+`TrackedTask` 在结果获取之外增加状态检查和任务开始前的尽力取消。托管服务通过 `submit_tracked` 和 `submit_tracked_callable` 返回 tracked handle。
 
 任务执行错误由 `TaskExecutionError` 表示：
 

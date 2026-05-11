@@ -13,23 +13,12 @@ use std::{
     io,
     sync::{
         Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
-use qubit_executor::executor::{
-    DirectExecutor,
-    Executor,
-};
-use qubit_function::{
-    BoxCallable,
-    BoxRunnable,
-    Callable,
-    Runnable,
-};
+use qubit_executor::executor::{DirectExecutor, Executor};
+use qubit_function::{BoxCallable, BoxRunnable, Callable, Runnable};
 
 #[test]
 fn test_direct_executor_execute_runs_inline() {

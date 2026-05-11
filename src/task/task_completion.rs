@@ -12,7 +12,7 @@ use std::sync::Arc;
 use super::TaskExecutionError;
 use super::TaskResult;
 use super::task_handle_inner::TaskHandleInner;
-use super::task_handle_state::TaskHandleState;
+use super::task_handle_state::TaskStatus;
 
 /// Completion endpoint owned by a task runner.
 ///
@@ -48,14 +48,7 @@ impl<R, E> TaskCompletion<R, E> {
     /// `true` if the runner should execute the task, or `false` if the task was
     /// already completed through cancellation.
     pub fn start(&self) -> bool {
-        self.inner.state.write(|state| {
-            if state.completed {
-                false
-            } else {
-                state.started = true;
-                true
-            }
-        })
+        self.inner.start()
     }
 
     /// Completes the task with its final result.
@@ -106,7 +99,9 @@ impl<R, E> TaskCompletion<R, E> {
     /// task was already started or completed.
     #[inline]
     pub fn cancel(&self) -> bool {
-        self.finish(Err(TaskExecutionError::Cancelled), |state| !state.started)
+        self.finish(Err(TaskExecutionError::Cancelled), |status| {
+            status == TaskStatus::Pending
+        })
     }
 
     /// Publishes a terminal result when the supplied predicate allows it.
@@ -114,8 +109,8 @@ impl<R, E> TaskCompletion<R, E> {
     /// # Parameters
     ///
     /// * `result` - Terminal result to store.
-    /// * `can_finish` - Predicate evaluated under the monitor lock to decide
-    ///   whether this path may publish the result.
+    /// * `can_finish` - Predicate evaluated against the observed task status to
+    ///   decide whether this path may publish the result.
     ///
     /// # Returns
     ///
@@ -124,24 +119,8 @@ impl<R, E> TaskCompletion<R, E> {
     /// rejected the transition.
     fn finish<F>(&self, result: TaskResult<R, E>, can_finish: F) -> bool
     where
-        F: FnOnce(&TaskHandleState<R, E>) -> bool,
+        F: FnMut(TaskStatus) -> bool,
     {
-        let (published, waker) = self.inner.state.write(|state| {
-            if state.completed || !can_finish(state) {
-                return (false, None);
-            }
-            state.result = Some(result);
-            state.completed = true;
-            self.inner.done.store(true);
-            (true, state.waker.take())
-        });
-        if !published {
-            return false;
-        }
-        self.inner.notify_completion();
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-        true
+        self.inner.finish(result, can_finish)
     }
 }

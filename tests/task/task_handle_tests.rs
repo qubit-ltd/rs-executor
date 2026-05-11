@@ -11,21 +11,14 @@
 
 use std::{
     io,
-    sync::{
-        Arc,
-        mpsc,
-    },
+    sync::{Arc, mpsc},
     thread,
     time::Duration,
 };
 
 use qubit_executor::{
-    TaskCompletionPair,
-    TaskExecutionError,
-    executor::{
-        Executor,
-        ThreadPerTaskExecutor,
-    },
+    CancelResult, TaskCompletionPair, TaskExecutionError,
+    executor::{Executor, ThreadPerTaskExecutor},
     service::RejectedExecution,
 };
 
@@ -76,7 +69,7 @@ fn test_task_handle_cancel_after_start_returns_false() {
         .recv_timeout(Duration::from_secs(1))
         .expect("task should start within timeout");
 
-    assert!(!handle.cancel());
+    assert_eq!(handle.cancel(), CancelResult::AlreadyRunning);
     release_tx
         .send(())
         .expect("task should receive release signal");
@@ -110,9 +103,9 @@ fn test_task_completion_pair_default_creates_usable_pair() {
 
 #[test]
 fn test_task_completion_start_and_complete_skips_cancelled_task() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
 
-    assert!(handle.cancel());
+    assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(!completion.start_and_complete(|| {
         panic!("cancelled task must not run");
     }));

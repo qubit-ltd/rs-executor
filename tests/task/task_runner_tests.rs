@@ -11,10 +11,7 @@
 
 use std::io;
 
-use qubit_executor::{
-    TaskCompletionPair,
-    TaskRunner,
-};
+use qubit_executor::{TaskCompletionPair, TaskRunner};
 
 #[test]
 fn test_runner_executes_through_completion() {

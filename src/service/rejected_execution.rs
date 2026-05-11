@@ -7,10 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    io,
-    sync::Arc,
-};
+use std::{io, sync::Arc};
 
 use thiserror::Error;
 

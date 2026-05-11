@@ -11,33 +11,18 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        MutexGuard,
-        atomic::{
-            AtomicU8,
-            Ordering,
-        },
+        Arc, Condvar, Mutex, MutexGuard,
+        atomic::{AtomicU8, Ordering},
     },
     thread,
 };
 
 use qubit_atomic::AtomicCount;
-use qubit_function::Callable;
+use qubit_function::{Callable, Runnable};
 
-use crate::{
-    TaskCompletionPair,
-    TaskHandle,
-    TaskRunner,
-};
+use crate::{TaskCompletionPair, TaskHandle, TaskRunner, TrackedTask};
 
-use super::{
-    ExecutorService,
-    ExecutorServiceLifecycle,
-    RejectedExecution,
-    StopReport,
-};
+use super::{ExecutorService, ExecutorServiceLifecycle, RejectedExecution, StopReport};
 
 /// Shared state for [`ThreadPerTaskExecutorService`].
 #[derive(Default)]
@@ -144,8 +129,14 @@ impl ThreadPerTaskExecutorService {
 }
 
 impl ExecutorService for ThreadPerTaskExecutorService {
-    type Handle<R, E>
+    type ResultHandle<R, E>
         = TaskHandle<R, E>
+    where
+        R: Send + 'static,
+        E: Send + 'static;
+
+    type TrackedHandle<R, E>
+        = TrackedTask<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
@@ -154,6 +145,43 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         = Pin<Box<dyn Future<Output = ()> + Send + 'a>>
     where
         Self: 'a;
+
+    /// Accepts a runnable and starts it on a dedicated OS thread.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Runnable to execute on a new OS thread.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the runnable was accepted.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RejectedExecution::Shutdown`] if shutdown has already been
+    /// requested before the task is accepted.
+    fn submit<T, E>(&self, task: T) -> Result<(), RejectedExecution>
+    where
+        T: Runnable<E> + Send + 'static,
+        E: Send + 'static,
+    {
+        let submission_guard = self.state.lock_submission();
+        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
+            return Err(RejectedExecution::Shutdown);
+        }
+        self.state.active_tasks.inc();
+        drop(submission_guard);
+
+        let state = Arc::clone(&self.state);
+        thread::spawn(move || {
+            let mut task = task;
+            let _ignored = TaskRunner::new(move || task.run()).call::<(), E>();
+            if state.active_tasks.dec() == 0 {
+                state.notify_if_terminated();
+            }
+        });
+        Ok(())
+    }
 
     /// Accepts a callable and starts it on a dedicated OS thread.
     ///
@@ -169,7 +197,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// Returns [`RejectedExecution::Shutdown`] if shutdown has already been
     /// requested before the task is accepted.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::Handle<R, E>, RejectedExecution>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, RejectedExecution>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -183,6 +214,34 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         drop(submission_guard);
 
         let (handle, completion) = TaskCompletionPair::new().into_parts();
+        let state = Arc::clone(&self.state);
+        thread::spawn(move || {
+            TaskRunner::new(task).run(completion);
+            if state.active_tasks.dec() == 0 {
+                state.notify_if_terminated();
+            }
+        });
+        Ok(handle)
+    }
+
+    /// Accepts a callable and starts it with a tracked handle.
+    fn submit_tracked_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::TrackedHandle<R, E>, RejectedExecution>
+    where
+        C: Callable<R, E> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static,
+    {
+        let submission_guard = self.state.lock_submission();
+        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
+            return Err(RejectedExecution::Shutdown);
+        }
+        self.state.active_tasks.inc();
+        drop(submission_guard);
+
+        let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
         let state = Arc::clone(&self.state);
         thread::spawn(move || {
             TaskRunner::new(task).run(completion);

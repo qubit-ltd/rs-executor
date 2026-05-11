@@ -13,12 +13,14 @@ readme = "README.md"
 keywords = ["executor", "task", "concurrency", "service"]
 categories = ["concurrency", "asynchronous"]
 exclude = [
+    "align-ci.sh",
     "coverage.sh",
     "COVERAGE.md",
     "COVERAGE.zh_CN.md",
-    ".github/*",
     "ci-check.sh",
+    ".github/*",
     ".llvm-cov.toml",
+    ".rs-ci/*",
 ]
 
 [lib]
@@ -26,11 +28,12 @@ name = "qubit_executor"
 doctest = true
 
 [dependencies]
+oneshot = { version = "0.2", features = ["async", "std"] }
 thiserror = "2.0"
 
 qubit-atomic = "0.10"
-qubit-function = "0.12"
-qubit-lock = "0.3"
+qubit-function = "0.13"
+qubit-lock = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }

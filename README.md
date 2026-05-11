@@ -43,11 +43,45 @@ task, track it, shut down, and eventually terminate?” A successful `submit`
 means only that the service accepted the task. It does not mean the task has
 started or completed successfully.
 
+## ExecutorService Lifecycle
+
+Every managed service follows the same high-level lifecycle:
+
+| State | Meaning |
+| --- | --- |
+| `Running` | The service accepts new tasks and may have accepted work queued, scheduled, or running. |
+| `ShuttingDown` | `shutdown()` has requested orderly shutdown. New submissions are rejected, while already accepted work is allowed to finish normally. |
+| `Stopping` | `stop()` has requested abrupt stop. New submissions are rejected, and the service attempts to cancel or abort accepted work that can still be stopped. |
+| `Terminated` | Shutdown or stop has been requested, and no accepted work remains active. |
+
+`shutdown()` and `stop()` are both terminal admission decisions: after either
+method is called, the service is no longer running and will not accept new
+tasks again. The difference is how accepted work is treated.
+
+`shutdown()` is graceful. It preserves accepted work and lets queued,
+scheduled, or running tasks complete according to the concrete service's normal
+execution rules.
+
+`stop()` is abrupt and best effort. It requests cancellation of queued,
+scheduled, or unstarted work, and may abort runtime-managed tasks when the
+runtime supports aborting them. It cannot forcibly interrupt arbitrary Rust
+code, blocking calls, or already-running OS threads, so termination may still
+wait for such work to return. The returned `StopReport` describes the queued,
+running, and cancelled work observed while handling the stop request.
+
+`await_termination()` waits until either shutdown or stop has been requested and
+all accepted work has completed, failed, panicked, been cancelled, or been
+aborted according to the concrete service's capabilities.
+
 ## Task Results
 
-`TaskHandle` represents an accepted task. It supports blocking waits through
-`get`, async waits through `Future`, completion checks through `is_done`, and
-best-effort cancellation before the task starts.
+`TaskHandle` represents the result of an accepted callable task. It supports
+blocking waits through `get`, async waits by value, non-blocking `try_get`, and
+completion checks through `is_done`.
+
+`TrackedTask` adds status inspection and best-effort cancellation before the
+task starts. Managed services expose tracked handles through
+`submit_tracked` and `submit_tracked_callable`.
 
 Task execution errors are represented by `TaskExecutionError`:
 

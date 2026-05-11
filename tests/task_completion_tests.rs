@@ -9,10 +9,7 @@
  ******************************************************************************/
 use std::io;
 
-use qubit_executor::{
-    TaskCompletionPair,
-    TaskExecutionError,
-};
+use qubit_executor::{TaskCompletionPair, TaskExecutionError};
 
 /// Test task completion start, completion, and cancellation races through public endpoints.
 #[test]

@@ -22,9 +22,8 @@ mod task_runner;
 
 pub use task_completion::TaskCompletion;
 pub use task_completion_pair::TaskCompletionPair;
-pub use task_execution_error::{
-    TaskExecutionError,
-    TaskResult,
-};
+pub use task_execution_error::{TaskExecutionError, TaskResult};
 pub use task_handle::TaskHandle;
+pub use task_handle::{TaskHandleFuture, TaskResultHandle, TrackedTask, TrackedTaskHandle, TryGet};
+pub use task_handle_state::{CancelResult, TaskStatus};
 pub use task_runner::TaskRunner;

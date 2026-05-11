@@ -12,28 +12,24 @@ use std::thread;
 
 use qubit_function::Callable;
 
-use crate::{
-    TaskCompletionPair,
-    TaskHandle,
-    TaskRunner,
-};
+use crate::{TaskCompletionPair, TaskRunner, TrackedTask};
 
 use super::Executor;
 
 /// Executes each task on a dedicated OS thread.
 ///
 /// This executor does not manage lifecycle or maintain a queue. Each accepted
-/// task receives a [`TaskHandle`] that can be used to wait for the result.
+/// task receives a [`TrackedTask`] that can be used to wait for the result.
 ///
 /// # Semantics
 ///
 /// * **One task, one thread** — each [`Executor::call`] or [`Executor::execute`]
 ///   spawns a new [`std::thread::spawn`] worker. There is no pool and no
 ///   submission queue.
-/// * **Blocking or async wait** — [`TaskHandle::get`] blocks the calling thread,
+/// * **Blocking or async wait** — [`TrackedTask::get`] blocks the calling thread,
 ///   while awaiting the handle uses a waker and does not block the polling
 ///   thread.
-/// * **Completion probe** — [`TaskHandle::is_done`] reads an atomic flag set
+/// * **Completion probe** — [`TrackedTask::is_done`] reads an atomic flag set
 ///   after the worker publishes the result; it does not retrieve the value
 ///   (you still need [`TaskHandle::get`] for that).
 ///
@@ -59,7 +55,7 @@ pub struct ThreadPerTaskExecutor;
 
 impl Executor for ThreadPerTaskExecutor {
     type Execution<R, E>
-        = TaskHandle<R, E>
+        = TrackedTask<R, E>
     where
         R: Send + 'static,
         E: Display + Send + 'static;
@@ -72,7 +68,7 @@ impl Executor for ThreadPerTaskExecutor {
     ///
     /// # Returns
     ///
-    /// A [`TaskHandle`] that can block or await the spawned task's final
+    /// A [`TrackedTask`] that can block or await the spawned task's final
     /// result.
     fn call<C, R, E>(&self, task: C) -> Self::Execution<R, E>
     where
@@ -80,7 +76,7 @@ impl Executor for ThreadPerTaskExecutor {
         R: Send + 'static,
         E: Display + Send + 'static,
     {
-        let (handle, completion) = TaskCompletionPair::new().into_parts();
+        let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
         thread::spawn(move || {
             TaskRunner::new(task).run(completion);
         });

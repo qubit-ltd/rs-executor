@@ -9,16 +9,11 @@
  ******************************************************************************/
 use std::future::Future;
 
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::{Callable, Runnable};
 
-use super::{
-    ExecutorServiceLifecycle,
-    RejectedExecution,
-    StopReport,
-};
+use crate::{TaskResultHandle, TrackedTaskHandle};
+
+use super::{ExecutorServiceLifecycle, RejectedExecution, StopReport};
 
 /// Managed task service with submission and lifecycle control.
 ///
@@ -29,12 +24,43 @@ use super::{
 ///
 /// `submit` and `submit_callable` return `Result` values whose outer `Ok`
 /// means only that the service accepted the task. It does **not** mean the task
-/// has started or succeeded. The task's final result is observed through the
-/// returned handle.
+/// has started or succeeded. `submit` is fire-and-forget; callable and tracked
+/// variants return handles for observing the final task result.
 ///
+/// ## Lifecycle
+///
+/// A service starts in [`ExecutorServiceLifecycle::Running`]. While running,
+/// submissions may be accepted. Calling [`shutdown`](Self::shutdown) starts an
+/// orderly shutdown and moves the service toward
+/// [`ExecutorServiceLifecycle::ShuttingDown`]: later submissions are rejected,
+/// while work accepted before shutdown is allowed to finish normally. Calling
+/// [`stop`](Self::stop) starts an abrupt stop and moves the service toward
+/// [`ExecutorServiceLifecycle::Stopping`]: later submissions are rejected and
+/// the implementation attempts to cancel or abort accepted work that can still
+/// be stopped.
+///
+/// `shutdown` and `stop` are both terminal admission decisions; neither allows
+/// the service to become running again. The difference is how accepted work is
+/// treated. `shutdown` preserves accepted work, including queued or scheduled
+/// work, unless a concrete service documents a stronger policy. `stop` is a
+/// best-effort interruption request for queued, scheduled, unstarted, or
+/// runtime-abortable work. Work already running in ordinary Rust code, blocking
+/// calls, or OS threads may not be forcibly interrupted, so termination can
+/// still wait for that work to return.
+///
+/// A service reaches [`ExecutorServiceLifecycle::Terminated`] after shutdown or
+/// stop has been requested and no accepted work remains active. Accepted work
+/// may have completed normally, failed, panicked, been cancelled, or been
+/// aborted according to the concrete service's capabilities.
 pub trait ExecutorService: Send + Sync {
-    /// Handle returned for an accepted task.
-    type Handle<R, E>
+    /// Result handle returned for an accepted callable task.
+    type ResultHandle<R, E>: TaskResultHandle<R, E>
+    where
+        R: Send + 'static,
+        E: Send + 'static;
+
+    /// Tracked handle returned for accepted tasks that expose status.
+    type TrackedHandle<R, E>: TrackedTaskHandle<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
@@ -52,8 +78,8 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// `Ok(handle)` if the service accepts the task. This only reports
-    /// acceptance; it does not report task start or task success. Returns
+    /// `Ok(())` if the service accepts the task. This only reports acceptance;
+    /// it does not report task start or task success. Returns
     /// `Err(RejectedExecution)` if the service refuses the task before
     /// accepting it.
     ///
@@ -61,15 +87,10 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`RejectedExecution`] when the service refuses the task before
     /// accepting it.
-    #[inline]
-    fn submit<T, E>(&self, task: T) -> Result<Self::Handle<(), E>, RejectedExecution>
+    fn submit<T, E>(&self, task: T) -> Result<(), RejectedExecution>
     where
         T: Runnable<E> + Send + 'static,
-        E: Send + 'static,
-    {
-        let mut task = task;
-        self.submit_callable(move || task.run())
-    }
+        E: Send + 'static;
 
     /// Submits a callable task to this service.
     ///
@@ -89,7 +110,60 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`RejectedExecution`] when the service refuses the task before
     /// accepting it.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::Handle<R, E>, RejectedExecution>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, RejectedExecution>
+    where
+        C: Callable<R, E> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static;
+
+    /// Submits a runnable task and returns a tracked handle.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - A fallible background action with no business return value.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(handle)` if the service accepts the task. The handle exposes status,
+    /// pre-start cancellation, and final unit result retrieval.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// accepting it.
+    #[inline]
+    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, RejectedExecution>
+    where
+        T: Runnable<E> + Send + 'static,
+        E: Send + 'static,
+    {
+        let mut task = task;
+        self.submit_tracked_callable(move || task.run())
+    }
+
+    /// Submits a callable task and returns a tracked handle.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - A fallible computation whose success value should be captured
+    ///   in the returned handle.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(handle)` if the service accepts the task. The handle exposes status,
+    /// pre-start cancellation, and final result retrieval.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// accepting it.
+    fn submit_tracked_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::TrackedHandle<R, E>, RejectedExecution>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -97,17 +171,33 @@ pub trait ExecutorService: Send + Sync {
 
     /// Initiates an orderly shutdown.
     ///
-    /// After shutdown starts, new tasks are rejected. Already accepted tasks are
-    /// allowed to complete unless the concrete service documents stronger
-    /// cancellation behavior.
+    /// After shutdown starts, the service rejects new submissions and enters
+    /// the [`ExecutorServiceLifecycle::ShuttingDown`] path. Already accepted
+    /// work is allowed to complete normally, including work that is queued,
+    /// scheduled, or running, unless the concrete service documents a stronger
+    /// cancellation policy.
+    ///
+    /// This method is an admission gate change, not a wait operation. Use
+    /// [`await_termination`](Self::await_termination) to wait until all accepted
+    /// work has completed or the service has otherwise terminated.
     fn shutdown(&self);
 
-    /// Attempts to stop accepting and running tasks immediately.
+    /// Attempts to stop accepting new tasks and stop accepted work immediately.
+    ///
+    /// After stop starts, the service rejects new submissions and enters the
+    /// [`ExecutorServiceLifecycle::Stopping`] path. The implementation should
+    /// cancel queued, scheduled, or unstarted work where possible, and abort
+    /// runtime-managed work where its runtime provides an abort mechanism.
+    ///
+    /// `stop` is best effort. It cannot promise to interrupt arbitrary Rust
+    /// code, blocking calls, or already-running OS-thread work. Such work may
+    /// continue until it returns, and service termination waits for any
+    /// non-interruptible accepted work that remains active.
     ///
     /// # Returns
     ///
-    /// A count-based stop report describing the state observed at the time of
-    /// the request.
+    /// A count-based stop report describing queued, running, and cancelled work
+    /// observed while handling the request.
     fn stop(&self) -> StopReport;
 
     /// Returns the current lifecycle state.
@@ -174,7 +264,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// A future that completes after shutdown has been requested and no accepted
-    /// tasks remain active.
+    /// A future that completes after shutdown or stop has been requested and no
+    /// accepted tasks remain active.
     fn await_termination(&self) -> Self::Termination<'_>;
 }
