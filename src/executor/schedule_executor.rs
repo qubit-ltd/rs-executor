@@ -15,10 +15,10 @@ use crate::{
     TrackedTask,
     hook::{TaskHook, notify_rejected},
     service::SubmissionError,
-    task::spi::TaskEndpointPair,
+    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
 };
 
-use super::{Executor, task_admission_gate::TaskAdmissionGate};
+use super::{Executor, thread_spawn_config::ThreadSpawnConfig};
 
 /// Executor that starts each task at a specified monotonic instant.
 ///
@@ -32,6 +32,8 @@ pub struct ScheduleExecutor {
     instant: Instant,
     /// Hook notified about accepted task lifecycle events.
     hook: Option<Arc<dyn TaskHook>>,
+    /// Optional stack size for each helper thread.
+    stack_size: Option<usize>,
 }
 
 impl ScheduleExecutor {
@@ -49,6 +51,7 @@ impl ScheduleExecutor {
         Self {
             instant,
             hook: None,
+            stack_size: None,
         }
     }
 
@@ -64,6 +67,21 @@ impl ScheduleExecutor {
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
         self.hook = Some(hook);
+        self
+    }
+
+    /// Returns a copy of this executor using the supplied helper thread stack size.
+    ///
+    /// # Parameters
+    ///
+    /// * `stack_size` - Stack size in bytes for each helper thread.
+    ///
+    /// # Returns
+    ///
+    /// This executor configured with `stack_size`.
+    #[inline]
+    pub fn with_stack_size(mut self, stack_size: usize) -> Self {
+        self.stack_size = Some(stack_size);
         self
     }
 
@@ -93,7 +111,7 @@ impl Executor for ScheduleExecutor {
         if self.hook.is_some() {
             let gate = TaskAdmissionGate::new();
             let worker_gate = gate.clone();
-            thread::Builder::new()
+            ThreadSpawnConfig::new(self.stack_size)
                 .spawn(move || {
                     worker_gate.wait();
                     let now = Instant::now();
@@ -102,8 +120,6 @@ impl Executor for ScheduleExecutor {
                     }
                     slot.run(task);
                 })
-                .map(drop)
-                .map_err(SubmissionError::worker_spawn_failed)
                 .inspect_err(|error| {
                     if let Some(hook) = &self.hook {
                         notify_rejected(hook.as_ref(), error);
@@ -113,16 +129,13 @@ impl Executor for ScheduleExecutor {
             gate.open();
             return Ok(handle);
         }
-        thread::Builder::new()
-            .spawn(move || {
-                let now = Instant::now();
-                if instant > now {
-                    thread::sleep(instant.duration_since(now));
-                }
-                slot.run(task);
-            })
-            .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)?;
+        ThreadSpawnConfig::new(self.stack_size).spawn(move || {
+            let now = Instant::now();
+            if instant > now {
+                thread::sleep(instant.duration_since(now));
+            }
+            slot.run(task);
+        })?;
         handle.accept();
         Ok(handle)
     }

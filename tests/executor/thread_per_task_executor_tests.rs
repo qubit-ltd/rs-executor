@@ -193,3 +193,18 @@ fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
     assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
     assert_eq!(hook.finished.load(Ordering::Acquire), 0);
 }
+
+#[test]
+fn test_thread_per_task_executor_reports_worker_spawn_failure_without_hook() {
+    let executor = ThreadPerTaskExecutor::builder()
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
+
+    let result = executor.call(|| Ok::<usize, io::Error>(42));
+
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. })
+    ));
+}

@@ -15,7 +15,6 @@ mod direct_executor;
 #[allow(clippy::module_inception)]
 mod executor;
 mod schedule_executor;
-pub(crate) mod task_admission_gate;
 mod thread_per_task_executor;
 mod thread_per_task_executor_builder;
 pub(crate) mod thread_spawn_config;

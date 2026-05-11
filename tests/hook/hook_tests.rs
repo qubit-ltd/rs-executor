@@ -70,6 +70,10 @@ impl TaskHook for PanickingHook {
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
         panic!("finished hook panic");
     }
+
+    fn on_rejected(&self, _error: &SubmissionError) {
+        panic!("rejected hook panic");
+    }
 }
 
 impl TaskHook for RecordingHook {
@@ -143,4 +147,22 @@ fn test_logging_task_hook_is_constructible() {
     hook.on_rejected(&SubmissionError::Shutdown);
     hook.on_started(TaskId::new(1));
     hook.on_finished(TaskId::new(1), TaskStatus::Succeeded);
+}
+
+#[test]
+fn test_task_hook_rejected_panics_do_not_break_rejection() {
+    let executor = qubit_executor::executor::ThreadPerTaskExecutor::builder()
+        .hook(Arc::new(PanickingHook))
+        .stack_size(usize::MAX)
+        .build()
+        .expect("nonzero stack size should build");
+
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        executor.call(|| Ok::<usize, io::Error>(42))
+    }));
+
+    assert!(matches!(
+        result.expect("hook panic should be contained"),
+        Err(SubmissionError::WorkerSpawnFailed { .. }),
+    ));
 }

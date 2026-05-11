@@ -12,13 +12,11 @@ use std::sync::Arc;
 use parking_lot::{Condvar, Mutex};
 use qubit_function::{Callable, Runnable};
 
-use crate::executor::{
-    task_admission_gate::TaskAdmissionGate, thread_spawn_config::ThreadSpawnConfig,
-};
+use crate::executor::thread_spawn_config::ThreadSpawnConfig;
 use crate::{
     TaskHandle, TrackedTask,
     hook::{TaskHook, notify_rejected},
-    task::spi::TaskEndpointPair,
+    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
 };
 
 use super::{
@@ -305,19 +303,29 @@ impl ExecutorService for ThreadPerTaskExecutorService {
 
         let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+                worker_gate.wait();
+                let _guard = guard;
+                let mut task = task;
+                slot.run(move || task.run());
+            })) {
+                self.notify_rejected(&error);
+                return Err(error);
+            }
+            handle.accept();
+            gate.open();
+            drop(handle);
+            return Ok(());
+        }
+        self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             let mut task = task;
             slot.run(move || task.run());
-        })) {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
+        }))?;
         handle.accept();
-        gate.open();
         drop(handle);
         Ok(())
     }
@@ -349,18 +357,26 @@ impl ExecutorService for ThreadPerTaskExecutorService {
 
         let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+                worker_gate.wait();
+                let _guard = guard;
+                slot.run(task);
+            })) {
+                self.notify_rejected(&error);
+                return Err(error);
+            }
+            handle.accept();
+            gate.open();
+            return Ok(handle);
+        }
+        self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             slot.run(task);
-        })) {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
+        }))?;
         handle.accept();
-        gate.open();
         Ok(handle)
     }
 
@@ -382,18 +398,26 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         let (handle, slot) =
             TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new();
-        let worker_gate = gate.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
+        if self.hook.is_some() {
+            let gate = TaskAdmissionGate::new();
+            let worker_gate = gate.clone();
+            if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+                worker_gate.wait();
+                let _guard = guard;
+                slot.run(task);
+            })) {
+                self.notify_rejected(&error);
+                return Err(error);
+            }
+            handle.accept();
+            gate.open();
+            return Ok(handle);
+        }
+        self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             slot.run(task);
-        })) {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
+        }))?;
         handle.accept();
-        gate.open();
         Ok(handle)
     }
 

@@ -23,14 +23,22 @@ fn test_task_execution_error_predicates_and_display() {
 
     let panicked = TaskExecutionError::<io::Error>::Panicked;
     assert!(panicked.is_panicked());
+    assert!(!panicked.is_failed());
+    assert!(!panicked.is_cancelled());
+    assert!(!panicked.is_dropped());
     assert_eq!(format!("{panicked}"), "task panicked");
 
     let cancelled = TaskExecutionError::<io::Error>::Cancelled;
     assert!(cancelled.is_cancelled());
+    assert!(!cancelled.is_failed());
+    assert!(!cancelled.is_panicked());
+    assert!(!cancelled.is_dropped());
     assert_eq!(format!("{cancelled}"), "task was cancelled");
 
     let dropped = TaskExecutionError::<io::Error>::Dropped;
     assert!(dropped.is_dropped());
+    assert!(!dropped.is_failed());
+    assert!(!dropped.is_panicked());
     assert!(!dropped.is_cancelled());
     assert_eq!(format!("{dropped}"), "task result was dropped");
 }

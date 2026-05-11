@@ -15,13 +15,10 @@ use crate::{
     TrackedTask,
     hook::{TaskHook, notify_rejected},
     service::SubmissionError,
-    task::spi::TaskEndpointPair,
+    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
 };
 
-use super::{
-    Executor, ThreadPerTaskExecutorBuilder, task_admission_gate::TaskAdmissionGate,
-    thread_spawn_config::ThreadSpawnConfig,
-};
+use super::{Executor, ThreadPerTaskExecutorBuilder, thread_spawn_config::ThreadSpawnConfig};
 
 /// Executes each task on a dedicated OS thread.
 ///

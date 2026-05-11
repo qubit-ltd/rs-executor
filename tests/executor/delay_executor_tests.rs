@@ -21,6 +21,7 @@ use qubit_executor::{
     CancelResult, TaskExecutionError,
     executor::{DelayExecutor, Executor},
     hook::NoopTaskHook,
+    service::SubmissionError,
 };
 
 fn delayed_value_task() -> Result<usize, io::Error> {
@@ -76,4 +77,18 @@ fn test_delay_executor_cancel_before_start_skips_callable() {
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     thread::sleep(Duration::from_millis(120));
+}
+
+#[test]
+fn test_delay_executor_reports_worker_spawn_failure() {
+    let executor = DelayExecutor::new(Duration::ZERO)
+        .with_hook(Arc::new(NoopTaskHook))
+        .with_stack_size(usize::MAX);
+
+    let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. }),
+    ));
 }

@@ -17,6 +17,7 @@ use std::{
 
 use qubit_executor::executor::{Executor, ScheduleExecutor};
 use qubit_executor::hook::NoopTaskHook;
+use qubit_executor::service::SubmissionError;
 
 #[test]
 fn test_schedule_executor_runs_task_at_instant() {
@@ -55,4 +56,30 @@ fn test_schedule_executor_runs_past_instant_promptly() {
         .expect("worker thread should spawn");
 
     assert_eq!(handle.get().expect("callable should complete"), 42);
+}
+
+#[test]
+fn test_schedule_executor_with_hook_waits_until_future_instant() {
+    let instant = Instant::now() + Duration::from_millis(20);
+    let executor = ScheduleExecutor::at(instant).with_hook(Arc::new(NoopTaskHook));
+
+    let handle = executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn");
+
+    assert_eq!(handle.get().expect("callable should complete"), 42);
+}
+
+#[test]
+fn test_schedule_executor_reports_worker_spawn_failure() {
+    let executor = ScheduleExecutor::at(Instant::now())
+        .with_hook(Arc::new(NoopTaskHook))
+        .with_stack_size(usize::MAX);
+
+    let result = executor.call(|| Ok::<usize, io::Error>(42));
+
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. }),
+    ));
 }

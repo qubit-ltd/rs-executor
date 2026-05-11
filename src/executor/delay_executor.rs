@@ -15,10 +15,10 @@ use crate::{
     TrackedTask,
     hook::{TaskHook, notify_rejected},
     service::SubmissionError,
-    task::spi::TaskEndpointPair,
+    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
 };
 
-use super::{Executor, task_admission_gate::TaskAdmissionGate};
+use super::{Executor, thread_spawn_config::ThreadSpawnConfig};
 
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
@@ -44,6 +44,8 @@ pub struct DelayExecutor {
     delay: Duration,
     /// Hook notified about accepted task lifecycle events.
     hook: Option<Arc<dyn TaskHook>>,
+    /// Optional stack size for each helper thread.
+    stack_size: Option<usize>,
 }
 
 impl DelayExecutor {
@@ -58,7 +60,11 @@ impl DelayExecutor {
     /// A delay executor using the supplied delay.
     #[inline]
     pub fn new(delay: Duration) -> Self {
-        Self { delay, hook: None }
+        Self {
+            delay,
+            hook: None,
+            stack_size: None,
+        }
     }
 
     /// Returns a copy of this executor using the supplied task hook.
@@ -73,6 +79,21 @@ impl DelayExecutor {
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
         self.hook = Some(hook);
+        self
+    }
+
+    /// Returns a copy of this executor using the supplied helper thread stack size.
+    ///
+    /// # Parameters
+    ///
+    /// * `stack_size` - Stack size in bytes for each helper thread.
+    ///
+    /// # Returns
+    ///
+    /// This executor configured with `stack_size`.
+    #[inline]
+    pub fn with_stack_size(mut self, stack_size: usize) -> Self {
+        self.stack_size = Some(stack_size);
         self
     }
 
@@ -100,11 +121,8 @@ impl DelayExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the helper thread.
-    fn spawn_worker(worker: Worker) -> Result<(), SubmissionError> {
-        thread::Builder::new()
-            .spawn(worker)
-            .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)
+    fn spawn_worker(&self, worker: Worker) -> Result<(), SubmissionError> {
+        ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 }
 
@@ -138,7 +156,7 @@ impl Executor for DelayExecutor {
         if self.hook.is_some() {
             let gate = TaskAdmissionGate::new();
             let worker_gate = gate.clone();
-            Self::spawn_worker(Box::new(move || {
+            self.spawn_worker(Box::new(move || {
                 worker_gate.wait();
                 if !delay.is_zero() {
                     thread::sleep(delay);
@@ -154,7 +172,7 @@ impl Executor for DelayExecutor {
             gate.open();
             return Ok(handle);
         }
-        Self::spawn_worker(Box::new(move || {
+        self.spawn_worker(Box::new(move || {
             if !delay.is_zero() {
                 thread::sleep(delay);
             }
