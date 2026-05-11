@@ -29,7 +29,7 @@ libraries can depend only on the abstraction level they need.
 - Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` as a basic managed service implementation.
 - `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
-- Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `RejectedExecution`, and `StopReport`.
+- Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport`.
 
 ## Executor vs ExecutorService
 
@@ -101,7 +101,7 @@ use std::io;
 use qubit_executor::executor::{DirectExecutor, Executor};
 
 let executor = DirectExecutor;
-let value = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
+let value = executor.call(|| Ok::<usize, io::Error>(40 + 2))??;
 assert_eq!(value, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

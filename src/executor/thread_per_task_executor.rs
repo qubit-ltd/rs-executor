@@ -13,14 +13,15 @@ use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    service::RejectedExecution,
+    service::SubmissionError,
     task::{
-        TaskCompletionPair,
+        TaskEndpointPair,
         TaskRunner,
     },
 };
 
 use super::Executor;
+use super::ThreadPerTaskExecutorBuilder;
 
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
@@ -62,7 +63,7 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ThreadPerTaskExecutor {
     /// Optional stack size for each spawned worker thread.
-    stack_size: Option<usize>,
+    pub(crate) stack_size: Option<usize>,
 }
 
 impl ThreadPerTaskExecutor {
@@ -76,24 +77,31 @@ impl ThreadPerTaskExecutor {
         Self { stack_size: None }
     }
 
-    /// Creates an executor with an explicit worker thread stack size.
-    ///
-    /// # Parameters
-    ///
-    /// * `stack_size` - Stack size in bytes for each spawned worker thread.
+    /// Creates a builder for configuring this executor.
     ///
     /// # Returns
     ///
-    /// A thread-per-task executor that applies the supplied stack size to each
-    /// worker thread.
+    /// A builder initialized with default worker thread options.
     #[inline]
-    pub const fn with_stack_size(stack_size: usize) -> Self {
-        Self {
-            stack_size: Some(stack_size),
-        }
+    pub const fn builder() -> ThreadPerTaskExecutorBuilder {
+        ThreadPerTaskExecutorBuilder::new()
     }
 
-    fn spawn_worker(&self, worker: Worker) -> Result<(), RejectedExecution> {
+    /// Spawns one worker thread.
+    ///
+    /// # Parameters
+    ///
+    /// * `worker` - Closure to run on the new OS thread.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the worker was spawned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
+    /// refuses to create the worker thread.
+    fn spawn_worker(&self, worker: Worker) -> Result<(), SubmissionError> {
         let mut builder = thread::Builder::new();
         if let Some(stack_size) = self.stack_size {
             builder = builder.stack_size(stack_size);
@@ -101,13 +109,13 @@ impl ThreadPerTaskExecutor {
         builder
             .spawn(worker)
             .map(drop)
-            .map_err(RejectedExecution::worker_spawn_failed)
+            .map_err(SubmissionError::worker_spawn_failed)
     }
 }
 
 impl Executor for ThreadPerTaskExecutor {
-    type Execution<R, E>
-        = Result<TrackedTask<R, E>, RejectedExecution>
+    type Output<R, E>
+        = TrackedTask<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
@@ -125,15 +133,15 @@ impl Executor for ThreadPerTaskExecutor {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution::WorkerSpawnFailed`] if the worker thread
+    /// Returns [`SubmissionError::WorkerSpawnFailed`] if the worker thread
     /// cannot be created.
-    fn call<C, R, E>(&self, task: C) -> Self::Execution<R, E>
+    fn call<C, R, E>(&self, task: C) -> Result<Self::Output<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
+        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
         self.spawn_worker(Box::new(move || {
             TaskRunner::new(task).run(completion);
         }))?;

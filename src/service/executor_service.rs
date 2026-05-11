@@ -19,8 +19,8 @@ use crate::{
 
 use super::{
     ExecutorServiceLifecycle,
-    RejectedExecution,
     StopReport,
+    SubmissionError,
 };
 
 /// Managed task service with submission and lifecycle control.
@@ -83,14 +83,14 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `Ok(())` if the service accepts the task. This only reports acceptance;
     /// it does not report task start or task success. Returns
-    /// `Err(RejectedExecution)` if the service refuses the task before
+    /// `Err(SubmissionError)` if the service refuses the task before
     /// accepting it.
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
-    fn submit<T, E>(&self, task: T) -> Result<(), RejectedExecution>
+    fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static;
@@ -106,17 +106,17 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `Ok(handle)` if the service accepts the task. This only reports
     /// acceptance; task success, task failure, panic, or cancellation must be
-    /// observed through the returned handle. Returns `Err(RejectedExecution)` if
+    /// observed through the returned handle. Returns `Err(SubmissionError)` if
     /// the service refuses the task before accepting it.
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     fn submit_callable<C, R, E>(
         &self,
         task: C,
-    ) -> Result<Self::ResultHandle<R, E>, RejectedExecution>
+    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -135,10 +135,10 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, RejectedExecution>
+    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -161,12 +161,12 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RejectedExecution`] when the service refuses the task before
+    /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     fn submit_tracked_callable<C, R, E>(
         &self,
         task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, RejectedExecution>
+    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

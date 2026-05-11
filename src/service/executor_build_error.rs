@@ -11,7 +11,7 @@ use std::io;
 
 use thiserror::Error;
 
-use super::RejectedExecution;
+use super::SubmissionError;
 
 /// Error returned when an executor service cannot be built.
 ///
@@ -68,17 +68,17 @@ impl ExecutorBuildError {
     /// # Returns
     ///
     /// A build error carrying equivalent failure context.
-    pub fn from_rejected_execution(error: RejectedExecution) -> Self {
+    pub fn from_submission_error(error: SubmissionError) -> Self {
         match error {
-            RejectedExecution::WorkerSpawnFailed { source } => Self::SpawnWorker {
+            SubmissionError::WorkerSpawnFailed { source } => Self::SpawnWorker {
                 index: 0,
                 source: io::Error::new(source.kind(), source.to_string()),
             },
-            RejectedExecution::Shutdown => Self::SpawnWorker {
+            SubmissionError::Shutdown => Self::SpawnWorker {
                 index: 0,
                 source: io::Error::other("executor service shut down during prestart"),
             },
-            RejectedExecution::Saturated => Self::SpawnWorker {
+            SubmissionError::Saturated => Self::SpawnWorker {
                 index: 0,
                 source: io::Error::other("executor service saturated during prestart"),
             },
@@ -86,7 +86,7 @@ impl ExecutorBuildError {
     }
 }
 
-impl From<RejectedExecution> for ExecutorBuildError {
+impl From<SubmissionError> for ExecutorBuildError {
     /// Converts rejected-execution reasons into build-time executor errors.
     ///
     /// # Parameters
@@ -96,7 +96,7 @@ impl From<RejectedExecution> for ExecutorBuildError {
     /// # Returns
     ///
     /// A build error that preserves equivalent failure context.
-    fn from(error: RejectedExecution) -> Self {
-        Self::from_rejected_execution(error)
+    fn from(error: SubmissionError) -> Self {
+        Self::from_submission_error(error)
     }
 }

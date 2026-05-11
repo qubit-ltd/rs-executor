@@ -42,7 +42,9 @@ fn test_direct_executor_execute_runs_inline() {
         Ok::<(), io::Error>(())
     });
 
-    result.expect("direct executor should return runnable success");
+    result
+        .expect("direct executor should accept runnable")
+        .expect("direct executor should return runnable success");
     assert_eq!(value.load(Ordering::Acquire), 1);
 }
 
@@ -52,9 +54,25 @@ fn test_direct_executor_call_returns_value() {
 
     let value = executor
         .call(|| Ok::<i32, io::Error>(42))
+        .expect("direct executor should accept callable")
         .expect("direct executor should return callable value");
 
     assert_eq!(value, 42);
+}
+
+#[test]
+fn test_direct_executor_call_converts_task_failure_and_panic() {
+    let executor = DirectExecutor;
+
+    let failed = executor
+        .call(|| Err::<usize, _>(io::Error::other("failed")))
+        .expect("direct executor should accept callable");
+    assert!(failed.is_err());
+
+    let panicked = executor
+        .call(|| -> Result<usize, io::Error> { panic!("direct executor panic") })
+        .expect("direct executor should accept callable");
+    assert!(panicked.is_err());
 }
 
 #[test]

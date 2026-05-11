@@ -15,7 +15,7 @@ use std::{
 use super::{
     TaskResult,
     cancel_result::CancelResult,
-    task_completion::TaskCompletion,
+    task_completer::TaskCompleter,
     task_handle::TaskHandle,
     task_handle_future::TaskHandleFuture,
     task_handle_inner::TaskHandleInner,
@@ -118,7 +118,7 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
-        let completion = TaskCompletion {
+        let completion = TaskCompleter {
             inner: Arc::clone(&self.inner),
         };
         if completion.cancel() {

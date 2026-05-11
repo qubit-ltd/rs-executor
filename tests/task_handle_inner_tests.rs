@@ -13,12 +13,12 @@ use std::{
     time::Duration,
 };
 
-use qubit_executor::task::TaskCompletionPair;
+use qubit_executor::task::TaskEndpointPair;
 
 /// Test shared handle internals wake blocking waiters after completion.
 #[test]
 fn test_task_handle_inner_notifies_blocking_waiter_on_completion() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     let waiter = thread::spawn(move || handle.get().expect("waiter should receive result"));
     thread::sleep(Duration::from_millis(20));

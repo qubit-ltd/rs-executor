@@ -15,7 +15,7 @@ pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 
 /// Error observed when retrieving the result of an accepted task.
 ///
-/// This error is distinct from [`RejectedExecution`](crate::service::RejectedExecution).
+/// This error is distinct from [`SubmissionError`](crate::service::SubmissionError).
 /// Rejection happens before a service accepts a task; `TaskExecutionError`
 /// describes what happened after the task was accepted.
 ///

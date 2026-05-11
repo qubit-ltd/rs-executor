@@ -30,8 +30,8 @@ use qubit_executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
-    service::RejectedExecution,
-    task::TaskCompletionPair,
+    service::SubmissionError,
+    task::TaskEndpointPair,
 };
 
 #[tokio::test]
@@ -95,8 +95,8 @@ fn test_task_handle_cancel_after_start_returns_false() {
 }
 
 #[test]
-fn test_task_completion_start_and_complete_publishes_lazy_result() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+fn test_task_completer_start_and_complete_publishes_lazy_result() {
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     assert!(completion.start_and_complete(|| Ok(42)));
 
@@ -107,8 +107,8 @@ fn test_task_completion_start_and_complete_publishes_lazy_result() {
 }
 
 #[test]
-fn test_task_completion_pair_default_creates_usable_pair() {
-    let pair = TaskCompletionPair::<usize, io::Error>::default();
+fn test_task_endpoint_pair_default_creates_usable_pair() {
+    let pair = TaskEndpointPair::<usize, io::Error>::default();
     let (handle, completion) = pair.into_parts();
 
     completion.complete(Ok(42));
@@ -120,8 +120,8 @@ fn test_task_completion_pair_default_creates_usable_pair() {
 }
 
 #[test]
-fn test_task_completion_start_and_complete_skips_cancelled_task() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+fn test_task_completer_start_and_complete_skips_cancelled_task() {
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(!completion.start_and_complete(|| {
@@ -132,8 +132,8 @@ fn test_task_completion_start_and_complete_skips_cancelled_task() {
 }
 
 #[test]
-fn test_task_completion_clone_can_complete_task() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_parts();
+fn test_task_completer_clone_can_complete_task() {
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     let cloned = completion.clone();
 
     cloned.complete(Ok(42));
@@ -144,7 +144,7 @@ fn test_task_completion_clone_can_complete_task() {
 #[test]
 fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
     let (pending_handle, pending_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     assert!(!TaskResultHandle::is_done(&pending_handle));
     let pending_handle = match TaskResultHandle::try_get(pending_handle) {
@@ -158,7 +158,7 @@ fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
     );
 
     let (disconnected_handle, disconnected_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_parts();
     drop(disconnected_completion);
 
     assert!(matches!(
@@ -169,7 +169,7 @@ fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
 
 #[test]
 fn test_tracked_task_trait_methods_cover_status_and_cancellation_paths() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     assert_eq!(TrackedTaskHandle::status(&handle), TaskStatus::Pending);
     assert_eq!(TrackedTaskHandle::cancel(&handle), CancelResult::Cancelled);
@@ -183,7 +183,7 @@ fn test_tracked_task_trait_methods_cover_status_and_cancellation_paths() {
 
 #[test]
 fn test_tracked_task_try_get_returns_pending_and_ready_results() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     let handle = match handle.try_get() {
         TryGet::Pending(handle) => handle,
@@ -197,13 +197,13 @@ fn test_tracked_task_try_get_returns_pending_and_ready_results() {
 #[test]
 fn test_tracked_task_status_reports_failed_and_panicked_results() {
     let (failed_handle, failed_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     failed_completion.complete(Err(TaskExecutionError::Failed(io::Error::other("failed"))));
     assert_eq!(failed_handle.status(), TaskStatus::Failed);
     assert!(failed_handle.is_done());
 
     let (panicked_handle, panicked_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     panicked_completion.complete(Err(TaskExecutionError::Panicked));
     assert_eq!(panicked_handle.status(), TaskStatus::Panicked);
     assert!(panicked_handle.is_done());
@@ -211,7 +211,7 @@ fn test_tracked_task_status_reports_failed_and_panicked_results() {
 
 #[test]
 fn test_tracked_task_cancel_reports_finished_for_completed_task() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     completion.complete(Ok(42));
 
     assert_eq!(handle.cancel(), CancelResult::AlreadyFinished);
@@ -220,7 +220,7 @@ fn test_tracked_task_cancel_reports_finished_for_completed_task() {
 #[test]
 fn test_tracked_task_trait_cancel_reports_running_and_finished_tasks() {
     let (running_handle, running_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     assert!(running_completion.start());
     assert_eq!(
         TrackedTaskHandle::cancel(&running_handle),
@@ -229,7 +229,7 @@ fn test_tracked_task_trait_cancel_reports_running_and_finished_tasks() {
     running_completion.complete(Ok(42));
 
     let (finished_handle, finished_completion) =
-        TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     finished_completion.complete(Ok(42));
     assert_eq!(
         TrackedTaskHandle::cancel(&finished_handle),
@@ -238,14 +238,14 @@ fn test_tracked_task_trait_cancel_reports_running_and_finished_tasks() {
 }
 
 #[test]
-fn test_rejected_execution_worker_spawn_failures_compare_by_variant() {
-    let first = RejectedExecution::WorkerSpawnFailed {
+fn test_submission_error_worker_spawn_failures_compare_by_variant() {
+    let first = SubmissionError::WorkerSpawnFailed {
         source: Arc::new(io::Error::other("first")),
     };
-    let second = RejectedExecution::WorkerSpawnFailed {
+    let second = SubmissionError::WorkerSpawnFailed {
         source: Arc::new(io::Error::other("second")),
     };
 
     assert_eq!(first, second);
-    assert_ne!(first, RejectedExecution::Shutdown);
+    assert_ne!(first, SubmissionError::Shutdown);
 }

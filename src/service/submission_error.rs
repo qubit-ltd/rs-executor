@@ -21,7 +21,7 @@ use thiserror::Error;
 /// through the handle returned by the service.
 ///
 #[derive(Debug, Clone, Error)]
-pub enum RejectedExecution {
+pub enum SubmissionError {
     /// The service has been shut down and no longer accepts new tasks.
     #[error("task rejected because the executor service is shut down")]
     Shutdown,
@@ -39,7 +39,7 @@ pub enum RejectedExecution {
     },
 }
 
-impl PartialEq for RejectedExecution {
+impl PartialEq for SubmissionError {
     /// Compares rejection categories.
     ///
     /// Worker spawn failures compare equal by variant because [`io::Error`]
@@ -65,9 +65,9 @@ impl PartialEq for RejectedExecution {
     }
 }
 
-impl Eq for RejectedExecution {}
+impl Eq for SubmissionError {}
 
-impl RejectedExecution {
+impl SubmissionError {
     /// Creates a worker-spawn rejection from a thread creation error.
     ///
     /// # Parameters
@@ -78,7 +78,7 @@ impl RejectedExecution {
     ///
     /// A worker-spawn rejection carrying the source error.
     #[inline]
-    pub(crate) fn worker_spawn_failed(source: io::Error) -> Self {
+    pub fn worker_spawn_failed(source: io::Error) -> Self {
         Self::WorkerSpawnFailed {
             source: Arc::new(source),
         }

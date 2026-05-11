@@ -12,13 +12,13 @@ use std::io;
 use qubit_executor::{
     CancelResult,
     TaskExecutionError,
-    task::TaskCompletionPair,
+    task::TaskEndpointPair,
 };
 
 /// Test observable handle state transitions before and after terminal completion.
 #[test]
 fn test_task_handle_state_transitions_are_observable() {
-    let (handle, completion) = TaskCompletionPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     assert!(!handle.is_done());
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);

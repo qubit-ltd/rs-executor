@@ -13,29 +13,29 @@ use std::{
     sync::Arc,
 };
 
-use qubit_executor::service::RejectedExecution;
+use qubit_executor::service::SubmissionError;
 
 /// Test rejected execution display, equality, and source behavior.
 #[test]
-fn test_rejected_execution_variants_display_and_compare() {
+fn test_submission_error_variants_display_and_compare() {
     assert_eq!(
-        RejectedExecution::Shutdown.to_string(),
+        SubmissionError::Shutdown.to_string(),
         "task rejected because the executor service is shut down",
     );
     assert_eq!(
-        RejectedExecution::Saturated.to_string(),
+        SubmissionError::Saturated.to_string(),
         "task rejected because the executor service is saturated",
     );
 
-    let first = RejectedExecution::WorkerSpawnFailed {
+    let first = SubmissionError::WorkerSpawnFailed {
         source: Arc::new(io::Error::other("first")),
     };
-    let second = RejectedExecution::WorkerSpawnFailed {
+    let second = SubmissionError::WorkerSpawnFailed {
         source: Arc::new(io::Error::other("second")),
     };
 
     assert_eq!(first, second);
-    assert_ne!(first, RejectedExecution::Shutdown);
+    assert_ne!(first, SubmissionError::Shutdown);
     assert_eq!(
         first
             .source()
@@ -43,4 +43,7 @@ fn test_rejected_execution_variants_display_and_compare() {
             .to_string(),
         "first",
     );
+
+    let created = SubmissionError::worker_spawn_failed(io::Error::other("created"));
+    assert!(matches!(created, SubmissionError::WorkerSpawnFailed { .. }));
 }

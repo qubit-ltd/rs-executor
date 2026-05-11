@@ -14,7 +14,7 @@ use std::{
 
 use qubit_executor::service::{
     ExecutorBuildError,
-    RejectedExecution,
+    SubmissionError,
 };
 
 /// Tests executor build error display and configuration variants.
@@ -48,18 +48,17 @@ fn test_executor_build_error_configuration_variants() {
 
 /// Tests conversion from rejected execution to build error.
 #[test]
-fn test_executor_build_error_from_rejected_execution() {
-    let spawned =
-        ExecutorBuildError::from_rejected_execution(RejectedExecution::WorkerSpawnFailed {
-            source: Arc::new(io::Error::other("spawn failed")),
-        });
+fn test_executor_build_error_from_submission_error() {
+    let spawned = ExecutorBuildError::from_submission_error(SubmissionError::WorkerSpawnFailed {
+        source: Arc::new(io::Error::other("spawn failed")),
+    });
     let ExecutorBuildError::SpawnWorker { index, source } = spawned else {
         panic!("worker spawn rejection should convert to spawn build error");
     };
     assert_eq!(index, 0);
     assert_eq!(source.to_string(), "spawn failed");
 
-    let shutdown: ExecutorBuildError = RejectedExecution::Shutdown.into();
+    let shutdown: ExecutorBuildError = SubmissionError::Shutdown.into();
     let ExecutorBuildError::SpawnWorker { source, .. } = shutdown else {
         panic!("shutdown during prestart should convert to spawn build error");
     };
@@ -68,7 +67,7 @@ fn test_executor_build_error_from_rejected_execution() {
         "executor service shut down during prestart"
     );
 
-    let saturated = ExecutorBuildError::from(RejectedExecution::Saturated);
+    let saturated = ExecutorBuildError::from(SubmissionError::Saturated);
     let ExecutorBuildError::SpawnWorker { source, .. } = saturated else {
         panic!("saturation during prestart should convert to spawn build error");
     };

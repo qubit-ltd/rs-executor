@@ -13,8 +13,8 @@
 //! used to live at the crate root. They are reorganized under `task/`.
 
 mod cancel_result;
-mod task_completion;
-mod task_completion_pair;
+mod task_completer;
+mod task_endpoint_pair;
 mod task_execution_error;
 mod task_handle;
 mod task_handle_future;
@@ -27,8 +27,8 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
-pub use task_completion::TaskCompletion;
-pub use task_completion_pair::TaskCompletionPair;
+pub use task_completer::TaskCompleter;
+pub use task_endpoint_pair::TaskEndpointPair;
 pub use task_execution_error::{
     TaskExecutionError,
     TaskResult,
