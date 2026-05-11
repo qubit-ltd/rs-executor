@@ -9,7 +9,11 @@
  ******************************************************************************/
 use std::io;
 
-use qubit_executor::{CancelResult, TaskCompletionPair, TaskExecutionError};
+use qubit_executor::{
+    CancelResult,
+    TaskCompletionPair,
+    TaskExecutionError,
+};
 
 /// Test observable handle state transitions before and after terminal completion.
 #[test]

@@ -9,10 +9,16 @@
  ******************************************************************************/
 use std::sync::{
     Mutex,
-    atomic::{AtomicU8, Ordering},
+    atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 
-use super::{TaskResult, task_handle_state::TaskStatus};
+use super::{
+    TaskResult,
+    task_status::TaskStatus,
+};
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskHandleInner<R, E> {

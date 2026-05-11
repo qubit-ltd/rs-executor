@@ -7,7 +7,10 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use super::{TaskExecutionError, TaskResult};
+use super::{
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Observable lifecycle status for a submitted task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,17 +104,4 @@ impl TaskStatus {
             Err(TaskExecutionError::Cancelled) => Self::Cancelled,
         }
     }
-}
-
-/// Result of an attempt to cancel a tracked task.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancelResult {
-    /// The task was cancelled before it started.
-    Cancelled,
-    /// The task had already started and cannot be cancelled cooperatively.
-    AlreadyRunning,
-    /// The task had already reached a terminal state.
-    AlreadyFinished,
-    /// The backing service or handle does not support active cancellation.
-    Unsupported,
 }

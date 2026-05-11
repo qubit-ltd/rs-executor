@@ -7,11 +7,18 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
 
 use qubit_function::Callable;
 
-use super::{TaskCompletion, TaskExecutionError, TaskResult};
+use super::{
+    TaskCompletion,
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Runner that executes a callable task with standard task-handle semantics.
 ///

@@ -11,18 +11,37 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        Arc, Condvar, Mutex, MutexGuard,
-        atomic::{AtomicU8, Ordering},
+        Arc,
+        Condvar,
+        Mutex,
+        MutexGuard,
+        atomic::{
+            AtomicU8,
+            Ordering,
+        },
     },
     thread,
 };
 
 use qubit_atomic::AtomicCount;
-use qubit_function::{Callable, Runnable};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
-use crate::{TaskCompletionPair, TaskHandle, TaskRunner, TrackedTask};
+use crate::{
+    TaskCompletionPair,
+    TaskHandle,
+    TaskRunner,
+    TrackedTask,
+};
 
-use super::{ExecutorService, ExecutorServiceLifecycle, RejectedExecution, StopReport};
+use super::{
+    ExecutorService,
+    ExecutorServiceLifecycle,
+    RejectedExecution,
+    StopReport,
+};
 
 /// Shared state for [`ThreadPerTaskExecutorService`].
 #[derive(Default)]

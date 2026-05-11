@@ -1,0 +1,44 @@
+/*******************************************************************************
+ *
+ *    Copyright (c) 2025 - 2026 Haixing Hu.
+ *
+ *    SPDX-License-Identifier: Apache-2.0
+ *
+ *    Licensed under the Apache License, Version 2.0.
+ *
+ ******************************************************************************/
+use super::{
+    TaskResult,
+    try_get::TryGet,
+};
+
+/// Common interface for handles that expose a submitted task's final result.
+pub trait TaskResultHandle<R, E>: Send {
+    /// Returns whether the task result is ready or otherwise terminal.
+    ///
+    /// # Returns
+    ///
+    /// `true` after the task result can be retrieved or the completion channel
+    /// has been closed.
+    fn is_done(&self) -> bool;
+
+    /// Blocks until the task produces its final result.
+    ///
+    /// # Returns
+    ///
+    /// The final task result. If the completion endpoint is dropped without
+    /// publishing a result, cancellation is reported.
+    fn get(self) -> TaskResult<R, E>
+    where
+        Self: Sized;
+
+    /// Attempts to retrieve the final result without blocking.
+    ///
+    /// # Returns
+    ///
+    /// [`TryGet::Ready`] when a result is available, otherwise
+    /// [`TryGet::Pending`] containing the original handle.
+    fn try_get(self) -> TryGet<Self, R, E>
+    where
+        Self: Sized;
+}

@@ -9,7 +9,10 @@
  ******************************************************************************/
 use std::fmt::Display;
 
-use qubit_function::{Callable, Runnable};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
 /// Executes fallible one-time tasks according to an implementation-defined strategy.
 ///

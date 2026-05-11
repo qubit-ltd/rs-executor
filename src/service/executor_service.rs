@@ -9,11 +9,21 @@
  ******************************************************************************/
 use std::future::Future;
 
-use qubit_function::{Callable, Runnable};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
-use crate::{TaskResultHandle, TrackedTaskHandle};
+use crate::{
+    TaskResultHandle,
+    TrackedTaskHandle,
+};
 
-use super::{ExecutorServiceLifecycle, RejectedExecution, StopReport};
+use super::{
+    ExecutorServiceLifecycle,
+    RejectedExecution,
+    StopReport,
+};
 
 /// Managed task service with submission and lifecycle control.
 ///

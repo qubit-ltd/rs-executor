@@ -13,12 +13,19 @@ use std::{
     io,
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use qubit_executor::{
-    CancelResult, TaskExecutionError,
-    executor::{DelayExecutor, Executor},
+    CancelResult,
+    TaskExecutionError,
+    executor::{
+        DelayExecutor,
+        Executor,
+    },
 };
 
 fn delayed_value_task() -> Result<usize, io::Error> {

@@ -7,11 +7,19 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{fmt::Display, thread, time::Duration};
+use std::{
+    fmt::Display,
+    thread,
+    time::Duration,
+};
 
 use qubit_function::Callable;
 
-use crate::{TaskCompletionPair, TaskRunner, TrackedTask};
+use crate::{
+    TaskCompletionPair,
+    TaskRunner,
+    TrackedTask,
+};
 
 use super::Executor;
 

@@ -10,8 +10,9 @@
 use std::sync::Arc;
 
 use super::task_completion::TaskCompletion;
-use super::task_handle::{TaskHandle, TrackedTask};
+use super::task_handle::TaskHandle;
 use super::task_handle_inner::TaskHandleInner;
+use super::tracked_task::TrackedTask;
 
 /// One-shot pair of endpoints for an accepted task.
 ///

@@ -12,7 +12,7 @@ use std::sync::Arc;
 use super::TaskExecutionError;
 use super::TaskResult;
 use super::task_handle_inner::TaskHandleInner;
-use super::task_handle_state::TaskStatus;
+use super::task_status::TaskStatus;
 
 /// Completion endpoint owned by a task runner.
 ///

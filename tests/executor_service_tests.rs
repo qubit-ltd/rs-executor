@@ -7,10 +7,17 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{io, sync::mpsc, time::Duration};
+use std::{
+    io,
+    sync::mpsc,
+    time::Duration,
+};
 
 use qubit_executor::service::{
-    ExecutorService, ExecutorServiceLifecycle, RejectedExecution, ThreadPerTaskExecutorService,
+    ExecutorService,
+    ExecutorServiceLifecycle,
+    RejectedExecution,
+    ThreadPerTaskExecutorService,
 };
 
 /// Test default runnable submission and lifecycle rejection through the service trait.
@@ -64,4 +71,16 @@ fn test_executor_service_submit_tracked_callable_exposes_tracking() {
         .expect("service should accept tracked callable");
 
     assert_eq!(handle.get().expect("tracked callable should succeed"), 42);
+}
+
+/// Test default tracked runnable submission delegates to tracked callable submission.
+#[test]
+fn test_executor_service_submit_tracked_default_returns_unit_handle() {
+    let service = ThreadPerTaskExecutorService::new();
+
+    let handle = service
+        .submit_tracked(|| Ok::<(), io::Error>(()))
+        .expect("service should accept tracked runnable");
+
+    assert_eq!(handle.get().expect("tracked runnable should succeed"), ());
 }

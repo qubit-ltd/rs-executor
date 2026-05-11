@@ -12,7 +12,11 @@ use std::thread;
 
 use qubit_function::Callable;
 
-use crate::{TaskCompletionPair, TaskRunner, TrackedTask};
+use crate::{
+    TaskCompletionPair,
+    TaskRunner,
+    TrackedTask,
+};
 
 use super::Executor;
 
@@ -31,7 +35,7 @@ use super::Executor;
 ///   thread.
 /// * **Completion probe** — [`TrackedTask::is_done`] reads an atomic flag set
 ///   after the worker publishes the result; it does not retrieve the value
-///   (you still need [`TaskHandle::get`] for that).
+///   (you still need [`TrackedTask::get`] for that).
 ///
 /// # Examples
 ///

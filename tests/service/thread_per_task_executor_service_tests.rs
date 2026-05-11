@@ -13,14 +13,22 @@ use std::{
     io,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use qubit_executor::{
-    ExecutorServiceLifecycle, TaskExecutionError,
-    service::{ExecutorService, RejectedExecution, ThreadPerTaskExecutorService},
+    ExecutorServiceLifecycle,
+    TaskExecutionError,
+    service::{
+        ExecutorService,
+        RejectedExecution,
+        ThreadPerTaskExecutorService,
+    },
 };
 
 /// Creates a current-thread Tokio runtime for driving async termination APIs in sync tests.
@@ -134,7 +142,7 @@ fn test_thread_per_task_executor_service_lifecycle_defaults_to_running() {
 #[test]
 fn test_thread_per_task_executor_service_stop_reports_running_tasks() {
     let service = ThreadPerTaskExecutorService::new();
-    let _handle = service
+    service
         .submit(|| {
             std::thread::sleep(Duration::from_millis(200));
             Ok::<(), io::Error>(())
