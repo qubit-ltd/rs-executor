@@ -7,14 +7,8 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use super::{
-    ExecutorServiceBuilderError,
-    ThreadPerTaskExecutorService,
-};
-use crate::hook::{
-    NoopTaskHook,
-    TaskHook,
-};
+use super::{ExecutorServiceBuilderError, ThreadPerTaskExecutorService};
+use crate::hook::TaskHook;
 use std::sync::Arc;
 
 /// Builder for [`ThreadPerTaskExecutorService`].
@@ -23,7 +17,7 @@ pub struct ThreadPerTaskExecutorServiceBuilder {
     /// Optional stack size for each spawned worker thread.
     pub(crate) stack_size: Option<usize>,
     /// Hook notified about accepted task lifecycle events.
-    hook: Arc<dyn TaskHook>,
+    hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl ThreadPerTaskExecutorServiceBuilder {
@@ -63,7 +57,7 @@ impl ThreadPerTaskExecutorServiceBuilder {
     /// This builder with the supplied hook.
     #[inline]
     pub fn hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
-        self.hook = hook;
+        self.hook = Some(hook);
         self
     }
 
@@ -89,12 +83,12 @@ impl ThreadPerTaskExecutorServiceBuilder {
 }
 
 impl Default for ThreadPerTaskExecutorServiceBuilder {
-    /// Creates a builder with default worker options and no-op hook.
+    /// Creates a builder with default worker options and no hook.
     #[inline]
     fn default() -> Self {
         Self {
             stack_size: None,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 }

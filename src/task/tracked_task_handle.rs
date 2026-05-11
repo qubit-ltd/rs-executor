@@ -8,9 +8,7 @@
  *
  ******************************************************************************/
 use super::{
-    cancel_result::CancelResult,
-    task_result_handle::TaskResultHandle,
-    task_status::TaskStatus,
+    cancel_result::CancelResult, task_result_handle::TaskResultHandle, task_status::TaskStatus,
 };
 
 /// Extension interface for handles that expose active task tracking.

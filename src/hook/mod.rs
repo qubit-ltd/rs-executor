@@ -19,10 +19,5 @@ pub use noop_task_hook::NoopTaskHook;
 pub use task_hook::TaskHook;
 pub use task_id::TaskId;
 
-pub(crate) use task_hook::{
-    notify_accepted,
-    notify_finished,
-    notify_rejected,
-    notify_started,
-};
+pub(crate) use task_hook::{notify_accepted, notify_finished, notify_rejected, notify_started};
 pub(crate) use task_id::next_task_id;

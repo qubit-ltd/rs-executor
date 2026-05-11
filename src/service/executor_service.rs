@@ -7,21 +7,11 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::{Callable, Runnable};
 
-use crate::task::spi::{
-    TaskResultHandle,
-    TrackedTaskHandle,
-};
+use crate::task::spi::{TaskResultHandle, TrackedTaskHandle};
 
-use super::{
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
-};
+use super::{ExecutorServiceLifecycle, StopReport, SubmissionError};
 
 /// Managed task service with submission and lifecycle control.
 ///
@@ -59,7 +49,8 @@ use super::{
 /// A service reaches [`ExecutorServiceLifecycle::Terminated`] after shutdown or
 /// stop has been requested and no accepted work remains active. Accepted work
 /// may have completed normally, failed, panicked, been cancelled, or been
-/// aborted according to the concrete service's capabilities.
+/// dropped by its runner endpoint, or been aborted according to the concrete
+/// service's capabilities.
 pub trait ExecutorService: Send + Sync {
     /// Result handle returned for an accepted callable task.
     type ResultHandle<R, E>: TaskResultHandle<R, E>

@@ -72,7 +72,8 @@ running, and cancelled work observed while handling the stop request.
 
 `wait_termination()` blocks the current thread until either shutdown or stop has
 been requested and all accepted work has completed, failed, panicked, been
-cancelled, or been aborted according to the concrete service's capabilities.
+cancelled, been dropped by its runner endpoint, or been aborted according to
+the concrete service's capabilities.
 Calling it while the service is still `Running` waits until another thread
 requests shutdown or stop; if that never happens, it can block forever. This API
 is deliberately synchronous and blocking, not an async or non-blocking wait.
@@ -94,6 +95,16 @@ Task execution errors are represented by `TaskExecutionError`:
 - `Cancelled` means the task was cancelled before producing a value.
 - `Dropped` means the runner-side completion endpoint disappeared without
   publishing a value, which is distinct from an explicit cancellation request.
+
+## Task Hooks
+
+Executors may be configured with a `TaskHook` to observe lifecycle events. A
+rejected submission emits only `on_rejected` and never receives a task id. An
+accepted task emits `on_accepted` before any `on_started` or `on_finished`
+event for that task. Tasks cancelled before start, or accepted tasks whose
+runner endpoint is abandoned, may emit `on_finished` without `on_started`.
+Executors contain hook panics so hook implementations cannot prevent task
+result publication.
 
 ## Quick Start
 

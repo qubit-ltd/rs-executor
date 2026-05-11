@@ -12,11 +12,7 @@ use std::sync::Arc;
 use oneshot::Receiver;
 use oneshot::channel;
 
-use crate::hook::{
-    NoopTaskHook,
-    TaskHook,
-    next_task_id,
-};
+use crate::hook::{TaskHook, next_task_id};
 
 use super::task_execution_error::TaskResult;
 use super::task_handle::TaskHandle;
@@ -24,10 +20,17 @@ use super::task_slot::TaskSlot;
 use super::task_state::TaskState;
 use super::tracked_task::TrackedTask;
 
-/// One-shot pair of endpoints for an accepted task.
+/// One-shot pair of endpoints for a task submission.
 ///
 /// A pair owns the shared task completion endpoint and the result receiver
-/// until it is split into caller-facing and runner-facing endpoints.
+/// until it is split into caller-facing and runner-facing endpoints. Pairs
+/// created with [`Self::new`] do not install a lifecycle hook, avoiding the
+/// allocation and dynamic dispatch cost of a no-op hook on the default path.
+///
+/// Custom executors using this SPI should call [`TaskSlot::accept`] or the
+/// crate-internal handle acceptance path only after submission has succeeded.
+/// Dropping a runner slot before acceptance releases result waiters with
+/// `Dropped` but does not emit hook lifecycle events.
 pub struct TaskEndpointPair<R, E> {
     /// Receiver consumed by the caller-facing handle.
     receiver: Receiver<TaskResult<R, E>>,
@@ -36,14 +39,14 @@ pub struct TaskEndpointPair<R, E> {
 }
 
 impl<R, E> TaskEndpointPair<R, E> {
-    /// Creates a new unsplit task completion pair.
+    /// Creates a new unsplit task completion pair without lifecycle hooks.
     ///
     /// # Returns
     ///
     /// A pair that can be split once into its handle and completion endpoints.
     #[inline]
     pub fn new() -> Self {
-        Self::with_hook(Arc::new(NoopTaskHook))
+        Self::with_optional_hook(None)
     }
 
     /// Creates a new unsplit task completion pair with a lifecycle hook.
@@ -57,6 +60,21 @@ impl<R, E> TaskEndpointPair<R, E> {
     /// A pair that can be split once into its handle and runner slot.
     #[inline]
     pub fn with_hook(hook: Arc<dyn TaskHook>) -> Self {
+        Self::with_optional_hook(Some(hook))
+    }
+
+    /// Creates a new unsplit task completion pair with an optional lifecycle hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about this task's lifecycle after acceptance, or
+    ///   `None` for the fast path with no hook allocation or callback dispatch.
+    ///
+    /// # Returns
+    ///
+    /// A pair that can be split once into its handle and runner slot.
+    #[inline]
+    pub(crate) fn with_optional_hook(hook: Option<Arc<dyn TaskHook>>) -> Self {
         let (sender, receiver) = channel();
         Self {
             receiver,

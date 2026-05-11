@@ -9,13 +9,7 @@
  ******************************************************************************/
 use std::sync::Arc;
 
-use crate::{
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-    },
-    service::ExecutorServiceBuilderError,
-};
+use crate::{hook::TaskHook, service::ExecutorServiceBuilderError};
 
 use super::ThreadPerTaskExecutor;
 
@@ -25,7 +19,7 @@ pub struct ThreadPerTaskExecutorBuilder {
     /// Optional stack size for each spawned worker thread.
     stack_size: Option<usize>,
     /// Hook notified about accepted task lifecycle events.
-    hook: Arc<dyn TaskHook>,
+    hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl ThreadPerTaskExecutorBuilder {
@@ -65,7 +59,7 @@ impl ThreadPerTaskExecutorBuilder {
     /// This builder with the supplied hook.
     #[inline]
     pub fn hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
-        self.hook = hook;
+        self.hook = Some(hook);
         self
     }
 
@@ -92,12 +86,12 @@ impl ThreadPerTaskExecutorBuilder {
 }
 
 impl Default for ThreadPerTaskExecutorBuilder {
-    /// Creates a builder with default worker options and no-op hook.
+    /// Creates a builder with default worker options and no hook.
     #[inline]
     fn default() -> Self {
         Self {
             stack_size: None,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 }

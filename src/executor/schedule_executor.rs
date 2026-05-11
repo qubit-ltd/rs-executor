@@ -7,26 +7,18 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    sync::Arc,
-    thread,
-    time::Instant,
-};
+use std::{sync::Arc, thread, time::Instant};
 
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        notify_accepted,
-    },
+    hook::{TaskHook, notify_rejected},
     service::SubmissionError,
     task::spi::TaskEndpointPair,
 };
 
-use super::Executor;
+use super::{Executor, task_admission_gate::TaskAdmissionGate};
 
 /// Executor that starts each task at a specified monotonic instant.
 ///
@@ -39,7 +31,7 @@ pub struct ScheduleExecutor {
     /// Monotonic instant at which each submitted task starts.
     instant: Instant,
     /// Hook notified about accepted task lifecycle events.
-    hook: Arc<dyn TaskHook>,
+    hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl ScheduleExecutor {
@@ -56,7 +48,7 @@ impl ScheduleExecutor {
     pub fn at(instant: Instant) -> Self {
         Self {
             instant,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 
@@ -71,7 +63,7 @@ impl ScheduleExecutor {
     /// This executor configured with `hook`.
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
-        self.hook = hook;
+        self.hook = Some(hook);
         self
     }
 
@@ -96,10 +88,13 @@ impl Executor for ScheduleExecutor {
         E: Send + 'static,
     {
         let (handle, slot) =
-            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
+        let gate = TaskAdmissionGate::new();
+        let worker_gate = gate.clone();
         thread::Builder::new()
             .spawn(move || {
+                worker_gate.wait();
                 let now = Instant::now();
                 if instant > now {
                     thread::sleep(instant.duration_since(now));
@@ -107,8 +102,14 @@ impl Executor for ScheduleExecutor {
                 slot.run(task);
             })
             .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)?;
-        notify_accepted(self.hook.as_ref(), handle.task_id());
+            .map_err(SubmissionError::worker_spawn_failed)
+            .inspect_err(|error| {
+                if let Some(hook) = &self.hook {
+                    notify_rejected(hook.as_ref(), error);
+                }
+            })?;
+        handle.accept();
+        gate.open();
         Ok(handle)
     }
 }

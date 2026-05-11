@@ -51,6 +51,7 @@ pub enum ExecutorServiceLifecycle {
     /// The service no longer accepts tasks and has no accepted work in progress.
     ///
     /// This state is reached only after shutdown or stop has been requested and
-    /// all accepted work has completed, been cancelled, or been aborted.
+    /// all accepted work has completed, been cancelled, been dropped by its
+    /// runner endpoint, or been aborted.
     Terminated = 3,
 }

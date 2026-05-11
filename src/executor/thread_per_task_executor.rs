@@ -13,19 +13,15 @@ use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        notify_accepted,
-        notify_rejected,
-    },
+    hook::{TaskHook, notify_rejected},
     service::SubmissionError,
     task::spi::TaskEndpointPair,
 };
 
-use super::Executor;
-use super::ThreadPerTaskExecutorBuilder;
-use super::thread_spawn_config::ThreadSpawnConfig;
+use super::{
+    Executor, ThreadPerTaskExecutorBuilder, task_admission_gate::TaskAdmissionGate,
+    thread_spawn_config::ThreadSpawnConfig,
+};
 
 /// Executes each task on a dedicated OS thread.
 ///
@@ -67,7 +63,7 @@ pub struct ThreadPerTaskExecutor {
     /// Optional stack size for each spawned worker thread.
     pub(crate) stack_size: Option<usize>,
     /// Hook notified about accepted task lifecycle events.
-    pub(crate) hook: Arc<dyn TaskHook>,
+    pub(crate) hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl ThreadPerTaskExecutor {
@@ -102,7 +98,7 @@ impl ThreadPerTaskExecutor {
     /// This executor configured with `hook`.
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
-        self.hook = hook;
+        self.hook = Some(hook);
         self
     }
 
@@ -126,12 +122,12 @@ impl ThreadPerTaskExecutor {
 }
 
 impl Default for ThreadPerTaskExecutor {
-    /// Creates an executor using the platform default worker stack size and no-op hook.
+    /// Creates an executor using the platform default worker stack size and no hook.
     #[inline]
     fn default() -> Self {
         Self {
             stack_size: None,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 }
@@ -159,12 +155,20 @@ impl Executor for ThreadPerTaskExecutor {
         E: Send + 'static,
     {
         let (handle, slot) =
-            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let gate = TaskAdmissionGate::new();
+        let worker_gate = gate.clone();
         self.spawn_worker(move || {
+            worker_gate.wait();
             slot.run(task);
         })
-        .inspect_err(|error| notify_rejected(self.hook.as_ref(), error))?;
-        notify_accepted(self.hook.as_ref(), handle.task_id());
+        .inspect_err(|error| {
+            if let Some(hook) = &self.hook {
+                notify_rejected(hook.as_ref(), error);
+            }
+        })?;
+        handle.accept();
+        gate.open();
         Ok(handle)
     }
 }

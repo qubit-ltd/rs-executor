@@ -11,16 +11,7 @@ use std::sync::Arc;
 
 use qubit_function::Callable;
 
-use crate::{
-    TrackedTask,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        notify_accepted,
-    },
-    service::SubmissionError,
-    task::spi::TaskEndpointPair,
-};
+use crate::{TrackedTask, hook::TaskHook, service::SubmissionError, task::spi::TaskEndpointPair};
 
 use super::Executor;
 
@@ -31,11 +22,11 @@ use super::Executor;
 #[derive(Clone)]
 pub struct DirectExecutor {
     /// Hook notified about accepted task lifecycle events.
-    hook: Arc<dyn TaskHook>,
+    hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl DirectExecutor {
-    /// Creates a direct executor with no-op task hook.
+    /// Creates a direct executor without lifecycle hooks.
     ///
     /// # Returns
     ///
@@ -56,18 +47,16 @@ impl DirectExecutor {
     /// This executor configured with `hook`.
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
-        self.hook = hook;
+        self.hook = Some(hook);
         self
     }
 }
 
 impl Default for DirectExecutor {
-    /// Creates a direct executor with no-op task hook.
+    /// Creates a direct executor without lifecycle hooks.
     #[inline]
     fn default() -> Self {
-        Self {
-            hook: Arc::new(NoopTaskHook),
-        }
+        Self { hook: None }
     }
 }
 
@@ -89,8 +78,8 @@ impl Executor for DirectExecutor {
         E: Send + 'static,
     {
         let (handle, slot) =
-            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        notify_accepted(self.hook.as_ref(), handle.task_id());
+            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        handle.accept();
         slot.run(task);
         Ok(handle)
     }

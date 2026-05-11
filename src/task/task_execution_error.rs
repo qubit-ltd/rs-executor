@@ -34,7 +34,8 @@ pub enum TaskExecutionError<E> {
     /// The task was cancelled before producing a result.
     Cancelled,
 
-    /// The task completion endpoint was dropped without publishing a result.
+    /// The accepted runner-side completion endpoint was dropped without
+    /// publishing a result.
     Dropped,
 }
 
@@ -73,8 +74,8 @@ impl<E> TaskExecutionError<E> {
     ///
     /// # Returns
     ///
-    /// `true` if the task completion endpoint disappeared without publishing a
-    /// result.
+    /// `true` if the accepted runner-side completion endpoint disappeared
+    /// without publishing a result.
     #[inline]
     pub const fn is_dropped(&self) -> bool {
         matches!(self, Self::Dropped)

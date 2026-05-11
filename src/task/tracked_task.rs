@@ -10,14 +10,9 @@
 use std::future::IntoFuture;
 
 use super::{
-    TaskResult,
-    cancel_result::CancelResult,
-    task_handle::TaskHandle,
-    task_handle_future::TaskHandleFuture,
-    task_result_handle::TaskResultHandle,
-    task_status::TaskStatus,
-    tracked_task_handle::TrackedTaskHandle,
-    try_get::TryGet,
+    TaskResult, cancel_result::CancelResult, task_handle::TaskHandle,
+    task_handle_future::TaskHandleFuture, task_result_handle::TaskResultHandle,
+    task_status::TaskStatus, tracked_task_handle::TrackedTaskHandle, try_get::TryGet,
 };
 use crate::hook::TaskId;
 
@@ -102,6 +97,12 @@ impl<R, E> TrackedTask<R, E> {
     #[inline]
     pub fn task_id(&self) -> TaskId {
         self.handle.task_id()
+    }
+
+    /// Marks the task accepted and emits the accepted hook once.
+    #[inline]
+    pub(crate) fn accept(&self) {
+        self.handle.accept();
     }
 
     /// Attempts to cancel this task before it starts.

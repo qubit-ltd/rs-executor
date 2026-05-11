@@ -7,19 +7,24 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::panic::{
-    AssertUnwindSafe,
-    catch_unwind,
-};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use crate::{
-    TaskStatus,
-    service::SubmissionError,
-};
+use crate::{TaskStatus, service::SubmissionError};
 
 use super::TaskId;
 
 /// Observes task lifecycle events emitted by executors and executor services.
+///
+/// Hook events follow a strict lifecycle ordering for each task. A rejected
+/// submission emits only [`Self::on_rejected`] and never receives a task id. An
+/// accepted submission emits [`Self::on_accepted`] before any later
+/// [`Self::on_started`] or [`Self::on_finished`] event for the same task.
+/// `on_started` is emitted only when the task actually begins running; a task
+/// cancelled before start or abandoned by its accepted runner endpoint may emit
+/// `on_finished` without `on_started`.
+///
+/// Executors contain hook panics so hook implementations cannot break task
+/// execution or result publication.
 pub trait TaskHook: Send + Sync + 'static {
     /// Called after a task is accepted.
     ///
@@ -31,6 +36,9 @@ pub trait TaskHook: Send + Sync + 'static {
 
     /// Called when a submitted task is rejected.
     ///
+    /// Rejected tasks do not have task ids and never emit started or finished
+    /// events.
+    ///
     /// # Parameters
     ///
     /// * `error` - Submission error explaining the rejection.
@@ -39,6 +47,8 @@ pub trait TaskHook: Send + Sync + 'static {
 
     /// Called immediately before an accepted task starts running.
     ///
+    /// This callback is emitted after [`Self::on_accepted`] for the same task.
+    ///
     /// # Parameters
     ///
     /// * `task_id` - Identifier assigned to the accepted task.
@@ -46,6 +56,10 @@ pub trait TaskHook: Send + Sync + 'static {
     fn on_started(&self, _task_id: TaskId) {}
 
     /// Called after an accepted task reaches a terminal status.
+    ///
+    /// This callback is emitted after [`Self::on_accepted`] for the same task.
+    /// It is normally emitted after [`Self::on_started`], except for pre-start
+    /// cancellation or accepted runner-endpoint abandonment.
     ///
     /// # Parameters
     ///

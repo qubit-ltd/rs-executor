@@ -35,6 +35,7 @@ thiserror = "2.0"
 
 qubit-atomic = "0.10"
 qubit-function = "0.13"
+qubit-lock = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }

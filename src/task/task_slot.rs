@@ -11,18 +11,15 @@ use std::sync::Arc;
 
 use qubit_function::Callable;
 
-use super::{
-    TaskResult,
-    task_runner::TaskRunner,
-    task_state::TaskState,
-    task_status::TaskStatus,
-};
+use super::{TaskResult, task_runner::TaskRunner, task_state::TaskState, task_status::TaskStatus};
 
-/// Runner-side slot for one accepted task.
+/// Runner-side slot for one task submission.
 ///
 /// This low-level endpoint is exposed so custom executor services built on top
 /// of `qubit-executor` can wire their own scheduling while still returning the
-/// standard [`crate::TaskHandle`]. Normal callers should use
+/// standard [`crate::TaskHandle`]. Executor implementations should call
+/// [`Self::accept`] only after submission succeeds; this arms lifecycle hook
+/// reporting for later start and finish events. Normal callers should use
 /// [`crate::TaskHandle`] and executor/service submission methods instead.
 pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
@@ -30,6 +27,18 @@ pub struct TaskSlot<R, E> {
 }
 
 impl<R, E> TaskSlot<R, E> {
+    /// Marks this runner endpoint as accepted and arms lifecycle hook reporting.
+    ///
+    /// Calling this method emits `on_accepted` before any later `on_started` or
+    /// `on_finished` event for the same task. Executor implementations must call
+    /// it only after submission has succeeded. Dropping a slot before acceptance
+    /// still releases result waiters with `Dropped`, but does not emit lifecycle
+    /// hook events for a task that was rejected before acceptance.
+    #[inline]
+    pub fn accept(&self) {
+        let _accepted_now = self.state.accept();
+    }
+
     /// Marks the task as started if it was not cancelled first.
     ///
     /// # Returns
@@ -37,7 +46,7 @@ impl<R, E> TaskSlot<R, E> {
     /// `true` if the runner should execute the task, or `false` if the task was
     /// already completed through cancellation.
     pub(crate) fn start(&self) -> bool {
-        self.state.start()
+        self.state.start(self.state.is_accepted())
     }
 
     /// Completes the task with its final result.
@@ -80,17 +89,6 @@ impl<R, E> TaskSlot<R, E> {
         true
     }
 
-    /// Cancels the task if it has not started yet.
-    ///
-    /// # Returns
-    ///
-    /// `true` if this call published a cancellation result, or `false` if the
-    /// task was already started or completed.
-    #[inline]
-    pub fn cancel(&self) -> bool {
-        self.state.cancel_pending()
-    }
-
     /// Publishes a terminal result when the supplied predicate allows it.
     ///
     /// # Parameters
@@ -108,7 +106,8 @@ impl<R, E> TaskSlot<R, E> {
     where
         F: FnMut(TaskStatus) -> bool,
     {
-        self.state.finish(result, can_finish)
+        self.state
+            .finish(result, self.state.is_accepted(), can_finish)
     }
 
     /// Starts this slot and runs a callable to completion.
@@ -134,6 +133,6 @@ impl<R, E> Drop for TaskSlot<R, E> {
     /// Publishes a dropped-result error when the runner endpoint is abandoned.
     #[inline]
     fn drop(&mut self) {
-        let _ignored = self.state.drop_unfinished();
+        let _ignored = self.state.drop_unfinished(self.state.is_accepted());
     }
 }

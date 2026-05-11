@@ -9,36 +9,22 @@
  ******************************************************************************/
 use std::sync::Arc;
 
-use parking_lot::{
-    Condvar,
-    Mutex,
-};
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use parking_lot::{Condvar, Mutex};
+use qubit_function::{Callable, Runnable};
 
+use crate::executor::{
+    task_admission_gate::TaskAdmissionGate, thread_spawn_config::ThreadSpawnConfig,
+};
 use crate::{
-    TaskHandle,
-    TrackedTask,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        notify_accepted,
-        notify_rejected,
-    },
+    TaskHandle, TrackedTask,
+    hook::{TaskHook, notify_rejected},
     task::spi::TaskEndpointPair,
 };
 
 use super::{
-    ExecutorService,
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
+    ExecutorService, ExecutorServiceLifecycle, StopReport, SubmissionError,
     ThreadPerTaskExecutorServiceBuilder,
 };
-use crate::executor::thread_spawn_config::ThreadSpawnConfig;
-
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Mutable service state protected by the service mutex.
@@ -194,17 +180,17 @@ pub struct ThreadPerTaskExecutorService {
     /// Optional stack size for each spawned worker thread.
     stack_size: Option<usize>,
     /// Hook notified about accepted task lifecycle events.
-    pub(crate) hook: Arc<dyn TaskHook>,
+    pub(crate) hook: Option<Arc<dyn TaskHook>>,
 }
 
 impl Default for ThreadPerTaskExecutorService {
-    /// Creates a service with default worker options and no-op hook.
+    /// Creates a service with default worker options and no hook.
     #[inline]
     fn default() -> Self {
         Self {
             state: Arc::default(),
             stack_size: None,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 }
@@ -234,7 +220,7 @@ impl ThreadPerTaskExecutorService {
         Self {
             state: Arc::default(),
             stack_size,
-            hook: Arc::new(NoopTaskHook),
+            hook: None,
         }
     }
 
@@ -265,6 +251,18 @@ impl ThreadPerTaskExecutorService {
     /// by the active-task guard captured by `worker`.
     fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
         ThreadSpawnConfig::new(self.stack_size).spawn(worker)
+    }
+
+    /// Notifies the configured hook about a rejected submission.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - Submission failure reported to the caller.
+    #[inline]
+    fn notify_rejected(&self, error: &SubmissionError) {
+        if let Some(hook) = &self.hook {
+            notify_rejected(hook.as_ref(), error);
+        }
     }
 }
 
@@ -301,23 +299,25 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            notify_rejected(self.hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
 
-        let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
-        let task_id = handle.task_id();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let hook = Arc::clone(&self.hook);
+        let gate = TaskAdmissionGate::new();
+        let worker_gate = gate.clone();
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+            worker_gate.wait();
             let _guard = guard;
             let mut task = task;
             slot.run(move || task.run());
         })) {
-            notify_rejected(hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
-        notify_accepted(self.hook.as_ref(), task_id);
+        handle.accept();
+        gate.open();
         drop(handle);
         Ok(())
     }
@@ -343,22 +343,24 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            notify_rejected(self.hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
 
-        let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
-        let task_id = handle.task_id();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let hook = Arc::clone(&self.hook);
+        let gate = TaskAdmissionGate::new();
+        let worker_gate = gate.clone();
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+            worker_gate.wait();
             let _guard = guard;
             slot.run(task);
         })) {
-            notify_rejected(hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
-        notify_accepted(self.hook.as_ref(), task_id);
+        handle.accept();
+        gate.open();
         Ok(handle)
     }
 
@@ -373,23 +375,25 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            notify_rejected(self.hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
 
         let (handle, slot) =
-            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        let task_id = handle.task_id();
+            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let hook = Arc::clone(&self.hook);
+        let gate = TaskAdmissionGate::new();
+        let worker_gate = gate.clone();
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+            worker_gate.wait();
             let _guard = guard;
             slot.run(task);
         })) {
-            notify_rejected(hook.as_ref(), &error);
+            self.notify_rejected(&error);
             return Err(error);
         }
-        notify_accepted(self.hook.as_ref(), task_id);
+        handle.accept();
+        gate.open();
         Ok(handle)
     }
 
