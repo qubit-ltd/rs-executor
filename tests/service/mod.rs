@@ -7,4 +7,5 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+mod executor_build_error_tests;
 mod thread_per_task_executor_service_tests;
