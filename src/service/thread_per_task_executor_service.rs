@@ -28,7 +28,10 @@ use crate::{
         notify_rejected_optional,
     },
     task::{
-        spi::TaskEndpointPair,
+        spi::{
+            TaskEndpointPair,
+            TaskSlot,
+        },
         task_admission_gate::TaskAdmissionGate,
     },
 };
@@ -41,6 +44,28 @@ use super::{
     ThreadPerTaskExecutorServiceBuilder,
 };
 type Worker = Box<dyn FnOnce() + Send + 'static>;
+
+/// Handle variants that can cross the accepted task boundary.
+trait TaskAdmissionHandle {
+    /// Marks the underlying task as accepted and emits accepted hooks.
+    fn mark_accepted(&self);
+}
+
+impl<R, E> TaskAdmissionHandle for TaskHandle<R, E> {
+    /// Marks a task handle as accepted.
+    #[inline]
+    fn mark_accepted(&self) {
+        self.accept();
+    }
+}
+
+impl<R, E> TaskAdmissionHandle for TrackedTask<R, E> {
+    /// Marks a tracked task handle as accepted.
+    #[inline]
+    fn mark_accepted(&self) {
+        self.accept();
+    }
+}
 
 /// Mutable service state protected by the service mutex.
 #[derive(Debug, Clone, Copy)]
@@ -279,6 +304,57 @@ impl ThreadPerTaskExecutorService {
             notify_rejected(hook.as_ref(), error);
         }
     }
+
+    /// Accepts service work, starts a worker thread, and returns the chosen handle.
+    ///
+    /// # Parameters
+    ///
+    /// * `split_pair` - Splits the task endpoint pair into the desired handle and slot.
+    /// * `run_slot` - Worker body that consumes the runner-side task slot.
+    ///
+    /// # Returns
+    ///
+    /// The accepted task handle produced by `split_pair`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if the service is not running, or
+    /// [`SubmissionError::WorkerSpawnFailed`] if the worker thread cannot be created.
+    fn submit_with_slot<R, E, H, S, F>(
+        &self,
+        split_pair: S,
+        run_slot: F,
+    ) -> Result<H, SubmissionError>
+    where
+        R: Send + 'static,
+        E: Send + 'static,
+        H: TaskAdmissionHandle,
+        S: FnOnce(TaskEndpointPair<R, E>) -> (H, TaskSlot<R, E>),
+        F: FnOnce(TaskSlot<R, E>) + Send + 'static,
+    {
+        if let Err(error) = self.state.accept_task() {
+            self.notify_rejected(&error);
+            return Err(error);
+        }
+
+        let pair = TaskEndpointPair::with_optional_hook(self.hook.clone());
+        let (handle, slot) = split_pair(pair);
+        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
+        let gate = TaskAdmissionGate::new(self.hook.is_some());
+        let worker_gate = gate.clone();
+        let hook = self.hook.clone();
+        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+            worker_gate.wait();
+            let _guard = guard;
+            run_slot(slot);
+        })) {
+            notify_rejected_optional(hook.as_ref(), &error);
+            return Err(error);
+        }
+        handle.mark_accepted();
+        gate.open();
+        Ok(handle)
+    }
 }
 
 impl ExecutorService for ThreadPerTaskExecutorService {
@@ -313,27 +389,13 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
     {
-        if let Err(error) = self.state.accept_task() {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
-
-        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
-        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new(self.hook.is_some());
-        let worker_gate = gate.clone();
-        let hook = self.hook.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
-            let _guard = guard;
-            let mut task = task;
-            slot.run(move || task.run());
-        })) {
-            notify_rejected_optional(hook.as_ref(), &error);
-            return Err(error);
-        }
-        handle.accept();
-        gate.open();
+        let handle = self.submit_with_slot(
+            |pair| pair.into_parts(),
+            move |slot| {
+                let mut task = task;
+                slot.run(move || task.run());
+            },
+        )?;
         drop(handle);
         Ok(())
     }
@@ -358,27 +420,12 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        if let Err(error) = self.state.accept_task() {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
-
-        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_parts();
-        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new(self.hook.is_some());
-        let worker_gate = gate.clone();
-        let hook = self.hook.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
-            let _guard = guard;
-            slot.run(task);
-        })) {
-            notify_rejected_optional(hook.as_ref(), &error);
-            return Err(error);
-        }
-        handle.accept();
-        gate.open();
-        Ok(handle)
+        self.submit_with_slot(
+            |pair| pair.into_parts(),
+            move |slot| {
+                slot.run(task);
+            },
+        )
     }
 
     /// Accepts a callable and starts it with a tracked handle.
@@ -391,28 +438,12 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        if let Err(error) = self.state.accept_task() {
-            self.notify_rejected(&error);
-            return Err(error);
-        }
-
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
-        let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        let gate = TaskAdmissionGate::new(self.hook.is_some());
-        let worker_gate = gate.clone();
-        let hook = self.hook.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
-            let _guard = guard;
-            slot.run(task);
-        })) {
-            notify_rejected_optional(hook.as_ref(), &error);
-            return Err(error);
-        }
-        handle.accept();
-        gate.open();
-        Ok(handle)
+        self.submit_with_slot(
+            |pair| pair.into_tracked_parts(),
+            move |slot| {
+                slot.run(task);
+            },
+        )
     }
 
     /// Stops accepting new tasks.
