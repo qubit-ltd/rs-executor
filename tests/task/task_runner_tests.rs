@@ -24,3 +24,8 @@ fn test_runner_executes_through_completion() {
 
     assert_eq!(handle.get().expect("runner should publish result"), 42);
 }
+
+#[test]
+fn test_runner_run_detached_discards_result() {
+    TaskRunner::new(|| Ok::<usize, io::Error>(42)).run_detached();
+}

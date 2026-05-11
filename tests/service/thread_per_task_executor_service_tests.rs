@@ -24,6 +24,7 @@ use std::{
 use qubit_executor::{
     ExecutorServiceLifecycle,
     TaskExecutionError,
+    hook::NoopTaskHook,
     service::{
         ExecutorService,
         ExecutorServiceBuilderError,
@@ -60,7 +61,10 @@ fn test_thread_per_task_executor_service_submit_acceptance_is_not_task_success()
 
 #[test]
 fn test_thread_per_task_executor_service_submit_callable_returns_value() {
-    let service = ThreadPerTaskExecutorService::new();
+    let service = ThreadPerTaskExecutorService::builder()
+        .hook(Arc::new(NoopTaskHook))
+        .build()
+        .expect("service should build");
 
     let handle = service
         .submit_callable(ok_usize_task as fn() -> Result<usize, io::Error>)
@@ -93,6 +97,14 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
     assert!(matches!(result, Err(SubmissionError::Shutdown)));
     assert!(service.is_not_running());
     assert!(service.is_terminated());
+
+    let callable_result =
+        service.submit_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
+    assert!(matches!(callable_result, Err(SubmissionError::Shutdown)));
+
+    let tracked_result =
+        service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
+    assert!(matches!(tracked_result, Err(SubmissionError::Shutdown)));
 }
 
 #[test]

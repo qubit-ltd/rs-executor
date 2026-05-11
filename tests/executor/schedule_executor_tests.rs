@@ -11,7 +11,10 @@
 
 use std::{
     io,
-    sync::mpsc,
+    sync::{
+        Arc,
+        mpsc,
+    },
     time::{
         Duration,
         Instant,
@@ -22,6 +25,7 @@ use qubit_executor::executor::{
     Executor,
     ScheduleExecutor,
 };
+use qubit_executor::hook::NoopTaskHook;
 
 #[test]
 fn test_schedule_executor_runs_task_at_instant() {
@@ -52,7 +56,8 @@ fn test_schedule_executor_runs_task_at_instant() {
 
 #[test]
 fn test_schedule_executor_runs_past_instant_promptly() {
-    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1));
+    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1))
+        .with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(|| Ok::<usize, io::Error>(42))

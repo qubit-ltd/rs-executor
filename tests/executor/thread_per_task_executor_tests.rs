@@ -11,9 +11,12 @@
 
 use std::{
     io,
-    sync::atomic::{
-        AtomicUsize,
-        Ordering,
+    sync::{
+        Arc,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 
@@ -23,6 +26,7 @@ use qubit_executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
+    hook::NoopTaskHook,
     service::{
         ExecutorServiceBuilderError,
         SubmissionError,
@@ -54,7 +58,7 @@ fn test_thread_per_task_executor_execute_runs_task() {
 
 #[test]
 fn test_thread_per_task_executor_call_returns_value() {
-    let executor = ThreadPerTaskExecutor::new();
+    let executor = ThreadPerTaskExecutor::new().with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(|| Ok::<usize, io::Error>(42))
@@ -110,6 +114,7 @@ fn test_thread_per_task_executor_builder_rejects_zero_stack_size() {
 #[test]
 fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
     let executor = ThreadPerTaskExecutor::builder()
+        .hook(Arc::new(NoopTaskHook))
         .stack_size(usize::MAX)
         .build()
         .expect("nonzero stack size should build");

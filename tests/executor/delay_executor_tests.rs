@@ -11,6 +11,7 @@
 
 use std::{
     io,
+    sync::Arc,
     sync::mpsc,
     thread,
     time::{
@@ -26,6 +27,7 @@ use qubit_executor::{
         DelayExecutor,
         Executor,
     },
+    hook::NoopTaskHook,
 };
 
 fn delayed_value_task() -> Result<usize, io::Error> {
@@ -61,7 +63,7 @@ fn test_delay_executor_delays_task_start() {
 
 #[test]
 fn test_delay_executor_returns_callable_value() {
-    let executor = DelayExecutor::new(Duration::ZERO);
+    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(delayed_value_task as fn() -> Result<usize, io::Error>)

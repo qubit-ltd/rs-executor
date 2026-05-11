@@ -12,9 +12,15 @@ use std::{
     sync::{
         Arc,
         Mutex,
+        Once,
     },
 };
 
+use log::{
+    LevelFilter,
+    Metadata,
+    Record,
+};
 use qubit_executor::{
     TaskStatus,
     executor::{
@@ -26,7 +32,30 @@ use qubit_executor::{
         TaskHook,
         TaskId,
     },
+    service::SubmissionError,
 };
+
+struct TestLogger;
+
+impl log::Log for TestLogger {
+    fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+        true
+    }
+
+    fn log(&self, _record: &Record<'_>) {}
+
+    fn flush(&self) {}
+}
+
+static LOGGER: TestLogger = TestLogger;
+static INIT_LOGGER: Once = Once::new();
+
+fn init_logger() {
+    INIT_LOGGER.call_once(|| {
+        log::set_logger(&LOGGER).expect("test logger should install once");
+        log::set_max_level(LevelFilter::Trace);
+    });
+}
 
 #[derive(Default)]
 struct RecordingHook {
@@ -88,6 +117,10 @@ fn test_task_hook_observes_direct_executor_lifecycle() {
 
 #[test]
 fn test_logging_task_hook_is_constructible() {
+    init_logger();
     let hook: Arc<dyn TaskHook> = Arc::new(LoggingTaskHook);
     hook.on_accepted(TaskId::new(1));
+    hook.on_rejected(&SubmissionError::Shutdown);
+    hook.on_started(TaskId::new(1));
+    hook.on_finished(TaskId::new(1), TaskStatus::Succeeded);
 }
