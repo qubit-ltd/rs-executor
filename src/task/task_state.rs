@@ -13,6 +13,7 @@ use oneshot::Sender;
 use parking_lot::Mutex;
 
 use super::{
+    TaskExecutionError,
     TaskResult,
     atomic_task_status::AtomicTaskStatus,
     task_status::TaskStatus,
@@ -20,6 +21,8 @@ use super::{
 use crate::hook::{
     TaskHook,
     TaskId,
+    notify_finished,
+    notify_started,
 };
 
 /// Shared completion endpoint state for one submitted task.
@@ -78,9 +81,31 @@ impl<R, E> TaskState<R, E> {
     pub(crate) fn start(&self) -> bool {
         let started = self.status.start();
         if started {
-            self.hook.on_started(self.task_id);
+            notify_started(self.hook.as_ref(), self.task_id);
         }
         started
+    }
+
+    /// Attempts to cancel this task while it is still pending.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this call published a cancellation result.
+    #[inline]
+    pub(crate) fn cancel_pending(&self) -> bool {
+        self.finish(Err(TaskExecutionError::Cancelled), |status| {
+            status == TaskStatus::Pending
+        })
+    }
+
+    /// Publishes a dropped-result error if no terminal result exists.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this call published a dropped-result error.
+    #[inline]
+    pub(crate) fn drop_unfinished(&self) -> bool {
+        self.finish(Err(TaskExecutionError::Dropped), |_| true)
     }
 
     /// Attempts to publish a terminal result when the current status allows it.
@@ -110,7 +135,7 @@ impl<R, E> TaskState<R, E> {
                 if let Some(sender) = sender {
                     let _ignored = sender.send(result);
                 }
-                self.hook.on_finished(self.task_id, next);
+                notify_finished(self.hook.as_ref(), self.task_id, next);
                 return true;
             }
         }

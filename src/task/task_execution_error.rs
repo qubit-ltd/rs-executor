@@ -33,6 +33,9 @@ pub enum TaskExecutionError<E> {
 
     /// The task was cancelled before producing a result.
     Cancelled,
+
+    /// The task completion endpoint was dropped without publishing a result.
+    Dropped,
 }
 
 impl<E> TaskExecutionError<E> {
@@ -65,6 +68,17 @@ impl<E> TaskExecutionError<E> {
     pub const fn is_cancelled(&self) -> bool {
         matches!(self, Self::Cancelled)
     }
+
+    /// Returns true when the task result was dropped by the completion endpoint.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the task completion endpoint disappeared without publishing a
+    /// result.
+    #[inline]
+    pub const fn is_dropped(&self) -> bool {
+        matches!(self, Self::Dropped)
+    }
 }
 
 impl<E> fmt::Display for TaskExecutionError<E>
@@ -77,6 +91,7 @@ where
             Self::Failed(err) => write!(f, "task failed: {err}"),
             Self::Panicked => f.write_str("task panicked"),
             Self::Cancelled => f.write_str("task was cancelled"),
+            Self::Dropped => f.write_str("task result was dropped"),
         }
     }
 }

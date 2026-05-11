@@ -11,7 +11,7 @@
 
 ## 概览
 
-Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把轻量级执行策略与托管 executor service 分开，并提供可复用的任务 handle，用于发布任务成功、任务失败、panic 或取消状态。
+Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把轻量级执行策略与托管 executor service 分开，并提供可复用的任务 handle，用于发布任务成功、任务失败、panic、取消或完成端点被丢弃等状态。
 
 本 crate 刻意不依赖 Tokio、Rayon 或具体线程池。依赖运行时的实现放在更小的配套 crate 中，便于库作者只依赖自己需要的抽象层。
 
@@ -63,6 +63,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 - `Failed(E)` 表示任务返回了自己的错误值。
 - `Panicked` 表示任务运行期间发生 panic。
 - `Cancelled` 表示任务在产生结果前被取消。
+- `Dropped` 表示 runner 侧完成端点在发布结果前消失；这与显式取消请求不同。
 
 ## 快速开始
 

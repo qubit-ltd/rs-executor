@@ -26,7 +26,11 @@ use qubit_executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
-    hook::NoopTaskHook,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+        TaskId,
+    },
     service::{
         ExecutorServiceBuilderError,
         SubmissionError,
@@ -34,6 +38,22 @@ use qubit_executor::{
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Default)]
+struct CountingHook {
+    accepted: AtomicUsize,
+    rejected: AtomicUsize,
+}
+
+impl TaskHook for CountingHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        self.accepted.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn on_rejected(&self, _error: &SubmissionError) {
+        self.rejected.fetch_add(1, Ordering::AcqRel);
+    }
+}
 
 fn shared_runner_task() -> Result<usize, &'static str> {
     match SHARED_RUNNER_TASK_CALLS.fetch_add(1, Ordering::AcqRel) {
@@ -113,8 +133,9 @@ fn test_thread_per_task_executor_builder_rejects_zero_stack_size() {
 
 #[test]
 fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
+    let hook = Arc::new(CountingHook::default());
     let executor = ThreadPerTaskExecutor::builder()
-        .hook(Arc::new(NoopTaskHook))
+        .hook(hook.clone())
         .stack_size(usize::MAX)
         .build()
         .expect("nonzero stack size should build");
@@ -125,4 +146,6 @@ fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
+    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
+    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
 }

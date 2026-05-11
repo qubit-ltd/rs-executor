@@ -53,6 +53,6 @@ impl<R, E> Future for TaskHandleFuture<R, E> {
         let this = self.get_mut();
         Pin::new(&mut this.receiver)
             .poll(cx)
-            .map(|result| result.unwrap_or(Err(TaskExecutionError::Cancelled)))
+            .map(|result| result.unwrap_or(Err(TaskExecutionError::Dropped)))
     }
 }

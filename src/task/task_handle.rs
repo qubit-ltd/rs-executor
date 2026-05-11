@@ -73,13 +73,13 @@ impl<R, E> TaskHandle<R, E> {
     /// # Returns
     ///
     /// `Ok(R)` if the task succeeds. If the accepted task returns `Err(E)`,
-    /// panics, or is cancelled before producing a value, the corresponding
-    /// [`crate::TaskExecutionError`] is returned.
+    /// panics, is cancelled, or loses its completion endpoint before producing
+    /// a value, the corresponding [`crate::TaskExecutionError`] is returned.
     #[inline]
     pub fn get(self) -> TaskResult<R, E> {
         self.receiver
             .recv()
-            .unwrap_or(Err(TaskExecutionError::Cancelled))
+            .unwrap_or(Err(TaskExecutionError::Dropped))
     }
 
     /// Attempts to retrieve the final result without blocking.
@@ -94,7 +94,7 @@ impl<R, E> TaskHandle<R, E> {
         match receiver.try_recv() {
             Ok(result) => TryGet::Ready(result),
             Err(TryRecvError::Empty) => TryGet::Pending(Self { state, receiver }),
-            Err(TryRecvError::Disconnected) => TryGet::Ready(Err(TaskExecutionError::Cancelled)),
+            Err(TryRecvError::Disconnected) => TryGet::Ready(Err(TaskExecutionError::Dropped)),
         }
     }
 

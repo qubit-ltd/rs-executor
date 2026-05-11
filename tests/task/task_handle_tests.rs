@@ -13,7 +13,6 @@ use std::{
     io,
     sync::{
         Arc,
-        Barrier,
         mpsc,
     },
     thread,
@@ -135,42 +134,6 @@ fn test_task_slot_run_skips_cancelled_task() {
 }
 
 #[test]
-fn test_task_slot_clone_can_run_task() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
-    let cloned = completion.clone();
-
-    cloned.run(|| Ok(42));
-
-    assert_eq!(handle.get().expect("cloned completion should publish"), 42);
-}
-
-#[test]
-fn test_task_slot_concurrent_run_has_one_winner() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
-    let contenders = 8;
-    let barrier = Arc::new(Barrier::new(contenders));
-    let mut workers = Vec::with_capacity(contenders);
-    for index in 0..contenders {
-        let completion = completion.clone();
-        let barrier = Arc::clone(&barrier);
-        workers.push(thread::spawn(move || {
-            barrier.wait();
-            completion.run(move || Ok(index));
-        }));
-    }
-    for worker in workers {
-        worker
-            .join()
-            .expect("completion contender should not panic");
-    }
-
-    let value = handle
-        .get()
-        .expect("one completion contender should publish a value");
-    assert!(value < contenders);
-}
-
-#[test]
 fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
     let (pending_handle, pending_completion) =
         TaskEndpointPair::<usize, io::Error>::new().into_parts();
@@ -186,13 +149,13 @@ fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
         42,
     );
 
-    let (disconnected_handle, disconnected_completion) =
+    let (dropped_handle, dropped_completion) =
         TaskEndpointPair::<usize, io::Error>::new().into_parts();
-    drop(disconnected_completion);
+    drop(dropped_completion);
 
     assert!(matches!(
-        TaskResultHandle::try_get(disconnected_handle),
-        TryGet::Ready(Err(TaskExecutionError::Cancelled)),
+        TaskResultHandle::try_get(dropped_handle),
+        TryGet::Ready(Err(TaskExecutionError::Dropped)),
     ));
 }
 
@@ -225,6 +188,12 @@ fn test_tracked_task_try_get_returns_pending_and_ready_results() {
 
 #[test]
 fn test_tracked_task_status_reports_failed_and_panicked_results() {
+    let (succeeded_handle, succeeded_completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    succeeded_completion.run(|| Ok(42));
+    assert_eq!(succeeded_handle.status(), TaskStatus::Succeeded);
+    assert!(succeeded_handle.is_done());
+
     let (failed_handle, failed_completion) =
         TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     failed_completion.run(|| Err(io::Error::other("failed")));
@@ -236,6 +205,19 @@ fn test_tracked_task_status_reports_failed_and_panicked_results() {
     panicked_completion.run(|| -> Result<usize, io::Error> { panic!("panicked") });
     assert_eq!(panicked_handle.status(), TaskStatus::Panicked);
     assert!(panicked_handle.is_done());
+
+    let (cancelled_handle, cancelled_completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    assert_eq!(cancelled_handle.cancel(), CancelResult::Cancelled);
+    drop(cancelled_completion);
+    assert_eq!(cancelled_handle.status(), TaskStatus::Cancelled);
+    assert!(cancelled_handle.is_done());
+
+    let (dropped_handle, dropped_completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    drop(dropped_completion);
+    assert_eq!(dropped_handle.status(), TaskStatus::Dropped);
+    assert!(dropped_handle.is_done());
 }
 
 #[test]

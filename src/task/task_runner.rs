@@ -72,7 +72,8 @@ impl<C> TaskRunner<C> {
     /// # Returns
     ///
     /// `true` if the task started and its result was published, or `false` if
-    /// the completion endpoint had already been completed by cancellation.
+    /// the completion endpoint had already been completed before the runner
+    /// started.
     #[inline]
     pub fn run<R, E>(self, slot: TaskSlot<R, E>) -> bool
     where

@@ -27,6 +27,8 @@ pub enum TaskStatus {
     Panicked,
     /// The task was cancelled before producing a value.
     Cancelled,
+    /// The task completion endpoint was dropped before producing a value.
+    Dropped,
 }
 
 impl TaskStatus {
@@ -34,12 +36,13 @@ impl TaskStatus {
     ///
     /// # Returns
     ///
-    /// `true` after success, failure, panic, or cancellation.
+    /// `true` after success, failure, panic, cancellation, or dropped
+    /// completion.
     #[inline]
     pub const fn is_done(self) -> bool {
         matches!(
             self,
-            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled
+            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
         )
     }
 
@@ -57,6 +60,7 @@ impl TaskStatus {
             Self::Failed => 3,
             Self::Panicked => 4,
             Self::Cancelled => 5,
+            Self::Dropped => 6,
         }
     }
 
@@ -82,6 +86,7 @@ impl TaskStatus {
             3 => Self::Failed,
             4 => Self::Panicked,
             5 => Self::Cancelled,
+            6 => Self::Dropped,
             _ => panic!("invalid task status code"),
         }
     }
@@ -102,6 +107,7 @@ impl TaskStatus {
             Err(TaskExecutionError::Failed(_)) => Self::Failed,
             Err(TaskExecutionError::Panicked) => Self::Panicked,
             Err(TaskExecutionError::Cancelled) => Self::Cancelled,
+            Err(TaskExecutionError::Dropped) => Self::Dropped,
         }
     }
 }

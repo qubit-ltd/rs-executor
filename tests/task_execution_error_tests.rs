@@ -21,6 +21,7 @@ fn test_task_execution_error_predicates() {
     let failed = TaskExecutionError::Failed(io::Error::other("failed"));
     let panicked = TaskExecutionError::<io::Error>::Panicked;
     let cancelled = TaskExecutionError::<io::Error>::Cancelled;
+    let dropped = TaskExecutionError::<io::Error>::Dropped;
 
     assert!(failed.is_failed());
     assert!(!failed.is_panicked());
@@ -31,6 +32,8 @@ fn test_task_execution_error_predicates() {
     assert!(cancelled.is_cancelled());
     assert!(!cancelled.is_failed());
     assert!(!cancelled.is_panicked());
+    assert!(dropped.is_dropped());
+    assert!(!dropped.is_cancelled());
 }
 
 #[test]
@@ -38,10 +41,12 @@ fn test_task_execution_error_display() {
     let failed = TaskExecutionError::Failed(io::Error::other("failed"));
     let panicked = TaskExecutionError::<io::Error>::Panicked;
     let cancelled = TaskExecutionError::<io::Error>::Cancelled;
+    let dropped = TaskExecutionError::<io::Error>::Dropped;
 
     assert_eq!(failed.to_string(), "task failed: failed");
     assert_eq!(panicked.to_string(), "task panicked");
     assert_eq!(cancelled.to_string(), "task was cancelled");
+    assert_eq!(dropped.to_string(), "task result was dropped");
 }
 
 #[test]

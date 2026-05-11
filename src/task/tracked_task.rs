@@ -15,7 +15,6 @@ use super::{
     task_handle::TaskHandle,
     task_handle_future::TaskHandleFuture,
     task_result_handle::TaskResultHandle,
-    task_slot::TaskSlot,
     task_status::TaskStatus,
     tracked_task_handle::TrackedTaskHandle,
     try_get::TryGet,
@@ -74,7 +73,8 @@ impl<R, E> TrackedTask<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` after the task succeeds, fails, panics, or is cancelled.
+    /// `true` after the task succeeds, fails, panics, is cancelled, or loses
+    /// its completion endpoint.
     #[inline]
     pub fn is_done(&self) -> bool
     where
@@ -121,10 +121,7 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
-        let slot = TaskSlot {
-            state: self.handle.state.clone(),
-        };
-        if slot.cancel() {
+        if self.handle.state.cancel_pending() {
             return CancelResult::Cancelled;
         }
         match self.status() {

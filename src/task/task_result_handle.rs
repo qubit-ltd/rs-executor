@@ -27,7 +27,7 @@ pub trait TaskResultHandle<R, E>: Send {
     /// # Returns
     ///
     /// The final task result. If the completion endpoint is dropped without
-    /// publishing a result, cancellation is reported.
+    /// publishing a result, a dropped-result error is reported.
     fn get(self) -> TaskResult<R, E>
     where
         Self: Sized;

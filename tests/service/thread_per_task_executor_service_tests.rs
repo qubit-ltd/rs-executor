@@ -15,6 +15,7 @@ use std::{
         Arc,
         atomic::{
             AtomicBool,
+            AtomicUsize,
             Ordering,
         },
     },
@@ -24,7 +25,11 @@ use std::{
 use qubit_executor::{
     ExecutorServiceLifecycle,
     TaskExecutionError,
-    hook::NoopTaskHook,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+        TaskId,
+    },
     service::{
         ExecutorService,
         ExecutorServiceBuilderError,
@@ -32,6 +37,22 @@ use qubit_executor::{
         ThreadPerTaskExecutorService,
     },
 };
+
+#[derive(Default)]
+struct CountingHook {
+    accepted: AtomicUsize,
+    rejected: AtomicUsize,
+}
+
+impl TaskHook for CountingHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        self.accepted.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn on_rejected(&self, _error: &SubmissionError) {
+        self.rejected.fetch_add(1, Ordering::AcqRel);
+    }
+}
 
 fn ok_unit_task() -> Result<(), io::Error> {
     Ok(())
@@ -174,7 +195,9 @@ fn test_thread_per_task_executor_service_stop_transitions_to_terminated() {
 
 #[test]
 fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_failure() {
+    let hook = Arc::new(CountingHook::default());
     let service = ThreadPerTaskExecutorService::builder()
+        .hook(hook.clone())
         .stack_size(usize::MAX)
         .build()
         .expect("nonzero stack size should build");
@@ -185,6 +208,8 @@ fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_fa
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
+    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
+    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
     service.shutdown();
     service.wait_termination();
 }

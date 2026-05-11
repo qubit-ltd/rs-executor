@@ -12,7 +12,6 @@ use std::sync::Arc;
 use qubit_function::Callable;
 
 use super::{
-    TaskExecutionError,
     TaskResult,
     task_runner::TaskRunner,
     task_state::TaskState,
@@ -28,20 +27,6 @@ use super::{
 pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
     pub(crate) state: Arc<TaskState<R, E>>,
-}
-
-impl<R, E> Clone for TaskSlot<R, E> {
-    /// Clones the task slot for mutually exclusive finish paths.
-    ///
-    /// # Returns
-    ///
-    /// A completion endpoint sharing the same task state.
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            state: Arc::clone(&self.state),
-        }
-    }
 }
 
 impl<R, E> TaskSlot<R, E> {
@@ -103,9 +88,7 @@ impl<R, E> TaskSlot<R, E> {
     /// task was already started or completed.
     #[inline]
     pub fn cancel(&self) -> bool {
-        self.finish(Err(TaskExecutionError::Cancelled), |status| {
-            status == TaskStatus::Pending
-        })
+        self.state.cancel_pending()
     }
 
     /// Publishes a terminal result when the supplied predicate allows it.
@@ -148,11 +131,9 @@ impl<R, E> TaskSlot<R, E> {
 }
 
 impl<R, E> Drop for TaskSlot<R, E> {
-    /// Publishes cancellation when the last runner-side slot is dropped pending.
+    /// Publishes a dropped-result error when the runner endpoint is abandoned.
     #[inline]
     fn drop(&mut self) {
-        if Arc::strong_count(&self.state) == 2 {
-            let _ignored = self.cancel();
-        }
+        let _ignored = self.state.drop_unfinished();
     }
 }

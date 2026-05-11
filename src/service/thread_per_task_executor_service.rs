@@ -24,6 +24,8 @@ use crate::{
     hook::{
         NoopTaskHook,
         TaskHook,
+        notify_accepted,
+        notify_rejected,
     },
     task::spi::TaskEndpointPair,
 };
@@ -132,9 +134,7 @@ impl ThreadPerTaskExecutorServiceState {
     #[inline]
     fn finish_task(&self) {
         let mut state = self.state.lock();
-        if state.active_tasks > 0 {
-            state.active_tasks -= 1;
-        }
+        state.active_tasks -= 1;
         Self::terminate_if_ready(&mut state, &self.termination);
     }
 
@@ -301,13 +301,12 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            self.hook.on_rejected(&error);
+            notify_rejected(self.hook.as_ref(), &error);
             return Err(error);
         }
 
         let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
-        self.hook.on_accepted(handle.task_id());
-        drop(handle);
+        let task_id = handle.task_id();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         let hook = Arc::clone(&self.hook);
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
@@ -315,9 +314,11 @@ impl ExecutorService for ThreadPerTaskExecutorService {
             let mut task = task;
             slot.run(move || task.run());
         })) {
-            hook.on_rejected(&error);
+            notify_rejected(hook.as_ref(), &error);
             return Err(error);
         }
+        notify_accepted(self.hook.as_ref(), task_id);
+        drop(handle);
         Ok(())
     }
 
@@ -342,21 +343,22 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            self.hook.on_rejected(&error);
+            notify_rejected(self.hook.as_ref(), &error);
             return Err(error);
         }
 
         let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
-        self.hook.on_accepted(handle.task_id());
+        let task_id = handle.task_id();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         let hook = Arc::clone(&self.hook);
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             slot.run(task);
         })) {
-            hook.on_rejected(&error);
+            notify_rejected(hook.as_ref(), &error);
             return Err(error);
         }
+        notify_accepted(self.hook.as_ref(), task_id);
         Ok(handle)
     }
 
@@ -371,22 +373,23 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         E: Send + 'static,
     {
         if let Err(error) = self.state.accept_task() {
-            self.hook.on_rejected(&error);
+            notify_rejected(self.hook.as_ref(), &error);
             return Err(error);
         }
 
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        self.hook.on_accepted(handle.task_id());
+        let task_id = handle.task_id();
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
         let hook = Arc::clone(&self.hook);
         if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             slot.run(task);
         })) {
-            hook.on_rejected(&error);
+            notify_rejected(hook.as_ref(), &error);
             return Err(error);
         }
+        notify_accepted(self.hook.as_ref(), task_id);
         Ok(handle)
     }
 

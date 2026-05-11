@@ -28,4 +28,9 @@ fn test_task_execution_error_predicates_and_display() {
     let cancelled = TaskExecutionError::<io::Error>::Cancelled;
     assert!(cancelled.is_cancelled());
     assert_eq!(format!("{cancelled}"), "task was cancelled");
+
+    let dropped = TaskExecutionError::<io::Error>::Dropped;
+    assert!(dropped.is_dropped());
+    assert!(!dropped.is_cancelled());
+    assert_eq!(format!("{dropped}"), "task result was dropped");
 }

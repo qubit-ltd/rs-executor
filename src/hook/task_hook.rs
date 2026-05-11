@@ -7,6 +7,11 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
+
 use crate::{
     TaskStatus,
     service::SubmissionError,
@@ -48,4 +53,60 @@ pub trait TaskHook: Send + Sync + 'static {
     /// * `status` - Terminal status observed for the task.
     #[inline]
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {}
+}
+
+/// Calls a task hook and contains hook panics.
+///
+/// # Parameters
+///
+/// * `callback` - Hook callback to invoke.
+fn contain_hook_panic(callback: impl FnOnce()) {
+    if catch_unwind(AssertUnwindSafe(callback)).is_err() {
+        log::warn!("task hook panicked");
+    }
+}
+
+/// Notifies a hook that a task was accepted.
+///
+/// # Parameters
+///
+/// * `hook` - Hook to notify.
+/// * `task_id` - Accepted task id.
+#[inline]
+pub(crate) fn notify_accepted(hook: &dyn TaskHook, task_id: TaskId) {
+    contain_hook_panic(|| hook.on_accepted(task_id));
+}
+
+/// Notifies a hook that a task was rejected.
+///
+/// # Parameters
+///
+/// * `hook` - Hook to notify.
+/// * `error` - Submission error explaining the rejection.
+#[inline]
+pub(crate) fn notify_rejected(hook: &dyn TaskHook, error: &SubmissionError) {
+    contain_hook_panic(|| hook.on_rejected(error));
+}
+
+/// Notifies a hook that a task started.
+///
+/// # Parameters
+///
+/// * `hook` - Hook to notify.
+/// * `task_id` - Started task id.
+#[inline]
+pub(crate) fn notify_started(hook: &dyn TaskHook, task_id: TaskId) {
+    contain_hook_panic(|| hook.on_started(task_id));
+}
+
+/// Notifies a hook that a task finished.
+///
+/// # Parameters
+///
+/// * `hook` - Hook to notify.
+/// * `task_id` - Finished task id.
+/// * `status` - Terminal task status.
+#[inline]
+pub(crate) fn notify_finished(hook: &dyn TaskHook, task_id: TaskId, status: TaskStatus) {
+    contain_hook_panic(|| hook.on_finished(task_id, status));
 }

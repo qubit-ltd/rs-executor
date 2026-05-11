@@ -9,6 +9,7 @@
  ******************************************************************************/
 use std::{
     io,
+    panic,
     sync::{
         Arc,
         Mutex,
@@ -71,6 +72,22 @@ impl RecordingHook {
     }
 }
 
+struct PanickingHook;
+
+impl TaskHook for PanickingHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        panic!("accepted hook panic");
+    }
+
+    fn on_started(&self, _task_id: TaskId) {
+        panic!("started hook panic");
+    }
+
+    fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
+        panic!("finished hook panic");
+    }
+}
+
 impl TaskHook for RecordingHook {
     fn on_accepted(&self, task_id: TaskId) {
         self.events
@@ -92,6 +109,25 @@ impl TaskHook for RecordingHook {
             .expect("events lock should not be poisoned")
             .push(format!("finished:{}:{status:?}", task_id.get()));
     }
+}
+
+#[test]
+fn test_task_hook_panics_do_not_break_task_execution() {
+    let executor = DirectExecutor::new().with_hook(Arc::new(PanickingHook));
+
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        executor
+            .call(|| Ok::<usize, io::Error>(42))
+            .expect("direct executor should still accept task")
+            .get()
+    }));
+
+    assert_eq!(
+        result
+            .expect("hook panic should be contained")
+            .expect("task should still complete"),
+        42,
+    );
 }
 
 #[test]

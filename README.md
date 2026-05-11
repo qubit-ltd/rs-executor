@@ -14,7 +14,8 @@ Executor abstractions and task-result primitives for Rust.
 Qubit Executor provides the small common execution API used by the Qubit Rust
 concurrency crates. It separates lightweight execution strategies from managed
 executor services, and provides reusable task handles for implementations that
-need to publish task success, task failure, panic, or cancellation.
+need to publish task success, task failure, panic, cancellation, or dropped
+completion.
 
 This crate deliberately avoids depending on Tokio, Rayon, or a concrete thread
 pool. Runtime-specific implementations live in smaller companion crates so
@@ -91,6 +92,8 @@ Task execution errors are represented by `TaskExecutionError`:
 - `Failed(E)` means the task returned its own error value.
 - `Panicked` means the task panicked while running.
 - `Cancelled` means the task was cancelled before producing a value.
+- `Dropped` means the runner-side completion endpoint disappeared without
+  publishing a value, which is distinct from an explicit cancellation request.
 
 ## Quick Start
 

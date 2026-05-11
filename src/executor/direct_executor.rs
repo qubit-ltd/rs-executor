@@ -16,6 +16,7 @@ use crate::{
     hook::{
         NoopTaskHook,
         TaskHook,
+        notify_accepted,
     },
     service::SubmissionError,
     task::spi::TaskEndpointPair,
@@ -89,7 +90,7 @@ impl Executor for DirectExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        self.hook.on_accepted(handle.task_id());
+        notify_accepted(self.hook.as_ref(), handle.task_id());
         slot.run(task);
         Ok(handle)
     }

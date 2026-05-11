@@ -20,6 +20,7 @@ use crate::{
     hook::{
         NoopTaskHook,
         TaskHook,
+        notify_accepted,
     },
     service::SubmissionError,
     task::spi::TaskEndpointPair,
@@ -96,7 +97,6 @@ impl Executor for ScheduleExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        self.hook.on_accepted(handle.task_id());
         let instant = self.instant;
         thread::Builder::new()
             .spawn(move || {
@@ -108,6 +108,7 @@ impl Executor for ScheduleExecutor {
             })
             .map(drop)
             .map_err(SubmissionError::worker_spawn_failed)?;
+        notify_accepted(self.hook.as_ref(), handle.task_id());
         Ok(handle)
     }
 }

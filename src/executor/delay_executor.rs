@@ -20,6 +20,7 @@ use crate::{
     hook::{
         NoopTaskHook,
         TaskHook,
+        notify_accepted,
     },
     service::SubmissionError,
     task::spi::TaskEndpointPair,
@@ -31,10 +32,19 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Executor that starts each task after a fixed delay.
 ///
-/// `DelayExecutor` models delayed start, not minimum execution duration. The
-/// returned [`TrackedTask`] is created immediately. A helper thread sleeps for
-/// the configured delay and then runs the task. Dropping the handle does not
-/// cancel the helper thread.
+/// `DelayExecutor` is a small non-blocking submission strategy for cases where
+/// one task should run later while the caller must return immediately. It
+/// models delayed start, not minimum execution duration.
+///
+/// Each accepted task gets its own helper OS thread. The helper thread sleeps
+/// for the configured delay and then runs the task. This keeps the submitting
+/// thread unblocked without requiring a shared timer, queue, runtime, or
+/// scheduler worker. It is intentionally not a general-purpose delayed task
+/// scheduler and does not coalesce timers across tasks.
+///
+/// The returned [`TrackedTask`] is created immediately. Dropping the handle does
+/// not cancel the helper thread; use [`TrackedTask::cancel`] before the helper
+/// thread starts the task when pre-start cancellation is needed.
 ///
 #[derive(Clone)]
 pub struct DelayExecutor {
@@ -112,6 +122,9 @@ impl DelayExecutor {
 impl Executor for DelayExecutor {
     /// Starts a helper thread that waits and then runs the callable.
     ///
+    /// This method returns after the helper thread has been spawned; it does
+    /// not wait for the configured delay or for task completion.
+    ///
     /// # Parameters
     ///
     /// * `task` - Callable to run after the configured delay.
@@ -132,7 +145,6 @@ impl Executor for DelayExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        self.hook.on_accepted(handle.task_id());
         let delay = self.delay;
         Self::spawn_worker(Box::new(move || {
             if !delay.is_zero() {
@@ -140,6 +152,7 @@ impl Executor for DelayExecutor {
             }
             slot.run(task);
         }))?;
+        notify_accepted(self.hook.as_ref(), handle.task_id());
         Ok(handle)
     }
 }

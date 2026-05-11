@@ -16,6 +16,8 @@ use crate::{
     hook::{
         NoopTaskHook,
         TaskHook,
+        notify_accepted,
+        notify_rejected,
     },
     service::SubmissionError,
     task::spi::TaskEndpointPair,
@@ -158,11 +160,11 @@ impl Executor for ThreadPerTaskExecutor {
     {
         let (handle, slot) =
             TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
-        self.hook.on_accepted(handle.task_id());
         self.spawn_worker(move || {
             slot.run(task);
         })
-        .inspect_err(|error| self.hook.on_rejected(error))?;
+        .inspect_err(|error| notify_rejected(self.hook.as_ref(), error))?;
+        notify_accepted(self.hook.as_ref(), handle.task_id());
         Ok(handle)
     }
 }
