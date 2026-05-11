@@ -21,6 +21,10 @@ use qubit_executor::service::{
 #[test]
 fn test_executor_service_builder_error_configuration_variants() {
     assert_eq!(
+        ExecutorServiceBuilderError::ZeroPoolSize.to_string(),
+        "executor service pool size must be greater than zero",
+    );
+    assert_eq!(
         ExecutorServiceBuilderError::ZeroMaximumPoolSize.to_string(),
         "executor service maximum pool size must be greater than zero",
     );

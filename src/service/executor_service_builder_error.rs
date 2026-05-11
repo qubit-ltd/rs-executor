@@ -19,6 +19,10 @@ use super::SubmissionError;
 /// may validate worker, queue, timeout, stack, or thread-spawn configuration.
 #[derive(Debug, Error)]
 pub enum ExecutorServiceBuilderError {
+    /// The configured fixed worker count is zero.
+    #[error("executor service pool size must be greater than zero")]
+    ZeroPoolSize,
+
     /// The configured maximum pool size is zero.
     #[error("executor service maximum pool size must be greater than zero")]
     ZeroMaximumPoolSize,
