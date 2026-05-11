@@ -12,19 +12,19 @@
 //! This module groups task handle, execution error, and runner utilities that
 //! used to live at the crate root. They are reorganized under `task/`.
 
-pub mod cancel_result;
-pub mod task_completion;
-pub mod task_completion_pair;
-pub mod task_execution_error;
-pub mod task_handle;
-pub mod task_handle_future;
-pub mod task_handle_inner;
-pub mod task_result_handle;
+mod cancel_result;
+mod task_completion;
+mod task_completion_pair;
+mod task_execution_error;
+mod task_handle;
+mod task_handle_future;
+mod task_handle_inner;
+mod task_result_handle;
 mod task_runner;
-pub mod task_status;
-pub mod tracked_task;
-pub mod tracked_task_handle;
-pub mod try_get;
+mod task_status;
+mod tracked_task;
+mod tracked_task_handle;
+mod try_get;
 
 pub use cancel_result::CancelResult;
 pub use task_completion::TaskCompletion;

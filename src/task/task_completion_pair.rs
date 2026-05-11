@@ -9,7 +9,11 @@
  ******************************************************************************/
 use std::sync::Arc;
 
+use oneshot::Receiver;
+use oneshot::channel;
+
 use super::task_completion::TaskCompletion;
+use super::task_execution_error::TaskResult;
 use super::task_handle::TaskHandle;
 use super::task_handle_inner::TaskHandleInner;
 use super::tracked_task::TrackedTask;
@@ -20,7 +24,7 @@ use super::tracked_task::TrackedTask;
 /// until it is split into caller-facing and runner-facing endpoints.
 pub struct TaskCompletionPair<R, E> {
     /// Receiver consumed by the caller-facing handle.
-    receiver: Option<oneshot::Receiver<super::TaskResult<R, E>>>,
+    receiver: Receiver<TaskResult<R, E>>,
     /// Shared completion state consumed by the runner-facing endpoint.
     inner: Arc<TaskHandleInner<R, E>>,
 }
@@ -33,9 +37,9 @@ impl<R, E> TaskCompletionPair<R, E> {
     /// A pair that can be split once into its handle and completion endpoints.
     #[inline]
     pub fn new() -> Self {
-        let (sender, receiver) = oneshot::channel();
+        let (sender, receiver) = channel();
         Self {
-            receiver: Some(receiver),
+            receiver,
             inner: Arc::new(TaskHandleInner::new(sender)),
         }
     }
@@ -46,12 +50,8 @@ impl<R, E> TaskCompletionPair<R, E> {
     ///
     /// A [`TaskHandle`] for the caller and a [`TaskCompletion`] for the runner.
     #[inline]
-    pub fn into_parts(mut self) -> (TaskHandle<R, E>, TaskCompletion<R, E>) {
-        let receiver = self
-            .receiver
-            .take()
-            .expect("task completion pair receiver already consumed");
-        let handle = TaskHandle::new(receiver);
+    pub fn into_parts(self) -> (TaskHandle<R, E>, TaskCompletion<R, E>) {
+        let handle = TaskHandle::new(self.receiver);
         let completion = TaskCompletion { inner: self.inner };
         (handle, completion)
     }
@@ -62,12 +62,8 @@ impl<R, E> TaskCompletionPair<R, E> {
     ///
     /// A [`TrackedTask`] for the caller and a [`TaskCompletion`] for the runner.
     #[inline]
-    pub fn into_tracked_parts(mut self) -> (TrackedTask<R, E>, TaskCompletion<R, E>) {
-        let receiver = self
-            .receiver
-            .take()
-            .expect("task completion pair receiver already consumed");
-        let handle = TaskHandle::new(receiver);
+    pub fn into_tracked_parts(self) -> (TrackedTask<R, E>, TaskCompletion<R, E>) {
+        let handle = TaskHandle::new(self.receiver);
         let tracked = TrackedTask::new(handle, Arc::clone(&self.inner));
         let completion = TaskCompletion { inner: self.inner };
         (tracked, completion)

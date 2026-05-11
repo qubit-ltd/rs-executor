@@ -23,6 +23,7 @@ use qubit_executor::{
         Executor,
         ThreadPerTaskExecutor,
     },
+    service::RejectedExecution,
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -37,9 +38,11 @@ fn shared_runner_task() -> Result<usize, &'static str> {
 
 #[test]
 fn test_thread_per_task_executor_execute_runs_task() {
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
 
-    let handle = executor.execute(|| Ok::<(), io::Error>(()));
+    let handle = executor
+        .execute(|| Ok::<(), io::Error>(()))
+        .expect("worker thread should spawn");
 
     handle
         .get()
@@ -48,9 +51,11 @@ fn test_thread_per_task_executor_execute_runs_task() {
 
 #[test]
 fn test_thread_per_task_executor_call_returns_value() {
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
 
-    let handle = executor.call(|| Ok::<usize, io::Error>(42));
+    let handle = executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn");
 
     assert_eq!(
         handle
@@ -63,9 +68,11 @@ fn test_thread_per_task_executor_call_returns_value() {
 #[test]
 fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
     SHARED_RUNNER_TASK_CALLS.store(0, Ordering::Release);
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
 
-    let success = executor.call(shared_runner_task as fn() -> Result<usize, &'static str>);
+    let success = executor
+        .call(shared_runner_task as fn() -> Result<usize, &'static str>)
+        .expect("worker thread should spawn");
     assert_eq!(
         success
             .get()
@@ -73,12 +80,28 @@ fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
         42,
     );
 
-    let failure = executor.call(shared_runner_task as fn() -> Result<usize, &'static str>);
+    let failure = executor
+        .call(shared_runner_task as fn() -> Result<usize, &'static str>)
+        .expect("worker thread should spawn");
     assert!(matches!(
         failure.get(),
         Err(TaskExecutionError::Failed("shared failure")),
     ));
 
-    let panicked = executor.call(shared_runner_task as fn() -> Result<usize, &'static str>);
+    let panicked = executor
+        .call(shared_runner_task as fn() -> Result<usize, &'static str>)
+        .expect("worker thread should spawn");
     assert!(matches!(panicked.get(), Err(TaskExecutionError::Panicked)));
+}
+
+#[test]
+fn test_thread_per_task_executor_reports_worker_spawn_failure() {
+    let executor = ThreadPerTaskExecutor::with_stack_size(usize::MAX);
+
+    let result = executor.call(|| Ok::<usize, io::Error>(42));
+
+    assert!(matches!(
+        result,
+        Err(RejectedExecution::WorkerSpawnFailed { .. })
+    ));
 }

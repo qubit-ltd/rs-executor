@@ -7,8 +7,6 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::fmt::Display;
-
 use qubit_function::{
     Callable,
     Runnable,
@@ -32,7 +30,7 @@ pub trait Executor: Send + Sync {
     type Execution<R, E>
     where
         R: Send + 'static,
-        E: Display + Send + 'static;
+        E: Send + 'static;
 
     /// Executes a runnable task and returns this executor's result carrier.
     ///
@@ -51,7 +49,7 @@ pub trait Executor: Send + Sync {
     fn execute<T, E>(&self, task: T) -> Self::Execution<(), E>
     where
         T: Runnable<E> + Send + 'static,
-        E: Display + Send + 'static,
+        E: Send + 'static,
     {
         let mut task = task;
         self.call(move || task.run())
@@ -71,5 +69,5 @@ pub trait Executor: Send + Sync {
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
-        E: Display + Send + 'static;
+        E: Send + 'static;
 }

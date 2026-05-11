@@ -31,14 +31,6 @@ use qubit_executor::{
     },
 };
 
-/// Creates a current-thread Tokio runtime for driving async termination APIs in sync tests.
-fn create_runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to create tokio runtime for task tests")
-}
-
 fn ok_unit_task() -> Result<(), io::Error> {
     Ok(())
 }
@@ -103,7 +95,7 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
 }
 
 #[test]
-fn test_thread_per_task_executor_service_await_termination_waits_for_tasks() {
+fn test_thread_per_task_executor_service_wait_termination_waits_for_tasks() {
     let service = ThreadPerTaskExecutorService::new();
     let completed = Arc::new(AtomicBool::new(false));
     let completed_for_task = Arc::clone(&completed);
@@ -120,7 +112,7 @@ fn test_thread_per_task_executor_service_await_termination_waits_for_tasks() {
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::ShuttingDown);
     assert!(service.is_shutting_down());
     assert!(service.is_not_running());
-    create_runtime().block_on(service.await_termination());
+    service.wait_termination();
 
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());
@@ -165,4 +157,18 @@ fn test_thread_per_task_executor_service_stop_transitions_to_terminated() {
 
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());
+}
+
+#[test]
+fn test_thread_per_task_executor_service_reports_worker_spawn_failure() {
+    let service = ThreadPerTaskExecutorService::with_stack_size(usize::MAX);
+
+    let result = service.submit_callable(|| Ok::<usize, io::Error>(42));
+
+    assert!(matches!(
+        result,
+        Err(RejectedExecution::WorkerSpawnFailed { .. })
+    ));
+    service.shutdown();
+    service.wait_termination();
 }

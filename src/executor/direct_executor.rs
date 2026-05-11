@@ -7,8 +7,6 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::fmt::Display;
-
 use qubit_function::Callable;
 
 use super::Executor;
@@ -25,7 +23,7 @@ impl Executor for DirectExecutor {
         = Result<R, E>
     where
         R: Send + 'static,
-        E: Display + Send + 'static;
+        E: Send + 'static;
 
     /// Executes the callable inline and returns its result.
     ///
@@ -41,7 +39,7 @@ impl Executor for DirectExecutor {
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
-        E: Display + Send + 'static,
+        E: Send + 'static,
     {
         task.call()
     }

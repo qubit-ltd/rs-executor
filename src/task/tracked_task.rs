@@ -108,6 +108,16 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     pub fn cancel(&self) -> CancelResult {
+        self.cancel_inner()
+    }
+
+    /// Performs the shared cancellation state transition.
+    ///
+    /// # Returns
+    ///
+    /// The observed cancellation outcome.
+    #[inline]
+    fn cancel_inner(&self) -> CancelResult {
         let completion = TaskCompletion {
             inner: Arc::clone(&self.inner),
         };
@@ -164,17 +174,7 @@ where
     /// Attempts to publish a cancellation result while the task is pending.
     #[inline]
     fn cancel(&self) -> CancelResult {
-        let completion = TaskCompletion {
-            inner: Arc::clone(&self.inner),
-        };
-        if completion.cancel() {
-            return CancelResult::Cancelled;
-        }
-        match self.status() {
-            TaskStatus::Pending => CancelResult::Unsupported,
-            TaskStatus::Running => CancelResult::AlreadyRunning,
-            _ => CancelResult::AlreadyFinished,
-        }
+        self.cancel_inner()
     }
 }
 

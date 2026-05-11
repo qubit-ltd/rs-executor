@@ -14,7 +14,7 @@
 
 pub mod executor;
 pub mod service;
-mod task;
+pub mod task;
 
 pub use crate::service::ExecutorServiceLifecycle;
 pub use crate::task::{
@@ -24,12 +24,9 @@ pub use crate::task::{
     TaskStatus,
 };
 pub use crate::task::{
-    TaskCompletion,
-    TaskCompletionPair,
     TaskHandle,
     TaskHandleFuture,
     TaskResultHandle,
-    TaskRunner,
     TrackedTask,
     TrackedTaskHandle,
     TryGet,

@@ -7,8 +7,6 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::future::Future;
-
 use qubit_function::{
     Callable,
     Runnable,
@@ -74,11 +72,6 @@ pub trait ExecutorService: Send + Sync {
     where
         R: Send + 'static,
         E: Send + 'static;
-
-    /// Future returned when waiting for service termination.
-    type Termination<'a>: Future<Output = ()> + Send + 'a
-    where
-        Self: 'a;
 
     /// Submits a runnable task to this service.
     ///
@@ -188,7 +181,7 @@ pub trait ExecutorService: Send + Sync {
     /// cancellation policy.
     ///
     /// This method is an admission gate change, not a wait operation. Use
-    /// [`await_termination`](Self::await_termination) to wait until all accepted
+    /// [`wait_termination`](Self::wait_termination) to block until all accepted
     /// work has completed or the service has otherwise terminated.
     fn shutdown(&self);
 
@@ -270,11 +263,15 @@ pub trait ExecutorService: Send + Sync {
         self.lifecycle() == ExecutorServiceLifecycle::Terminated
     }
 
-    /// Waits until the service has terminated.
+    /// Blocks the current thread until the service has terminated.
     ///
-    /// # Returns
+    /// This method is a synchronous, blocking wait. It returns only after
+    /// [`shutdown`](Self::shutdown) or [`stop`](Self::stop) has been requested
+    /// and no accepted tasks remain active. If it is called while the service is
+    /// still [`ExecutorServiceLifecycle::Running`] and no other thread requests
+    /// shutdown or stop, it may block forever.
     ///
-    /// A future that completes after shutdown or stop has been requested and no
-    /// accepted tasks remain active.
-    fn await_termination(&self) -> Self::Termination<'_>;
+    /// Implementations must not present this method as an asynchronous or
+    /// non-blocking operation.
+    fn wait_termination(&self);
 }

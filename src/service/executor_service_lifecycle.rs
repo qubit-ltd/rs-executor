@@ -30,7 +30,6 @@
 /// running blocking code or OS threads may not be forcibly stopped; concrete
 /// services document those runtime-specific limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
 pub enum ExecutorServiceLifecycle {
     /// The service accepts new tasks and may have accepted work in progress.
     Running = 0,
@@ -54,25 +53,4 @@ pub enum ExecutorServiceLifecycle {
     /// This state is reached only after shutdown or stop has been requested and
     /// all accepted work has completed, been cancelled, or been aborted.
     Terminated = 3,
-}
-
-impl ExecutorServiceLifecycle {
-    /// Converts a stored lifecycle discriminant back to an enum value.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Raw lifecycle discriminant stored by an atomic state holder.
-    ///
-    /// # Returns
-    ///
-    /// The matching lifecycle value. Unknown values are treated as
-    /// [`Self::Terminated`] so corrupted internal state fails closed.
-    pub(crate) const fn from_u8(value: u8) -> Self {
-        match value {
-            0 => Self::Running,
-            1 => Self::ShuttingDown,
-            2 => Self::Stopping,
-            _ => Self::Terminated,
-        }
-    }
 }

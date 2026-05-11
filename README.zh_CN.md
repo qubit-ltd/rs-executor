@@ -18,13 +18,12 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 ## 功能
 
 - 提供策略级 `Executor` trait，用于执行单个任务并返回由实现决定的结果载体。
-- 提供 `FutureExecutor` 标记 trait，表示执行结果具备 future 风格。
 - 提供 `DirectExecutor`，用于确定性的同线程执行。
 - 提供 `DelayExecutor`，用于延迟后再转交给另一个 executor。
 - 提供 `ThreadPerTaskExecutor`，用于每个任务启动一个 OS 线程且不管理队列。
-- 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`stop`、生命周期查询和等待终止。
+- 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`stop`、生命周期查询和阻塞式等待终止。
 - 提供 `ThreadPerTaskExecutorService` 作为基础托管服务实现。
-- 提供 `TaskCompletionPair`、`TaskHandle`、`TaskCompletion`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
+- 提供 `TaskHandle`、`TrackedTask`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
 - 通过 `ExecutorServiceLifecycle`、`RejectedExecution` 与 `StopReport` 提供共享的生命周期、拒绝执行原因和停止报告类型。
 
 ## Executor 与 ExecutorService
@@ -50,7 +49,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 
 `stop()` 是立即停止，并且是尽力而为。它会请求取消排队中、等待调度中或尚未开始的工作；如果运行时支持 abort，也可以 abort 由运行时管理的任务。它不能强行中断任意 Rust 代码、blocking 调用或已经运行的 OS 线程，因此服务终止仍可能等待这些工作自行返回。返回的 `StopReport` 描述处理 stop 请求时观察到的 queued、running 与 cancelled 工作数量。
 
-`await_termination()` 会等待到 shutdown 或 stop 已经被请求，并且所有已接受工作都已经完成、失败、panic、被取消或按照具体服务能力被 abort。
+`wait_termination()` 会阻塞当前线程，直到 shutdown 或 stop 已经被请求，并且所有已接受工作都已经完成、失败、panic、被取消或按照具体服务能力被 abort。如果在服务仍处于 `Running` 状态时调用，它会一直等待另一个线程请求 shutdown 或 stop；如果这件事永远不发生，该调用可能永久阻塞。这个 API 明确是同步阻塞式等待，不是 async 或非阻塞等待。
 
 ## 任务结果
 
@@ -86,8 +85,8 @@ use std::io;
 
 use qubit_executor::executor::{Executor, ThreadPerTaskExecutor};
 
-let executor = ThreadPerTaskExecutor;
-let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2));
+let executor = ThreadPerTaskExecutor::new();
+let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -103,6 +102,7 @@ let service = ThreadPerTaskExecutorService::new();
 let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
+service.wait_termination();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 

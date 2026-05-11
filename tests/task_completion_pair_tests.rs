@@ -9,7 +9,7 @@
  ******************************************************************************/
 use std::io;
 
-use qubit_executor::TaskCompletionPair;
+use qubit_executor::task::TaskCompletionPair;
 
 /// Test a completion pair can be created with default and split into usable endpoints.
 #[test]

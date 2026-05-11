@@ -10,8 +10,8 @@
 use std::io;
 
 use qubit_executor::{
-    TaskCompletionPair,
     TaskExecutionError,
+    task::TaskCompletionPair,
 };
 
 /// Test task completion start, completion, and cancellation races through public endpoints.

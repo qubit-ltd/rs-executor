@@ -26,6 +26,7 @@ use qubit_executor::{
         DelayExecutor,
         Executor,
     },
+    service::RejectedExecution,
 };
 
 fn delayed_value_task() -> Result<usize, io::Error> {
@@ -39,12 +40,14 @@ fn test_delay_executor_delays_task_start() {
     let start = Instant::now();
 
     assert_eq!(executor.delay(), Duration::from_millis(80));
-    let handle = executor.execute(move || {
-        started_tx
-            .send(Instant::now())
-            .expect("test should receive start time");
-        Ok::<(), io::Error>(())
-    });
+    let handle = executor
+        .execute(move || {
+            started_tx
+                .send(Instant::now())
+                .expect("test should receive start time");
+            Ok::<(), io::Error>(())
+        })
+        .expect("worker thread should spawn");
 
     assert!(
         started_rx.recv_timeout(Duration::from_millis(30)).is_err(),
@@ -61,7 +64,9 @@ fn test_delay_executor_delays_task_start() {
 fn test_delay_executor_returns_callable_value() {
     let executor = DelayExecutor::new(Duration::ZERO);
 
-    let handle = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+    let handle = executor
+        .call(delayed_value_task as fn() -> Result<usize, io::Error>)
+        .expect("worker thread should spawn");
 
     assert_eq!(handle.get().expect("callable should complete"), 42);
 }
@@ -70,9 +75,23 @@ fn test_delay_executor_returns_callable_value() {
 fn test_delay_executor_cancel_before_start_skips_callable() {
     let executor = DelayExecutor::new(Duration::from_millis(80));
 
-    let handle = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+    let handle = executor
+        .call(delayed_value_task as fn() -> Result<usize, io::Error>)
+        .expect("worker thread should spawn");
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     thread::sleep(Duration::from_millis(120));
+}
+
+#[test]
+fn test_delay_executor_reports_worker_spawn_failure() {
+    let executor = DelayExecutor::with_stack_size(Duration::ZERO, usize::MAX);
+
+    let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+
+    assert!(matches!(
+        result,
+        Err(RejectedExecution::WorkerSpawnFailed { .. })
+    ));
 }

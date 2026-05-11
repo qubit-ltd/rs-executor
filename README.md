@@ -23,13 +23,12 @@ libraries can depend only on the abstraction level they need.
 ## Features
 
 - Strategy-level `Executor` trait for executing one task and returning an implementation-specific result carrier.
-- `FutureExecutor` marker trait for executors whose carrier is future-like.
 - `DirectExecutor` for deterministic same-thread execution.
 - `DelayExecutor` for delaying work before passing it to another executor.
 - `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
-- Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and termination waiting.
+- Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` as a basic managed service implementation.
-- `TaskHandle`, `TaskCompletion`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
+- `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
 - Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `RejectedExecution`, and `StopReport`.
 
 ## Executor vs ExecutorService
@@ -69,9 +68,12 @@ code, blocking calls, or already-running OS threads, so termination may still
 wait for such work to return. The returned `StopReport` describes the queued,
 running, and cancelled work observed while handling the stop request.
 
-`await_termination()` waits until either shutdown or stop has been requested and
-all accepted work has completed, failed, panicked, been cancelled, or been
-aborted according to the concrete service's capabilities.
+`wait_termination()` blocks the current thread until either shutdown or stop has
+been requested and all accepted work has completed, failed, panicked, been
+cancelled, or been aborted according to the concrete service's capabilities.
+Calling it while the service is still `Running` waits until another thread
+requests shutdown or stop; if that never happens, it can block forever. This API
+is deliberately synchronous and blocking, not an async or non-blocking wait.
 
 ## Task Results
 
@@ -111,8 +113,8 @@ use std::io;
 
 use qubit_executor::executor::{Executor, ThreadPerTaskExecutor};
 
-let executor = ThreadPerTaskExecutor;
-let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2));
+let executor = ThreadPerTaskExecutor::new();
+let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -128,6 +130,7 @@ let service = ThreadPerTaskExecutorService::new();
 let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
+service.wait_termination();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 

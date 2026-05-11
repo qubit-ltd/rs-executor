@@ -21,7 +21,6 @@ use std::{
 
 use qubit_executor::{
     CancelResult,
-    TaskCompletionPair,
     TaskExecutionError,
     TaskResultHandle,
     TaskStatus,
@@ -32,13 +31,16 @@ use qubit_executor::{
         ThreadPerTaskExecutor,
     },
     service::RejectedExecution,
+    task::TaskCompletionPair,
 };
 
 #[tokio::test]
 async fn test_task_handle_await_returns_value() {
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
 
-    let handle = executor.call(|| Ok::<usize, io::Error>(42));
+    let handle = executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn");
 
     assert_eq!(
         handle.await.expect("task handle should await task result"),
@@ -48,9 +50,11 @@ async fn test_task_handle_await_returns_value() {
 
 #[test]
 fn test_task_handle_is_done_reports_completion() {
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
 
-    let handle = executor.call(|| Ok::<usize, io::Error>(42));
+    let handle = executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn");
     for _ in 0..100 {
         if handle.is_done() {
             break;
@@ -64,19 +68,21 @@ fn test_task_handle_is_done_reports_completion() {
 
 #[test]
 fn test_task_handle_cancel_after_start_returns_false() {
-    let executor = ThreadPerTaskExecutor;
+    let executor = ThreadPerTaskExecutor::new();
     let (started_tx, started_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
 
-    let handle = executor.call(move || {
-        started_tx
-            .send(())
-            .expect("test should receive start signal");
-        release_rx
-            .recv()
-            .map_err(|err| io::Error::other(err.to_string()))?;
-        Ok::<usize, io::Error>(42)
-    });
+    let handle = executor
+        .call(move || {
+            started_tx
+                .send(())
+                .expect("test should receive start signal");
+            release_rx
+                .recv()
+                .map_err(|err| io::Error::other(err.to_string()))?;
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("worker thread should spawn");
     started_rx
         .recv_timeout(Duration::from_secs(1))
         .expect("task should start within timeout");

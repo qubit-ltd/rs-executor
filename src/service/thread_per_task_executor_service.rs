@@ -8,8 +8,6 @@
  *
  ******************************************************************************/
 use std::{
-    future::Future,
-    pin::Pin,
     sync::Arc,
     thread,
 };
@@ -17,11 +15,6 @@ use std::{
 use parking_lot::{
     Condvar,
     Mutex,
-    MutexGuard,
-};
-use qubit_atomic::{
-    Atomic,
-    AtomicCount,
 };
 use qubit_function::{
     Callable,
@@ -29,10 +22,12 @@ use qubit_function::{
 };
 
 use crate::{
-    TaskCompletionPair,
     TaskHandle,
-    TaskRunner,
     TrackedTask,
+    task::{
+        TaskCompletionPair,
+        TaskRunner,
+    },
 };
 
 use super::{
@@ -42,76 +37,123 @@ use super::{
     StopReport,
 };
 
+type Worker = Box<dyn FnOnce() + Send + 'static>;
+
+/// Mutable service state protected by the service mutex.
+#[derive(Debug, Clone, Copy)]
+struct ServiceState {
+    /// Current lifecycle state.
+    lifecycle: ExecutorServiceLifecycle,
+    /// Number of accepted OS-thread tasks that have not completed.
+    active_tasks: usize,
+}
+
+impl Default for ServiceState {
+    /// Creates a running state with no active tasks.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            lifecycle: ExecutorServiceLifecycle::Running,
+            active_tasks: 0,
+        }
+    }
+}
+
 /// Shared state for [`ThreadPerTaskExecutorService`].
 #[derive(Default)]
 struct ThreadPerTaskExecutorServiceState {
-    /// Current lifecycle state encoded as an [`ExecutorServiceLifecycle`] discriminant.
-    lifecycle: Atomic<u8>,
-    /// Number of accepted OS-thread tasks that have not completed.
-    active_tasks: AtomicCount,
-    /// Serializes task submission and shutdown transitions.
-    submission_lock: Mutex<()>,
-    /// Mutex paired with the termination condition variable.
-    termination_lock: Mutex<()>,
+    /// Lifecycle and active-task counters protected as one state machine.
+    state: Mutex<ServiceState>,
     /// Condition variable used to wait for service termination.
     termination: Condvar,
 }
 
 impl ThreadPerTaskExecutorServiceState {
-    /// Acquires the submission lock.
-    ///
-    /// # Returns
-    ///
-    /// A guard for the submission lock.
-    #[inline]
-    fn lock_submission(&self) -> MutexGuard<'_, ()> {
-        self.submission_lock.lock()
-    }
-
-    /// Acquires the termination lock.
-    ///
-    /// # Returns
-    ///
-    /// A guard for the mutex paired with the termination condition variable.
-    #[inline]
-    fn lock_termination(&self) -> MutexGuard<'_, ()> {
-        self.termination_lock.lock()
-    }
-
     /// Returns the currently stored lifecycle state.
     ///
     /// # Returns
     ///
-    /// The lifecycle represented by the internal atomic discriminant.
+    /// The lifecycle stored in the service state.
     #[inline]
     fn lifecycle(&self) -> ExecutorServiceLifecycle {
-        ExecutorServiceLifecycle::from_u8(self.lifecycle.load())
+        self.state.lock().lifecycle
     }
 
-    /// Stores a new lifecycle state.
+    /// Attempts to accept one task and increments the active task count.
     ///
-    /// # Parameters
+    /// # Returns
     ///
-    /// * `lifecycle` - New lifecycle state to publish.
+    /// `Ok(())` if the service is running and accepted the task.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RejectedExecution::Shutdown`] if the service is not running.
     #[inline]
-    fn set_lifecycle(&self, lifecycle: ExecutorServiceLifecycle) {
-        self.lifecycle.store(lifecycle as u8);
-    }
-
-    /// Wakes termination waiters when shutdown and task completion allow it.
-    #[inline]
-    fn notify_if_terminated(&self) {
-        if self.lifecycle() != ExecutorServiceLifecycle::Running && self.active_tasks.is_zero() {
-            self.set_lifecycle(ExecutorServiceLifecycle::Terminated);
-            self.termination.notify_all();
+    fn accept_task(&self) -> Result<(), RejectedExecution> {
+        let mut state = self.state.lock();
+        if state.lifecycle != ExecutorServiceLifecycle::Running {
+            return Err(RejectedExecution::Shutdown);
         }
+        state.active_tasks += 1;
+        Ok(())
+    }
+
+    /// Reverts a previously accepted task that could not be started.
+    #[inline]
+    fn reject_accepted_task(&self) {
+        self.finish_task();
+    }
+
+    /// Records one task completion and wakes termination waiters if appropriate.
+    #[inline]
+    fn finish_task(&self) {
+        let mut state = self.state.lock();
+        if state.active_tasks > 0 {
+            state.active_tasks -= 1;
+        }
+        Self::terminate_if_ready(&mut state, &self.termination);
     }
 
     /// Blocks the current thread until the service is terminated.
     fn wait_for_termination(&self) {
-        let mut guard = self.lock_termination();
-        while self.lifecycle() != ExecutorServiceLifecycle::Terminated {
-            self.termination.wait(&mut guard);
+        let mut state = self.state.lock();
+        while state.lifecycle != ExecutorServiceLifecycle::Terminated {
+            self.termination.wait(&mut state);
+        }
+    }
+
+    /// Requests graceful shutdown.
+    #[inline]
+    fn shutdown(&self) {
+        let mut state = self.state.lock();
+        if state.lifecycle == ExecutorServiceLifecycle::Running {
+            state.lifecycle = ExecutorServiceLifecycle::ShuttingDown;
+        }
+        Self::terminate_if_ready(&mut state, &self.termination);
+    }
+
+    /// Requests abrupt stop and returns the observed active work count.
+    ///
+    /// # Returns
+    ///
+    /// The number of active tasks observed while stopping.
+    #[inline]
+    fn stop(&self) -> usize {
+        let mut state = self.state.lock();
+        if state.lifecycle != ExecutorServiceLifecycle::Terminated {
+            state.lifecycle = ExecutorServiceLifecycle::Stopping;
+        }
+        let running = state.active_tasks;
+        Self::terminate_if_ready(&mut state, &self.termination);
+        running
+    }
+
+    /// Marks the service terminated when it is non-running and idle.
+    #[inline]
+    fn terminate_if_ready(state: &mut ServiceState, termination: &Condvar) {
+        if state.lifecycle != ExecutorServiceLifecycle::Running && state.active_tasks == 0 {
+            state.lifecycle = ExecutorServiceLifecycle::Terminated;
+            termination.notify_all();
         }
     }
 }
@@ -125,6 +167,8 @@ impl ThreadPerTaskExecutorServiceState {
 pub struct ThreadPerTaskExecutorService {
     /// Shared service state used by all clones of this service.
     state: Arc<ThreadPerTaskExecutorServiceState>,
+    /// Optional stack size for each spawned worker thread.
+    stack_size: Option<usize>,
 }
 
 impl ThreadPerTaskExecutorService {
@@ -136,6 +180,37 @@ impl ThreadPerTaskExecutorService {
     #[inline]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates a service with an explicit worker thread stack size.
+    ///
+    /// # Parameters
+    ///
+    /// * `stack_size` - Stack size in bytes for each spawned worker thread.
+    ///
+    /// # Returns
+    ///
+    /// A service that applies the supplied stack size to each worker thread.
+    #[inline]
+    pub fn with_stack_size(stack_size: usize) -> Self {
+        Self {
+            state: Arc::default(),
+            stack_size: Some(stack_size),
+        }
+    }
+
+    fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), RejectedExecution> {
+        let mut builder = thread::Builder::new();
+        if let Some(stack_size) = self.stack_size {
+            builder = builder.stack_size(stack_size);
+        }
+        match builder.spawn(worker).map(drop) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                self.state.reject_accepted_task();
+                Err(RejectedExecution::worker_spawn_failed(error))
+            }
+        }
     }
 }
 
@@ -151,11 +226,6 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     where
         R: Send + 'static,
         E: Send + 'static;
-
-    type Termination<'a>
-        = Pin<Box<dyn Future<Output = ()> + Send + 'a>>
-    where
-        Self: 'a;
 
     /// Accepts a runnable and starts it on a dedicated OS thread.
     ///
@@ -176,22 +246,14 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
     {
-        let submission_guard = self.state.lock_submission();
-        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
-            return Err(RejectedExecution::Shutdown);
-        }
-        self.state.active_tasks.inc();
-        drop(submission_guard);
+        self.state.accept_task()?;
 
         let state = Arc::clone(&self.state);
-        thread::spawn(move || {
+        self.spawn_worker_after_accept(Box::new(move || {
             let mut task = task;
             let _ignored = TaskRunner::new(move || task.run()).call::<(), E>();
-            if state.active_tasks.dec() == 0 {
-                state.notify_if_terminated();
-            }
-        });
-        Ok(())
+            state.finish_task();
+        }))
     }
 
     /// Accepts a callable and starts it on a dedicated OS thread.
@@ -217,21 +279,14 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let submission_guard = self.state.lock_submission();
-        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
-            return Err(RejectedExecution::Shutdown);
-        }
-        self.state.active_tasks.inc();
-        drop(submission_guard);
+        self.state.accept_task()?;
 
         let (handle, completion) = TaskCompletionPair::new().into_parts();
         let state = Arc::clone(&self.state);
-        thread::spawn(move || {
+        self.spawn_worker_after_accept(Box::new(move || {
             TaskRunner::new(task).run(completion);
-            if state.active_tasks.dec() == 0 {
-                state.notify_if_terminated();
-            }
-        });
+            state.finish_task();
+        }))?;
         Ok(handle)
     }
 
@@ -245,21 +300,14 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let submission_guard = self.state.lock_submission();
-        if self.state.lifecycle() != ExecutorServiceLifecycle::Running {
-            return Err(RejectedExecution::Shutdown);
-        }
-        self.state.active_tasks.inc();
-        drop(submission_guard);
+        self.state.accept_task()?;
 
         let (handle, completion) = TaskCompletionPair::new().into_tracked_parts();
         let state = Arc::clone(&self.state);
-        thread::spawn(move || {
+        self.spawn_worker_after_accept(Box::new(move || {
             TaskRunner::new(task).run(completion);
-            if state.active_tasks.dec() == 0 {
-                state.notify_if_terminated();
-            }
-        });
+            state.finish_task();
+        }))?;
         Ok(handle)
     }
 
@@ -267,12 +315,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// Already accepted threads are allowed to finish.
     fn shutdown(&self) {
-        let _guard = self.state.lock_submission();
-        if self.state.lifecycle() == ExecutorServiceLifecycle::Running {
-            self.state
-                .set_lifecycle(ExecutorServiceLifecycle::ShuttingDown);
-        }
-        self.state.notify_if_terminated();
+        self.state.shutdown();
     }
 
     /// Stops accepting new tasks and reports currently running work.
@@ -284,12 +327,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     /// A report with zero queued tasks, the observed active thread count, and
     /// zero cancelled tasks.
     fn stop(&self) -> StopReport {
-        let _guard = self.state.lock_submission();
-        if self.state.lifecycle() != ExecutorServiceLifecycle::Terminated {
-            self.state.set_lifecycle(ExecutorServiceLifecycle::Stopping);
-        }
-        let running = self.state.active_tasks.get();
-        self.state.notify_if_terminated();
+        let running = self.state.stop();
         StopReport::new(0, running, 0)
     }
 
@@ -299,19 +337,14 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         self.state.lifecycle()
     }
 
-    /// Waits for all accepted tasks to complete after shutdown.
+    /// Blocks until all accepted tasks complete after shutdown or stop.
     ///
-    /// This future blocks the polling thread while waiting on a condition
-    /// variable.
-    ///
-    /// # Returns
-    ///
-    /// A future that resolves after shutdown has been requested and all
-    /// accepted OS-thread tasks have completed.
+    /// This method blocks the current thread on a condition variable. Calling
+    /// it while the service is still running will wait until another thread
+    /// calls [`Self::shutdown`] or [`Self::stop`] and all accepted OS-thread
+    /// tasks have completed.
     #[inline]
-    fn await_termination(&self) -> Self::Termination<'_> {
-        Box::pin(async move {
-            self.state.wait_for_termination();
-        })
+    fn wait_termination(&self) {
+        self.state.wait_for_termination();
     }
 }

@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use qubit_executor::TaskCompletionPair;
+use qubit_executor::task::TaskCompletionPair;
 
 /// Test shared handle internals wake blocking waiters after completion.
 #[test]

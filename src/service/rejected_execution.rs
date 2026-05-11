@@ -66,3 +66,21 @@ impl PartialEq for RejectedExecution {
 }
 
 impl Eq for RejectedExecution {}
+
+impl RejectedExecution {
+    /// Creates a worker-spawn rejection from a thread creation error.
+    ///
+    /// # Parameters
+    ///
+    /// * `source` - I/O error returned by the thread builder.
+    ///
+    /// # Returns
+    ///
+    /// A worker-spawn rejection carrying the source error.
+    #[inline]
+    pub(crate) fn worker_spawn_failed(source: io::Error) -> Self {
+        Self::WorkerSpawnFailed {
+            source: Arc::new(source),
+        }
+    }
+}
