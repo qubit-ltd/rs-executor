@@ -9,25 +9,29 @@
  ******************************************************************************/
 use std::sync::Arc;
 
-use super::TaskExecutionError;
-use super::TaskResult;
-use super::task_handle_inner::TaskHandleInner;
-use super::task_status::TaskStatus;
+use qubit_function::Callable;
 
-/// Completion endpoint owned by a task runner.
+use super::{
+    TaskExecutionError,
+    TaskResult,
+    task_runner::TaskRunner,
+    task_state::TaskState,
+    task_status::TaskStatus,
+};
+
+/// Runner-side slot for one accepted task.
 ///
 /// This low-level endpoint is exposed so custom executor services built on top
-/// of `qubit-executor` can wire their own scheduling and cancellation hooks
-/// while still returning the standard [`crate::TaskHandle`]. Normal callers
-/// should use [`crate::TaskHandle`] and executor/service submission methods
-/// instead.
-pub struct TaskCompleter<R, E> {
+/// of `qubit-executor` can wire their own scheduling while still returning the
+/// standard [`crate::TaskHandle`]. Normal callers should use
+/// [`crate::TaskHandle`] and executor/service submission methods instead.
+pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
-    pub(crate) inner: Arc<TaskHandleInner<R, E>>,
+    pub(crate) state: Arc<TaskState<R, E>>,
 }
 
-impl<R, E> Clone for TaskCompleter<R, E> {
-    /// Clones the completion endpoint for mutually exclusive finish paths.
+impl<R, E> Clone for TaskSlot<R, E> {
+    /// Clones the task slot for mutually exclusive finish paths.
     ///
     /// # Returns
     ///
@@ -35,20 +39,20 @@ impl<R, E> Clone for TaskCompleter<R, E> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
-            inner: Arc::clone(&self.inner),
+            state: Arc::clone(&self.state),
         }
     }
 }
 
-impl<R, E> TaskCompleter<R, E> {
+impl<R, E> TaskSlot<R, E> {
     /// Marks the task as started if it was not cancelled first.
     ///
     /// # Returns
     ///
     /// `true` if the runner should execute the task, or `false` if the task was
     /// already completed through cancellation.
-    pub fn start(&self) -> bool {
-        self.inner.start()
+    pub(crate) fn start(&self) -> bool {
+        self.state.start()
     }
 
     /// Completes the task with its final result.
@@ -60,7 +64,7 @@ impl<R, E> TaskCompleter<R, E> {
     /// * `result` - Final task result to publish if the task is not already
     ///   completed.
     #[inline]
-    pub fn complete(&self, result: TaskResult<R, E>) {
+    pub(crate) fn complete(&self, result: TaskResult<R, E>) {
         self.finish(result, |_| true);
     }
 
@@ -80,7 +84,7 @@ impl<R, E> TaskCompleter<R, E> {
     /// `true` if the closure was executed and its result was published, or
     /// `false` if the task had already been completed by cancellation.
     #[inline]
-    pub fn start_and_complete<F>(&self, task: F) -> bool
+    pub(crate) fn start_and_complete<F>(&self, task: F) -> bool
     where
         F: FnOnce() -> TaskResult<R, E>,
     {
@@ -121,6 +125,34 @@ impl<R, E> TaskCompleter<R, E> {
     where
         F: FnMut(TaskStatus) -> bool,
     {
-        self.inner.finish(result, can_finish)
+        self.state.finish(result, can_finish)
+    }
+
+    /// Starts this slot and runs a callable to completion.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Callable to run if the task has not been cancelled.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the callable ran and published a result, or `false` if the
+    /// task had already been cancelled.
+    #[inline]
+    pub fn run<C>(self, task: C) -> bool
+    where
+        C: Callable<R, E>,
+    {
+        self.start_and_complete(|| TaskRunner::new(task).call())
+    }
+}
+
+impl<R, E> Drop for TaskSlot<R, E> {
+    /// Publishes cancellation when the last runner-side slot is dropped pending.
+    #[inline]
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.state) == 2 {
+            let _ignored = self.cancel();
+        }
     }
 }

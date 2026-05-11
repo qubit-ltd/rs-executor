@@ -18,7 +18,7 @@ fn test_task_endpoint_pair_default_splits_to_working_endpoints() {
     let (handle, completion) = pair.into_parts();
 
     assert!(!handle.is_done());
-    assert!(completion.start_and_complete(|| Ok(42)));
+    assert!(completion.run(|| Ok(42)));
     assert!(handle.is_done());
     assert_eq!(handle.get().expect("completion should publish result"), 42);
 }

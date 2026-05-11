@@ -23,6 +23,6 @@ fn test_task_handle_state_transitions_are_observable() {
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(handle.is_done());
-    assert!(!completion.start_and_complete(|| Ok(42)));
+    assert!(!completion.run(|| Ok(42)));
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 }

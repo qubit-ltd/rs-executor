@@ -24,7 +24,8 @@ libraries can depend only on the abstraction level they need.
 
 - Strategy-level `Executor` trait for executing one task and returning a `TrackedTask` handle.
 - `DirectExecutor` for deterministic same-thread execution.
-- `DelayExecutor` for delaying work before passing it to another executor.
+- `DelayExecutor` for running work on a helper thread after a fixed delay.
+- `ScheduleExecutor` for running work on a helper thread at a monotonic `Instant`.
 - `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
 - Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` as a basic managed service implementation.
@@ -100,7 +101,7 @@ use std::io;
 
 use qubit_executor::executor::{DirectExecutor, Executor};
 
-let executor = DirectExecutor;
+let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 let value = handle.get()?;
 assert_eq!(value, 42);

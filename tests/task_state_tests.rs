@@ -17,12 +17,12 @@ use qubit_executor::task::spi::TaskEndpointPair;
 
 /// Test shared handle internals wake blocking waiters after completion.
 #[test]
-fn test_task_handle_inner_notifies_blocking_waiter_on_completion() {
+fn test_task_state_notifies_blocking_waiter_on_completion() {
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     let waiter = thread::spawn(move || handle.get().expect("waiter should receive result"));
     thread::sleep(Duration::from_millis(20));
-    completion.complete(Ok(42));
+    completion.run(|| Ok(42));
 
     assert_eq!(waiter.join().expect("waiter thread should not panic"), 42);
 }

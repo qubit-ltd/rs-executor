@@ -7,15 +7,25 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use crate::service::ExecutorServiceBuilderError;
+use std::sync::Arc;
+
+use crate::{
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+    },
+    service::ExecutorServiceBuilderError,
+};
 
 use super::ThreadPerTaskExecutor;
 
 /// Builder for [`ThreadPerTaskExecutor`].
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ThreadPerTaskExecutorBuilder {
     /// Optional stack size for each spawned worker thread.
     stack_size: Option<usize>,
+    /// Hook notified about accepted task lifecycle events.
+    hook: Arc<dyn TaskHook>,
 }
 
 impl ThreadPerTaskExecutorBuilder {
@@ -25,8 +35,8 @@ impl ThreadPerTaskExecutorBuilder {
     ///
     /// A builder that uses the platform default worker stack size.
     #[inline]
-    pub const fn new() -> Self {
-        Self { stack_size: None }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Sets the worker thread stack size.
@@ -39,8 +49,23 @@ impl ThreadPerTaskExecutorBuilder {
     ///
     /// This builder with the supplied stack size.
     #[inline]
-    pub const fn stack_size(mut self, stack_size: usize) -> Self {
+    pub fn stack_size(mut self, stack_size: usize) -> Self {
         self.stack_size = Some(stack_size);
+        self
+    }
+
+    /// Sets the task lifecycle hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about accepted task lifecycle events.
+    ///
+    /// # Returns
+    ///
+    /// This builder with the supplied hook.
+    #[inline]
+    pub fn hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
+        self.hook = hook;
         self
     }
 
@@ -61,6 +86,18 @@ impl ThreadPerTaskExecutorBuilder {
         }
         Ok(ThreadPerTaskExecutor {
             stack_size: self.stack_size,
+            hook: self.hook,
         })
+    }
+}
+
+impl Default for ThreadPerTaskExecutorBuilder {
+    /// Creates a builder with default worker options and no-op hook.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            stack_size: None,
+            hook: Arc::new(NoopTaskHook),
+        }
     }
 }

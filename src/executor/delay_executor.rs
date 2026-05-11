@@ -8,6 +8,7 @@
  *
  ******************************************************************************/
 use std::{
+    sync::Arc,
     thread,
     time::Duration,
 };
@@ -16,11 +17,12 @@ use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    service::SubmissionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskRunner,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
     },
+    service::SubmissionError,
+    task::spi::TaskEndpointPair,
 };
 
 use super::Executor;
@@ -34,10 +36,12 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// the configured delay and then runs the task. Dropping the handle does not
 /// cancel the helper thread.
 ///
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct DelayExecutor {
     /// Duration to sleep before each submitted task starts.
     delay: Duration,
+    /// Hook notified about accepted task lifecycle events.
+    hook: Arc<dyn TaskHook>,
 }
 
 impl DelayExecutor {
@@ -51,8 +55,26 @@ impl DelayExecutor {
     ///
     /// A delay executor using the supplied delay.
     #[inline]
-    pub const fn new(delay: Duration) -> Self {
-        Self { delay }
+    pub fn new(delay: Duration) -> Self {
+        Self {
+            delay,
+            hook: Arc::new(NoopTaskHook),
+        }
+    }
+
+    /// Returns a copy of this executor using the supplied task hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about accepted task lifecycle events.
+    ///
+    /// # Returns
+    ///
+    /// This executor configured with `hook`.
+    #[inline]
+    pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
+        self.hook = hook;
+        self
     }
 
     /// Returns the configured delay.
@@ -108,14 +130,19 @@ impl Executor for DelayExecutor {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
+        let (handle, slot) =
+            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+        self.hook.on_accepted(handle.task_id());
         let delay = self.delay;
-        Self::spawn_worker(Box::new(move || {
+        if let Err(error) = Self::spawn_worker(Box::new(move || {
             if !delay.is_zero() {
                 thread::sleep(delay);
             }
-            TaskRunner::new(task).run(completion);
-        }))?;
+            slot.run(task);
+        })) {
+            self.hook.on_rejected(&error);
+            return Err(error);
+        }
         Ok(handle)
     }
 }

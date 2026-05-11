@@ -11,15 +11,20 @@ use oneshot::{
     Receiver,
     TryRecvError,
 };
-use std::future::IntoFuture;
+use std::{
+    future::IntoFuture,
+    sync::Arc,
+};
 
 use super::{
     TaskExecutionError,
     TaskResult,
     task_handle_future::TaskHandleFuture,
     task_result_handle::TaskResultHandle,
+    task_state::TaskState,
     try_get::TryGet,
 };
+use crate::hook::TaskId;
 
 /// Lightweight result handle for a submitted callable task.
 ///
@@ -27,6 +32,8 @@ use super::{
 /// block through [`Self::get`], poll non-blockingly through [`Self::try_get`],
 /// or be awaited by value.
 pub struct TaskHandle<R, E> {
+    /// Shared task state used for status and cancellation.
+    pub(crate) state: Arc<TaskState<R, E>>,
     /// One-shot receiver for the final task result.
     receiver: Receiver<TaskResult<R, E>>,
 }
@@ -42,8 +49,21 @@ impl<R, E> TaskHandle<R, E> {
     ///
     /// A task result handle.
     #[inline]
-    pub(crate) const fn new(receiver: Receiver<TaskResult<R, E>>) -> Self {
-        Self { receiver }
+    pub(crate) const fn new(
+        state: Arc<TaskState<R, E>>,
+        receiver: Receiver<TaskResult<R, E>>,
+    ) -> Self {
+        Self { state, receiver }
+    }
+
+    /// Returns the identifier assigned to this task.
+    ///
+    /// # Returns
+    ///
+    /// The task id stored in the shared task state.
+    #[inline]
+    pub fn task_id(&self) -> TaskId {
+        self.state.task_id
     }
 
     /// Waits for the task to finish and returns its final result.
@@ -70,9 +90,10 @@ impl<R, E> TaskHandle<R, E> {
     /// [`TryGet::Pending`] containing this handle.
     #[inline]
     pub fn try_get(self) -> TryGet<Self, R, E> {
-        match self.receiver.try_recv() {
+        let Self { state, receiver } = self;
+        match receiver.try_recv() {
             Ok(result) => TryGet::Ready(result),
-            Err(TryRecvError::Empty) => TryGet::Pending(self),
+            Err(TryRecvError::Empty) => TryGet::Pending(Self { state, receiver }),
             Err(TryRecvError::Disconnected) => TryGet::Ready(Err(TaskExecutionError::Cancelled)),
         }
     }
@@ -84,7 +105,7 @@ impl<R, E> TaskHandle<R, E> {
     /// `true` after the task runner has produced or abandoned its final result.
     #[inline]
     pub fn is_done(&self) -> bool {
-        self.receiver.has_message() || self.receiver.is_closed()
+        self.state.status().is_done()
     }
 }
 

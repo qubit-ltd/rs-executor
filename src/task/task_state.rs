@@ -7,6 +7,8 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use std::sync::Arc;
+
 use oneshot::Sender;
 use parking_lot::Mutex;
 
@@ -15,16 +17,24 @@ use super::{
     atomic_task_status::AtomicTaskStatus,
     task_status::TaskStatus,
 };
+use crate::hook::{
+    TaskHook,
+    TaskId,
+};
 
 /// Shared completion endpoint state for one submitted task.
-pub(crate) struct TaskHandleInner<R, E> {
+pub(crate) struct TaskState<R, E> {
+    /// Identifier assigned to this task.
+    pub(crate) task_id: TaskId,
     /// Atomic task status used for start, completion, and cancellation races.
     pub(crate) status: AtomicTaskStatus,
     /// Sender used once by the winner of the terminal state race.
     pub(crate) sender: Mutex<Option<Sender<TaskResult<R, E>>>>,
+    /// Hook notified when this task starts and finishes.
+    pub(crate) hook: Arc<dyn TaskHook>,
 }
 
-impl<R, E> TaskHandleInner<R, E> {
+impl<R, E> TaskState<R, E> {
     /// Creates shared completion state for a task result sender.
     ///
     /// # Parameters
@@ -35,10 +45,16 @@ impl<R, E> TaskHandleInner<R, E> {
     ///
     /// Shared completion state initialized as pending.
     #[inline]
-    pub(crate) fn new(sender: Sender<TaskResult<R, E>>) -> Self {
+    pub(crate) fn new(
+        task_id: TaskId,
+        sender: Sender<TaskResult<R, E>>,
+        hook: Arc<dyn TaskHook>,
+    ) -> Self {
         Self {
+            task_id,
             status: AtomicTaskStatus::new(TaskStatus::Pending),
             sender: Mutex::new(Some(sender)),
+            hook,
         }
     }
 
@@ -60,7 +76,11 @@ impl<R, E> TaskHandleInner<R, E> {
     /// running or terminal.
     #[inline]
     pub(crate) fn start(&self) -> bool {
-        self.status.start()
+        let started = self.status.start();
+        if started {
+            self.hook.on_started(self.task_id);
+        }
+        started
     }
 
     /// Attempts to publish a terminal result when the current status allows it.
@@ -90,6 +110,7 @@ impl<R, E> TaskHandleInner<R, E> {
                 if let Some(sender) = sender {
                     let _ignored = sender.send(result);
                 }
+                self.hook.on_finished(self.task_id, next);
                 return true;
             }
         }

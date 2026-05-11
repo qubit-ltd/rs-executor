@@ -28,6 +28,7 @@ name = "qubit_executor"
 doctest = true
 
 [dependencies]
+log = "0.4"
 oneshot = { version = "0.2", features = ["async", "std"] }
 parking_lot = "0.12"
 thiserror = "2.0"

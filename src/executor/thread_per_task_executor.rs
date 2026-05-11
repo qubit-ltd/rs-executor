@@ -7,23 +7,23 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::thread;
+use std::sync::Arc;
 
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    service::SubmissionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskRunner,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
     },
+    service::SubmissionError,
+    task::spi::TaskEndpointPair,
 };
 
 use super::Executor;
 use super::ThreadPerTaskExecutorBuilder;
-
-type Worker = Box<dyn FnOnce() + Send + 'static>;
+use super::thread_spawn_config::ThreadSpawnConfig;
 
 /// Executes each task on a dedicated OS thread.
 ///
@@ -60,10 +60,12 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// let value = handle.get().expect("task should succeed");
 /// assert_eq!(value, 42);
 /// ```
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ThreadPerTaskExecutor {
     /// Optional stack size for each spawned worker thread.
     pub(crate) stack_size: Option<usize>,
+    /// Hook notified about accepted task lifecycle events.
+    pub(crate) hook: Arc<dyn TaskHook>,
 }
 
 impl ThreadPerTaskExecutor {
@@ -73,8 +75,8 @@ impl ThreadPerTaskExecutor {
     ///
     /// A thread-per-task executor with default worker thread configuration.
     #[inline]
-    pub const fn new() -> Self {
-        Self { stack_size: None }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Creates a builder for configuring this executor.
@@ -83,8 +85,23 @@ impl ThreadPerTaskExecutor {
     ///
     /// A builder initialized with default worker thread options.
     #[inline]
-    pub const fn builder() -> ThreadPerTaskExecutorBuilder {
+    pub fn builder() -> ThreadPerTaskExecutorBuilder {
         ThreadPerTaskExecutorBuilder::new()
+    }
+
+    /// Returns a copy of this executor using the supplied task hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about accepted task lifecycle events.
+    ///
+    /// # Returns
+    ///
+    /// This executor configured with `hook`.
+    #[inline]
+    pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
+        self.hook = hook;
+        self
     }
 
     /// Spawns one worker thread.
@@ -101,15 +118,19 @@ impl ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread.
-    fn spawn_worker(&self, worker: Worker) -> Result<(), SubmissionError> {
-        let mut builder = thread::Builder::new();
-        if let Some(stack_size) = self.stack_size {
-            builder = builder.stack_size(stack_size);
+    fn spawn_worker(&self, worker: impl FnOnce() + Send + 'static) -> Result<(), SubmissionError> {
+        ThreadSpawnConfig::new(self.stack_size).spawn(worker)
+    }
+}
+
+impl Default for ThreadPerTaskExecutor {
+    /// Creates an executor using the platform default worker stack size and no-op hook.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            stack_size: None,
+            hook: Arc::new(NoopTaskHook),
         }
-        builder
-            .spawn(worker)
-            .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)
     }
 }
 
@@ -135,10 +156,15 @@ impl Executor for ThreadPerTaskExecutor {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
-        self.spawn_worker(Box::new(move || {
-            TaskRunner::new(task).run(completion);
-        }))?;
+        let (handle, slot) =
+            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+        self.hook.on_accepted(handle.task_id());
+        if let Err(error) = self.spawn_worker(move || {
+            slot.run(task);
+        }) {
+            self.hook.on_rejected(&error);
+            return Err(error);
+        }
         Ok(handle)
     }
 }

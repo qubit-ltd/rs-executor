@@ -33,7 +33,7 @@ use qubit_function::{
 
 #[test]
 fn test_direct_executor_execute_runs_inline() {
-    let executor = DirectExecutor;
+    let executor = DirectExecutor::new();
     let value = Arc::new(AtomicUsize::new(0));
     let value_for_task = Arc::clone(&value);
 
@@ -51,7 +51,7 @@ fn test_direct_executor_execute_runs_inline() {
 
 #[test]
 fn test_direct_executor_call_returns_value() {
-    let executor = DirectExecutor;
+    let executor = DirectExecutor::new();
 
     let value = executor
         .call(|| Ok::<i32, io::Error>(42))
@@ -64,7 +64,7 @@ fn test_direct_executor_call_returns_value() {
 
 #[test]
 fn test_direct_executor_call_converts_task_failure_and_panic() {
-    let executor = DirectExecutor;
+    let executor = DirectExecutor::new();
 
     let failed = executor
         .call(|| Err::<usize, _>(io::Error::other("failed")))

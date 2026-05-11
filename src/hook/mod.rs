@@ -7,7 +7,16 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-mod delay_executor_tests;
-mod direct_executor_tests;
-mod schedule_executor_tests;
-mod thread_per_task_executor_tests;
+//! Task lifecycle hooks.
+
+mod logging_task_hook;
+mod noop_task_hook;
+mod task_hook;
+mod task_id;
+
+pub use logging_task_hook::LoggingTaskHook;
+pub use noop_task_hook::NoopTaskHook;
+pub use task_hook::TaskHook;
+pub use task_id::TaskId;
+
+pub(crate) use task_id::next_task_id;

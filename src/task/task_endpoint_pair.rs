@@ -12,10 +12,16 @@ use std::sync::Arc;
 use oneshot::Receiver;
 use oneshot::channel;
 
-use super::task_completer::TaskCompleter;
+use crate::hook::{
+    NoopTaskHook,
+    TaskHook,
+    next_task_id,
+};
+
 use super::task_execution_error::TaskResult;
 use super::task_handle::TaskHandle;
-use super::task_handle_inner::TaskHandleInner;
+use super::task_slot::TaskSlot;
+use super::task_state::TaskState;
 use super::tracked_task::TrackedTask;
 
 /// One-shot pair of endpoints for an accepted task.
@@ -26,7 +32,7 @@ pub struct TaskEndpointPair<R, E> {
     /// Receiver consumed by the caller-facing handle.
     receiver: Receiver<TaskResult<R, E>>,
     /// Shared completion state consumed by the runner-facing endpoint.
-    inner: Arc<TaskHandleInner<R, E>>,
+    state: Arc<TaskState<R, E>>,
 }
 
 impl<R, E> TaskEndpointPair<R, E> {
@@ -37,10 +43,24 @@ impl<R, E> TaskEndpointPair<R, E> {
     /// A pair that can be split once into its handle and completion endpoints.
     #[inline]
     pub fn new() -> Self {
+        Self::with_hook(Arc::new(NoopTaskHook))
+    }
+
+    /// Creates a new unsplit task completion pair with a lifecycle hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about this task's lifecycle.
+    ///
+    /// # Returns
+    ///
+    /// A pair that can be split once into its handle and runner slot.
+    #[inline]
+    pub fn with_hook(hook: Arc<dyn TaskHook>) -> Self {
         let (sender, receiver) = channel();
         Self {
             receiver,
-            inner: Arc::new(TaskHandleInner::new(sender)),
+            state: Arc::new(TaskState::new(next_task_id(), sender, hook)),
         }
     }
 
@@ -48,25 +68,25 @@ impl<R, E> TaskEndpointPair<R, E> {
     ///
     /// # Returns
     ///
-    /// A [`TaskHandle`] for the caller and a [`TaskCompleter`] for the runner.
+    /// A [`TaskHandle`] for the caller and a [`TaskSlot`] for the runner.
     #[inline]
-    pub fn into_parts(self) -> (TaskHandle<R, E>, TaskCompleter<R, E>) {
-        let handle = TaskHandle::new(self.receiver);
-        let completion = TaskCompleter { inner: self.inner };
-        (handle, completion)
+    pub fn into_parts(self) -> (TaskHandle<R, E>, TaskSlot<R, E>) {
+        let handle = TaskHandle::new(Arc::clone(&self.state), self.receiver);
+        let slot = TaskSlot { state: self.state };
+        (handle, slot)
     }
 
     /// Splits this pair into a tracked result handle and completion endpoint.
     ///
     /// # Returns
     ///
-    /// A [`TrackedTask`] for the caller and a [`TaskCompleter`] for the runner.
+    /// A [`TrackedTask`] for the caller and a [`TaskSlot`] for the runner.
     #[inline]
-    pub fn into_tracked_parts(self) -> (TrackedTask<R, E>, TaskCompleter<R, E>) {
-        let handle = TaskHandle::new(self.receiver);
-        let tracked = TrackedTask::new(handle, Arc::clone(&self.inner));
-        let completion = TaskCompleter { inner: self.inner };
-        (tracked, completion)
+    pub fn into_tracked_parts(self) -> (TrackedTask<R, E>, TaskSlot<R, E>) {
+        let handle = TaskHandle::new(Arc::clone(&self.state), self.receiver);
+        let tracked = TrackedTask::new(handle);
+        let slot = TaskSlot { state: self.state };
+        (tracked, slot)
     }
 }
 

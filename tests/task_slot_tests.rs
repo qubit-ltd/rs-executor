@@ -16,11 +16,9 @@ use qubit_executor::{
 
 /// Test task completion start, completion, and cancellation races through public endpoints.
 #[test]
-fn test_task_completer_start_complete_and_cancel_paths() {
+fn test_task_slot_start_run_and_cancel_paths() {
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
-    assert!(completion.start());
-    assert!(!completion.cancel());
-    completion.complete(Ok(42));
+    assert!(completion.run(|| Ok(42)));
     assert_eq!(
         handle.get().expect("completed task should return value"),
         42
@@ -28,6 +26,6 @@ fn test_task_completer_start_complete_and_cancel_paths() {
 
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     assert!(completion.cancel());
-    assert!(!completion.start());
+    assert!(!completion.run(|| Ok(42)));
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 }

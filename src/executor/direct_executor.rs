@@ -7,15 +7,18 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
+use std::sync::Arc;
+
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    service::SubmissionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskRunner,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
     },
+    service::SubmissionError,
+    task::spi::TaskEndpointPair,
 };
 
 use super::Executor;
@@ -24,8 +27,48 @@ use super::Executor;
 ///
 /// This executor is useful for deterministic tests and simple composition
 /// where task execution should happen in the same call stack.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct DirectExecutor;
+#[derive(Clone)]
+pub struct DirectExecutor {
+    /// Hook notified about accepted task lifecycle events.
+    hook: Arc<dyn TaskHook>,
+}
+
+impl DirectExecutor {
+    /// Creates a direct executor with no-op task hook.
+    ///
+    /// # Returns
+    ///
+    /// A direct executor.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns a copy of this executor using the supplied task hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `hook` - Hook notified about accepted task lifecycle events.
+    ///
+    /// # Returns
+    ///
+    /// This executor configured with `hook`.
+    #[inline]
+    pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
+        self.hook = hook;
+        self
+    }
+}
+
+impl Default for DirectExecutor {
+    /// Creates a direct executor with no-op task hook.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            hook: Arc::new(NoopTaskHook),
+        }
+    }
+}
 
 impl Executor for DirectExecutor {
     /// Executes the callable inline and returns an already completed handle.
@@ -44,8 +87,10 @@ impl Executor for DirectExecutor {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
-        TaskRunner::new(task).run(completion);
+        let (handle, slot) =
+            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+        self.hook.on_accepted(handle.task_id());
+        slot.run(task);
         Ok(handle)
     }
 }

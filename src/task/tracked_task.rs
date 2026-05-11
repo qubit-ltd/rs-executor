@@ -7,30 +7,25 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    future::IntoFuture,
-    sync::Arc,
-};
+use std::future::IntoFuture;
 
 use super::{
     TaskResult,
     cancel_result::CancelResult,
-    task_completer::TaskCompleter,
     task_handle::TaskHandle,
     task_handle_future::TaskHandleFuture,
-    task_handle_inner::TaskHandleInner,
     task_result_handle::TaskResultHandle,
+    task_slot::TaskSlot,
     task_status::TaskStatus,
     tracked_task_handle::TrackedTaskHandle,
     try_get::TryGet,
 };
+use crate::hook::TaskId;
 
 /// Result handle with active status tracking and pre-start cancellation.
 pub struct TrackedTask<R, E> {
     /// Lightweight result handle.
     handle: TaskHandle<R, E>,
-    /// Shared completion state used for status and cancellation.
-    inner: Arc<TaskHandleInner<R, E>>,
 }
 
 impl<R, E> TrackedTask<R, E> {
@@ -39,14 +34,12 @@ impl<R, E> TrackedTask<R, E> {
     /// # Parameters
     ///
     /// * `handle` - Result handle used to retrieve the final task result.
-    /// * `inner` - Shared completion state used by the cancellation path.
-    ///
     /// # Returns
     ///
     /// A tracked task handle.
     #[inline]
-    pub(crate) const fn new(handle: TaskHandle<R, E>, inner: Arc<TaskHandleInner<R, E>>) -> Self {
-        Self { handle, inner }
+    pub(crate) const fn new(handle: TaskHandle<R, E>) -> Self {
+        Self { handle }
     }
 
     /// Waits for the task to finish and returns its final result.
@@ -98,7 +91,17 @@ impl<R, E> TrackedTask<R, E> {
     /// The current task status.
     #[inline]
     pub fn status(&self) -> TaskStatus {
-        self.inner.status()
+        self.handle.state.status()
+    }
+
+    /// Returns the identifier assigned to this task.
+    ///
+    /// # Returns
+    ///
+    /// The task id stored in the shared task state.
+    #[inline]
+    pub fn task_id(&self) -> TaskId {
+        self.handle.task_id()
     }
 
     /// Attempts to cancel this task before it starts.
@@ -118,10 +121,10 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
-        let completion = TaskCompleter {
-            inner: Arc::clone(&self.inner),
+        let slot = TaskSlot {
+            state: self.handle.state.clone(),
         };
-        if completion.cancel() {
+        if slot.cancel() {
             return CancelResult::Cancelled;
         }
         match self.status() {
@@ -152,10 +155,10 @@ where
     /// Attempts to retrieve the underlying result without blocking.
     #[inline]
     fn try_get(self) -> TryGet<Self, R, E> {
-        let Self { handle, inner } = self;
+        let Self { handle } = self;
         match handle.try_get() {
             TryGet::Ready(result) => TryGet::Ready(result),
-            TryGet::Pending(handle) => TryGet::Pending(Self { handle, inner }),
+            TryGet::Pending(handle) => TryGet::Pending(Self { handle }),
         }
     }
 }
@@ -168,7 +171,7 @@ where
     /// Returns the currently observed task status.
     #[inline]
     fn status(&self) -> TaskStatus {
-        self.inner.status()
+        self.handle.state.status()
     }
 
     /// Attempts to publish a cancellation result while the task is pending.

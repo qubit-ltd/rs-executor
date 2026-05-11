@@ -19,7 +19,8 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 
 - 提供策略级 `Executor` trait，用于执行单个任务并返回 `TrackedTask` handle。
 - 提供 `DirectExecutor`，用于确定性的同线程执行。
-- 提供 `DelayExecutor`，用于延迟后再转交给另一个 executor。
+- 提供 `DelayExecutor`，用于在辅助线程等待固定时长后执行任务。
+- 提供 `ScheduleExecutor`，用于在单调时钟的指定 `Instant` 执行任务。
 - 提供 `ThreadPerTaskExecutor`，用于每个任务启动一个 OS 线程且不管理队列。
 - 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`stop`、生命周期查询和阻塞式等待终止。
 - 提供 `ThreadPerTaskExecutorService` 作为基础托管服务实现。
@@ -72,7 +73,7 @@ use std::io;
 
 use qubit_executor::executor::{DirectExecutor, Executor};
 
-let executor = DirectExecutor;
+let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 let value = handle.get()?;
 assert_eq!(value, 42);

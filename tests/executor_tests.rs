@@ -26,7 +26,7 @@ use qubit_executor::executor::{
 /// Test the default runnable execution method on the executor trait.
 #[test]
 fn test_executor_execute_default_delegates_to_call() {
-    let executor = DirectExecutor;
+    let executor = DirectExecutor::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_task = Arc::clone(&calls);
 

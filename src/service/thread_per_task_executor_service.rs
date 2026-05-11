@@ -7,10 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::{
-    sync::Arc,
-    thread,
-};
+use std::sync::Arc;
 
 use parking_lot::{
     Condvar,
@@ -24,10 +21,11 @@ use qubit_function::{
 use crate::{
     TaskHandle,
     TrackedTask,
-    task::spi::{
-        TaskEndpointPair,
-        TaskRunner,
+    hook::{
+        NoopTaskHook,
+        TaskHook,
     },
+    task::spi::TaskEndpointPair,
 };
 
 use super::{
@@ -37,6 +35,7 @@ use super::{
     SubmissionError,
     ThreadPerTaskExecutorServiceBuilder,
 };
+use crate::executor::thread_spawn_config::ThreadSpawnConfig;
 
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
@@ -188,12 +187,26 @@ impl ThreadPerTaskExecutorServiceState {
 /// The service has no queue: accepted tasks start immediately on their own
 /// thread. Shutdown prevents later submissions but cannot forcefully stop
 /// running OS threads.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct ThreadPerTaskExecutorService {
     /// Shared service state used by all clones of this service.
     state: Arc<ThreadPerTaskExecutorServiceState>,
     /// Optional stack size for each spawned worker thread.
     stack_size: Option<usize>,
+    /// Hook notified about accepted task lifecycle events.
+    pub(crate) hook: Arc<dyn TaskHook>,
+}
+
+impl Default for ThreadPerTaskExecutorService {
+    /// Creates a service with default worker options and no-op hook.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            state: Arc::default(),
+            stack_size: None,
+            hook: Arc::new(NoopTaskHook),
+        }
+    }
 }
 
 impl ThreadPerTaskExecutorService {
@@ -221,6 +234,7 @@ impl ThreadPerTaskExecutorService {
         Self {
             state: Arc::default(),
             stack_size,
+            hook: Arc::new(NoopTaskHook),
         }
     }
 
@@ -230,7 +244,7 @@ impl ThreadPerTaskExecutorService {
     ///
     /// A builder initialized with default worker thread options.
     #[inline]
-    pub const fn builder() -> ThreadPerTaskExecutorServiceBuilder {
+    pub fn builder() -> ThreadPerTaskExecutorServiceBuilder {
         ThreadPerTaskExecutorServiceBuilder::new()
     }
 
@@ -250,14 +264,7 @@ impl ThreadPerTaskExecutorService {
     /// refuses to create the worker thread. Accepted task accounting is handled
     /// by the active-task guard captured by `worker`.
     fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
-        let mut builder = thread::Builder::new();
-        if let Some(stack_size) = self.stack_size {
-            builder = builder.stack_size(stack_size);
-        }
-        builder
-            .spawn(worker)
-            .map(drop)
-            .map_err(SubmissionError::worker_spawn_failed)
+        ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 }
 
@@ -293,14 +300,25 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
     {
-        self.state.accept_task()?;
+        if let Err(error) = self.state.accept_task() {
+            self.hook.on_rejected(&error);
+            return Err(error);
+        }
 
+        let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
+        self.hook.on_accepted(handle.task_id());
+        drop(handle);
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        self.spawn_worker_after_accept(Box::new(move || {
+        let hook = Arc::clone(&self.hook);
+        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
             let mut task = task;
-            TaskRunner::new(move || task.run()).run_detached::<(), E>();
-        }))
+            slot.run(move || task.run());
+        })) {
+            hook.on_rejected(&error);
+            return Err(error);
+        }
+        Ok(())
     }
 
     /// Accepts a callable and starts it on a dedicated OS thread.
@@ -323,14 +341,22 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        self.state.accept_task()?;
+        if let Err(error) = self.state.accept_task() {
+            self.hook.on_rejected(&error);
+            return Err(error);
+        }
 
-        let (handle, completion) = TaskEndpointPair::new().into_parts();
+        let (handle, slot) = TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_parts();
+        self.hook.on_accepted(handle.task_id());
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        self.spawn_worker_after_accept(Box::new(move || {
+        let hook = Arc::clone(&self.hook);
+        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
-            TaskRunner::new(task).run(completion);
-        }))?;
+            slot.run(task);
+        })) {
+            hook.on_rejected(&error);
+            return Err(error);
+        }
         Ok(handle)
     }
 
@@ -344,14 +370,23 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        self.state.accept_task()?;
+        if let Err(error) = self.state.accept_task() {
+            self.hook.on_rejected(&error);
+            return Err(error);
+        }
 
-        let (handle, completion) = TaskEndpointPair::new().into_tracked_parts();
+        let (handle, slot) =
+            TaskEndpointPair::with_hook(Arc::clone(&self.hook)).into_tracked_parts();
+        self.hook.on_accepted(handle.task_id());
         let guard = ActiveTaskGuard::new(Arc::clone(&self.state));
-        self.spawn_worker_after_accept(Box::new(move || {
+        let hook = Arc::clone(&self.hook);
+        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
             let _guard = guard;
-            TaskRunner::new(task).run(completion);
-        }))?;
+            slot.run(task);
+        })) {
+            hook.on_rejected(&error);
+            return Err(error);
+        }
         Ok(handle)
     }
 

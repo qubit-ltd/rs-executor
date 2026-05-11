@@ -7,7 +7,10 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-mod delay_executor_tests;
-mod direct_executor_tests;
-mod schedule_executor_tests;
-mod thread_per_task_executor_tests;
+use crate::hook::TaskHook;
+
+/// Task hook that ignores all events.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct NoopTaskHook;
+
+impl TaskHook for NoopTaskHook {}
