@@ -33,11 +33,11 @@ oneshot = { version = "0.2", features = ["async", "std"] }
 parking_lot = "0.12"
 thiserror = "2.0"
 
-qubit-atomic = "0.10"
+qubit-atomic = "0.11"
 qubit-function = "0.13"
-qubit-lock = "0.4"
-qubit-cas = "0.5"
-qubit-state-machine = "0.3"
+qubit-lock = "0.5"
+qubit-cas = "0.6"
+qubit-state-machine = "0.3.2"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
