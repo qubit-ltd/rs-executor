@@ -111,6 +111,44 @@ fn test_task_endpoint_pair_cancel_pending_finishes_accepted_task() {
     );
 }
 
+/// Test runner-side cancellation reports cancellation instead of dropped completion.
+#[test]
+fn test_task_endpoint_pair_cancel_unstarted_slot_finishes_accepted_task() {
+    let hook = Arc::new(RecordingHook::default());
+    let pair = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone());
+    let (handle, completion) = pair.into_tracked_parts();
+
+    completion.accept();
+    let task_id = handle.task_id().get();
+
+    assert!(completion.cancel_unstarted());
+    assert_eq!(handle.status(), TaskStatus::Cancelled);
+    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+    assert_eq!(
+        hook.events(),
+        vec![
+            format!("accepted:{task_id}"),
+            format!("finished:{task_id}:Cancelled"),
+        ],
+    );
+}
+
+/// Test runner-side cancellation before acceptance does not emit lifecycle hooks.
+#[test]
+fn test_task_endpoint_pair_cancel_unstarted_before_accept_skips_hooks() {
+    let hook = Arc::new(RecordingHook::default());
+    let pair = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone());
+    let (handle, completion) = pair.into_tracked_parts();
+
+    assert!(completion.cancel_unstarted());
+    assert_eq!(handle.status(), TaskStatus::Cancelled);
+    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+    assert!(
+        hook.events().is_empty(),
+        "unaccepted cancellation should not emit lifecycle hooks"
+    );
+}
+
 /// Test dropping an accepted pending slot publishes `Dropped` without a start event.
 #[test]
 fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {

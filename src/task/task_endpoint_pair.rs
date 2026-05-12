@@ -33,7 +33,10 @@ use super::tracked_task::TrackedTask;
 /// Custom executors using this SPI should call [`TaskSlot::accept`] or the
 /// crate-internal handle acceptance path only after submission has succeeded.
 /// Dropping a runner slot before acceptance releases result waiters with
-/// `Dropped` but does not emit hook lifecycle events.
+/// `Dropped` but does not emit hook lifecycle events. Once a service has
+/// accepted a task, it should call [`TaskSlot::cancel_unstarted`] rather than
+/// dropping the slot when it intentionally removes unstarted work, so result
+/// handles observe cancellation instead of an abandoned runner endpoint.
 pub struct TaskEndpointPair<R, E> {
     /// Receiver consumed by the caller-facing handle.
     receiver: Receiver<TaskResult<R, E>>,

@@ -35,10 +35,10 @@ pub enum TaskStatus {
     Failed = 3,
     /// The task panicked while running.
     Panicked = 4,
-    /// The task was cancelled before producing a value.
+    /// The task was explicitly cancelled before producing a value.
     Cancelled = 5,
-    /// The accepted runner-side completion endpoint was dropped before
-    /// producing a value.
+    /// The accepted runner-side completion endpoint was abandoned before
+    /// producing an explicit terminal value.
     Dropped = 6,
 }
 

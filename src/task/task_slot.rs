@@ -25,6 +25,13 @@ use super::{
 /// [`Self::accept`] only after submission succeeds; this arms lifecycle hook
 /// reporting for later start and finish events. Normal callers should use
 /// [`crate::TaskHandle`] and executor/service submission methods instead.
+///
+/// Dropping an accepted slot reports [`crate::TaskExecutionError::Dropped`]
+/// because it means the runner endpoint was abandoned without making an
+/// explicit terminal decision. Executor services that intentionally discard
+/// accepted work before it starts, such as during
+/// [`crate::ExecutorService::stop`], should call [`Self::cancel_unstarted`] so
+/// callers observe [`crate::TaskExecutionError::Cancelled`] instead.
 pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
     pub(crate) state: Arc<TaskState<R, E>>,
@@ -41,6 +48,29 @@ impl<R, E> TaskSlot<R, E> {
     #[inline]
     pub fn accept(&self) {
         let _accepted_now = self.state.accept();
+    }
+
+    /// Cancels this accepted runner endpoint before it starts running.
+    ///
+    /// This method is the runner-side service-provider API for an executor or
+    /// executor service that intentionally removes queued, scheduled, or other
+    /// unstarted accepted work. It publishes
+    /// [`crate::TaskExecutionError::Cancelled`] when this slot wins the
+    /// pending-task terminal-state race. The slot is consumed to make the
+    /// explicit cancellation decision the final runner-side action.
+    ///
+    /// If the slot has already been accepted, successful cancellation emits the
+    /// finished lifecycle hook with [`crate::TaskStatus::Cancelled`]. If it has
+    /// not been accepted, cancellation still releases result waiters but does
+    /// not emit lifecycle hook events.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this call moved the task from pending to cancelled, or `false`
+    /// if another path had already started or completed the task.
+    #[inline]
+    pub fn cancel_unstarted(self) -> bool {
+        self.state.try_cancel_pending()
     }
 
     /// Marks the task as started if it was not cancelled first.

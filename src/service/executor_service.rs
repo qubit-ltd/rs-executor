@@ -52,15 +52,47 @@ use super::{
 /// treated. `shutdown` preserves accepted work, including queued or scheduled
 /// work, unless a concrete service documents a stronger policy. `stop` is a
 /// best-effort interruption request for queued, scheduled, unstarted, or
-/// runtime-abortable work. Work already running in ordinary Rust code, blocking
-/// calls, or OS threads may not be forcibly interrupted, so termination can
-/// still wait for that work to return.
+/// runtime-abortable work. Services built with
+/// [`TaskSlot`](crate::task::spi::TaskSlot) should publish
+/// [`TaskExecutionError::Cancelled`](crate::TaskExecutionError::Cancelled) for
+/// accepted work that is intentionally removed before it starts, typically by
+/// calling
+/// [`TaskSlot::cancel_unstarted`](crate::task::spi::TaskSlot::cancel_unstarted).
+/// Work already running in ordinary Rust code, blocking calls, or OS threads may
+/// not be forcibly interrupted, so termination can still wait for that work to
+/// return.
 ///
 /// A service reaches [`ExecutorServiceLifecycle::Terminated`] after shutdown or
 /// stop has been requested and no accepted work remains active. Accepted work
 /// may have completed normally, failed, panicked, been cancelled, or been
 /// dropped by its runner endpoint, or been aborted according to the concrete
 /// service's capabilities.
+///
+/// ## Resource cleanup
+///
+/// Dropping an executor-service handle is not a portable resource-release
+/// protocol. Concrete services may request shutdown from `Drop`, but `Drop`
+/// should not be assumed to block until worker threads, helper threads, runtime
+/// tasks, queues, or other service-owned resources have fully exited. Blocking
+/// in `Drop` would make ordinary handle destruction unexpectedly wait for
+/// arbitrary user code, blocking calls, or OS-thread tasks that cannot be
+/// interrupted.
+///
+/// Code that needs deterministic cleanup must request termination explicitly and
+/// then wait for it:
+///
+/// 1. Call [`shutdown`](Self::shutdown) to drain accepted work, or
+///    [`stop`](Self::stop) to request best-effort cancellation or abort of work
+///    that has not become non-interruptible.
+/// 2. Call [`wait_termination`](Self::wait_termination) to block until the
+///    service reports that no accepted work remains active.
+/// 3. Drop the service handle and any task handles after the wait returns.
+///
+/// If a service owns OS threads or blocking tasks, already-running task bodies
+/// can keep external resources such as file descriptors, sockets, locks, or
+/// reference-counted objects alive until those task bodies return. Services that
+/// need stronger cleanup behavior should expose an explicit close/join API
+/// rather than relying on destructor side effects.
 pub trait ExecutorService: Send + Sync {
     /// Result handle returned for an accepted callable task.
     type ResultHandle<R, E>: TaskResultHandle<R, E>
@@ -271,6 +303,11 @@ pub trait ExecutorService: Send + Sync {
     /// and no accepted tasks remain active. If it is called while the service is
     /// still [`ExecutorServiceLifecycle::Running`] and no other thread requests
     /// shutdown or stop, it may block forever.
+    ///
+    /// This method is the portable way to wait for service-owned resources to
+    /// quiesce after an explicit shutdown or stop request. Dropping a service
+    /// handle is not a substitute for calling this method when deterministic
+    /// cleanup matters.
     ///
     /// Implementations must not present this method as an asynchronous or
     /// non-blocking operation.

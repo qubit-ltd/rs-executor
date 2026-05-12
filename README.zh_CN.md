@@ -52,6 +52,18 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 
 `wait_termination()` 会阻塞当前线程，直到 shutdown 或 stop 已经被请求，并且所有已接受工作都已经完成、失败、panic、被取消或按照具体服务能力被 abort。如果在服务仍处于 `Running` 状态时调用，它会一直等待另一个线程请求 shutdown 或 stop；如果这件事永远不发生，该调用可能永久阻塞。这个 API 明确是同步阻塞式等待，不是 async 或非阻塞等待。
 
+### 资源释放
+
+不要依赖丢弃 `ExecutorService` handle 来及时释放服务资源。具体服务可以在 `Drop` 中请求 shutdown，但析构逻辑不应被假定会等待 worker 线程、辅助线程、运行时任务、队列或任务持有的资源全部结束。若在 `Drop` 中阻塞，普通的 handle 析构就可能意外等待任意用户代码、blocking 调用或无法被强制中断的 OS 线程任务。
+
+当调用方需要确定性的资源释放时，应使用显式生命周期流程：
+
+1. 调用 `shutdown()` 拒绝新任务并排空已接受工作，或调用 `stop()` 对仍可停止的工作发起尽力取消或 abort。
+2. 调用 `wait_termination()`，并在它返回后再认为服务已经静止。
+3. 等待返回后，再丢弃 service handle 和相关任务 handle。
+
+已经运行的 blocking 或 OS 线程任务体可能继续持有文件描述符、socket、锁、引用计数对象或其他外部资源，直到任务体自行返回。需要更强清理保证的服务，应提供显式 close/join API，而不是依赖析构副作用。
+
 ## 任务结果
 
 `TaskHandle` 表示已接受 callable 任务的结果。它支持通过 `get` 阻塞等待、按值 await、通过 `try_get` 非阻塞尝试获取结果，以及通过 `is_done` 检查完成状态。

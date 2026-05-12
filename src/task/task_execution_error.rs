@@ -31,11 +31,18 @@ pub enum TaskExecutionError<E> {
     /// The task panicked while running.
     Panicked,
 
-    /// The task was cancelled before producing a result.
+    /// The task was explicitly cancelled before producing a result.
+    ///
+    /// This includes caller-side cancellation through tracked handles and
+    /// executor/service-side cancellation of queued, scheduled, or otherwise
+    /// unstarted work.
     Cancelled,
 
-    /// The accepted runner-side completion endpoint was dropped without
-    /// publishing a result.
+    /// The accepted runner-side completion endpoint was abandoned without
+    /// publishing an explicit terminal result.
+    ///
+    /// This represents runner loss or misuse. Services that intentionally stop
+    /// unstarted accepted work should publish [`Self::Cancelled`] instead.
     Dropped,
 }
 
@@ -60,7 +67,7 @@ impl<E> TaskExecutionError<E> {
         matches!(self, Self::Panicked)
     }
 
-    /// Returns true when the task was cancelled.
+    /// Returns true when the task was explicitly cancelled.
     ///
     /// # Returns
     ///
@@ -70,12 +77,12 @@ impl<E> TaskExecutionError<E> {
         matches!(self, Self::Cancelled)
     }
 
-    /// Returns true when the task result was dropped by the completion endpoint.
+    /// Returns true when the task result was abandoned by the completion endpoint.
     ///
     /// # Returns
     ///
     /// `true` if the accepted runner-side completion endpoint disappeared
-    /// without publishing a result.
+    /// without publishing an explicit terminal result.
     #[inline]
     pub const fn is_dropped(&self) -> bool {
         matches!(self, Self::Dropped)

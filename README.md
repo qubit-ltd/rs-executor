@@ -78,6 +78,30 @@ Calling it while the service is still `Running` waits until another thread
 requests shutdown or stop; if that never happens, it can block forever. This API
 is deliberately synchronous and blocking, not an async or non-blocking wait.
 
+### Resource cleanup
+
+Do not rely on dropping an `ExecutorService` handle to release service resources
+promptly. A concrete service may request shutdown from `Drop`, but destructor
+code should not be assumed to wait for worker threads, helper threads, runtime
+tasks, queues, or task-owned resources to finish. Blocking in `Drop` would make
+ordinary handle destruction unexpectedly wait for arbitrary user code, blocking
+calls, or OS-thread tasks that cannot be interrupted.
+
+When deterministic cleanup matters, use an explicit lifecycle sequence:
+
+1. Call `shutdown()` to reject new work and drain accepted work, or call `stop()`
+   to request best-effort cancellation or abort of work that can still be
+   stopped.
+2. Call `wait_termination()` and let it return before assuming the service has
+   quiesced.
+3. Drop the service handle and any task handles after the wait returns.
+
+Already-running blocking or OS-thread task bodies can keep file descriptors,
+sockets, locks, reference-counted objects, or other external resources alive
+until those task bodies return. Services that need stronger cleanup guarantees
+should provide an explicit close/join API instead of relying on destructor side
+effects.
+
 ## Task Results
 
 `TaskHandle` represents the result of an accepted callable task. It supports
