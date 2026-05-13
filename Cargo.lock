@@ -658,12 +658,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-lock"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15180bc5ff265078d6d384ccde799b9e73a10f152ad9f311f5e8f97d2bb4b145"
+version = "0.6.0"
 dependencies = [
  "parking_lot",
- "tokio",
 ]
 
 [[package]]
