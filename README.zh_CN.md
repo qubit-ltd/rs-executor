@@ -1,7 +1,7 @@
 # Qubit Executor
 
 [![Rust CI](https://github.com/qubit-ltd/rs-executor/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-executor/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/qubit-ltd/rs-executor/badge.svg?branch=main)](https://coveralls.io/github/qubit-ltd/rs-executor?branch=main)
+[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-executor/coverage-badge.json)](https://qubit-ltd.github.io/rs-executor/coverage/)
 [![Crates.io](https://img.shields.io/crates/v/qubit-executor.svg?color=blue)](https://crates.io/crates/qubit-executor)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
