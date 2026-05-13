@@ -35,7 +35,7 @@ thiserror = "2.0"
 
 qubit-atomic = "0.11"
 qubit-function = "0.13"
-qubit-lock = { path = "../rs-lock", default-features = false }
+qubit-lock = { default-features = false, version = "0.6" }
 qubit-cas = "0.6"
 qubit-state-machine = "0.3"
 
