@@ -14,6 +14,7 @@
 
 pub mod executor;
 pub mod hook;
+pub mod schedule;
 pub mod service;
 pub mod task;
 
@@ -24,6 +25,11 @@ pub use crate::executor::{
     ScheduleExecutor,
     ThreadPerTaskExecutor,
     ThreadPerTaskExecutorBuilder,
+};
+pub use crate::schedule::{
+    ScheduledExecutorService,
+    ScheduledTaskHandle,
+    SingleThreadScheduledExecutorService,
 };
 pub use crate::service::{
     ExecutorService,

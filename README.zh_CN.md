@@ -24,6 +24,7 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 - 提供 `ThreadPerTaskExecutor`，用于每个任务启动一个 OS 线程且不管理队列。
 - 提供托管 `ExecutorService` trait，支持 `submit`、`submit_callable`、`shutdown`、`stop`、生命周期查询和阻塞式等待终止。
 - 提供 `ThreadPerTaskExecutorService` 作为基础托管服务实现。
+- 提供 `ScheduledExecutorService` 与 `SingleThreadScheduledExecutorService`，用于可取消的延迟或指定时刻任务提交，且不依赖线程池 crate。
 - 提供 `TaskHandle`、`TrackedTask`、`TaskExecutionError` 与 `TaskResult`，用于在多个 crate 之间共享任务完成语义。
 - 通过 `ExecutorServiceLifecycle`、`SubmissionError` 与 `StopReport` 提供共享的生命周期、拒绝执行原因和停止报告类型。
 
@@ -32,6 +33,8 @@ Qubit Executor 提供 Qubit Rust 并发 crate 共享的最小执行 API。它把
 `Executor` 是底层执行策略。它回答的是：“这个单个任务应该如何运行？”已接受任务的结果统一通过 `TrackedTask` 暴露，即使具体 executor 是同线程内联执行。
 
 `ExecutorService` 是托管服务。它回答的是：“这个服务是否能接受任务、跟踪任务、关闭并最终终止？”`submit` 成功只表示服务接受了任务，不表示任务已经开始或成功完成。
+
+`ScheduledExecutorService` 是 `ExecutorService` 的定时提交扩展。它保留普通服务生命周期语义，同时增加 `schedule`、`schedule_callable`、`schedule_at` 和 `schedule_callable_at`。基础实现 `SingleThreadScheduledExecutorService` 拥有一个调度线程，并在该线程上执行到期任务，因此定时任务体应保持短小，较重工作应转交给其他 executor service。
 
 ## ExecutorService 生命周期
 
@@ -115,6 +118,28 @@ use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
 
 let service = ThreadPerTaskExecutorService::new();
 let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
+assert_eq!(handle.get()?, 42);
+service.shutdown();
+service.wait_termination();
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+### 定时托管服务
+
+```rust
+use std::io;
+use std::time::Duration;
+
+use qubit_executor::{
+    ExecutorService,
+    ScheduledExecutorService,
+    SingleThreadScheduledExecutorService,
+};
+
+let service = SingleThreadScheduledExecutorService::new("app-scheduler")?;
+let handle = service.schedule_callable(Duration::from_millis(25), || {
+    Ok::<usize, io::Error>(40 + 2)
+})?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();

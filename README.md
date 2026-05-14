@@ -30,6 +30,7 @@ libraries can depend only on the abstraction level they need.
 - `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
 - Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` as a basic managed service implementation.
+- `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for cancellable delayed or instant-based task submission without depending on a thread pool crate.
 - `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
 - Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport`.
 
@@ -43,6 +44,13 @@ even when the concrete executor runs the task inline.
 task, track it, shut down, and eventually terminate?” A successful `submit`
 means only that the service accepted the task. It does not mean the task has
 started or completed successfully.
+
+`ScheduledExecutorService` is the timed-submission extension of
+`ExecutorService`. It keeps normal lifecycle semantics while adding
+`schedule`, `schedule_callable`, `schedule_at`, and `schedule_callable_at`.
+The basic `SingleThreadScheduledExecutorService` implementation owns one
+scheduler thread and runs due tasks on that thread, so scheduled task bodies
+should stay small or hand heavier work to another executor service.
 
 ## ExecutorService Lifecycle
 
@@ -168,6 +176,28 @@ use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
 
 let service = ThreadPerTaskExecutorService::new();
 let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
+assert_eq!(handle.get()?, 42);
+service.shutdown();
+service.wait_termination();
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+### Scheduled service
+
+```rust
+use std::io;
+use std::time::Duration;
+
+use qubit_executor::{
+    ExecutorService,
+    ScheduledExecutorService,
+    SingleThreadScheduledExecutorService,
+};
+
+let service = SingleThreadScheduledExecutorService::new("app-scheduler")?;
+let handle = service.schedule_callable(Duration::from_millis(25), || {
+    Ok::<usize, io::Error>(40 + 2)
+})?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();
