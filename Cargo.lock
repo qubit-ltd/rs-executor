@@ -632,7 +632,7 @@ checksum = "7d469a0405040734040db3479b6c5c47188fc2ea05258d9db51a9c12601e1466"
 
 [[package]]
 name = "qubit-executor"
-version = "0.3.4"
+version = "0.4.0"
 dependencies = [
  "log",
  "oneshot",

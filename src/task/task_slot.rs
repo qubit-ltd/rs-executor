@@ -13,6 +13,7 @@ use qubit_function::Callable;
 
 use super::{
     TaskResult,
+    running_task_slot::RunningTaskSlot,
     task_runner::TaskRunner,
     task_state::TaskState,
 };
@@ -34,10 +35,23 @@ use super::{
 /// callers observe [`crate::TaskExecutionError::Cancelled`] instead.
 pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
-    pub(crate) state: Arc<TaskState<R, E>>,
+    pub(crate) state: Option<Arc<TaskState<R, E>>>,
 }
 
 impl<R, E> TaskSlot<R, E> {
+    /// Returns the shared state owned by this slot.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the task state. The state is always present until a
+    /// consuming runner-side API transfers it to another endpoint.
+    #[inline]
+    fn state(&self) -> &TaskState<R, E> {
+        self.state
+            .as_deref()
+            .expect("task slot state should be present")
+    }
+
     /// Marks this runner endpoint as accepted and arms lifecycle hook reporting.
     ///
     /// Calling this method emits `on_accepted` before any later `on_started` or
@@ -47,7 +61,7 @@ impl<R, E> TaskSlot<R, E> {
     /// hook events for a task that was rejected before acceptance.
     #[inline]
     pub fn accept(&self) {
-        let _accepted_now = self.state.accept();
+        let _accepted_now = self.state().accept();
     }
 
     /// Cancels this accepted runner endpoint before it starts running.
@@ -69,8 +83,32 @@ impl<R, E> TaskSlot<R, E> {
     /// `true` if this call moved the task from pending to cancelled, or `false`
     /// if another path had already started or completed the task.
     #[inline]
-    pub fn cancel_unstarted(self) -> bool {
-        self.state.try_cancel_pending()
+    pub fn cancel_unstarted(mut self) -> bool {
+        self.state
+            .take()
+            .is_some_and(|state| state.try_cancel_pending())
+    }
+
+    /// Attempts to move this slot from pending into running state.
+    ///
+    /// This method consumes the pending slot. On success, it returns a
+    /// [`RunningTaskSlot`] that must be completed or dropped. On failure, the
+    /// original pending slot is returned so the caller can inspect or drop it;
+    /// the user callable must not be executed in that case.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(RunningTaskSlot)` if this call won the pending-to-running race, or
+    /// `Err(TaskSlot)` if the task had already been cancelled or completed.
+    pub fn try_start(mut self) -> Result<RunningTaskSlot<R, E>, Self> {
+        if !self.start() {
+            return Err(self);
+        }
+        let state = self
+            .state
+            .take()
+            .expect("started task slot state should be present");
+        Ok(RunningTaskSlot::new(state))
     }
 
     /// Marks the task as started if it was not cancelled first.
@@ -80,20 +118,7 @@ impl<R, E> TaskSlot<R, E> {
     /// `true` if the runner should execute the task, or `false` if the task was
     /// already completed through cancellation.
     pub(crate) fn start(&self) -> bool {
-        self.state.try_start(self.state.is_accepted())
-    }
-
-    /// Completes the task with its final result.
-    ///
-    /// If another path has already completed the task, this result is ignored.
-    ///
-    /// # Parameters
-    ///
-    /// * `result` - Final task result to publish if the task is not already
-    ///   completed.
-    #[inline]
-    pub(crate) fn complete(&self, result: TaskResult<R, E>) {
-        let _completed = self.state.try_complete(result, self.state.is_accepted());
+        self.state().try_start(self.state().is_accepted())
     }
 
     /// Starts the task and completes it with a lazily produced result.
@@ -112,15 +137,14 @@ impl<R, E> TaskSlot<R, E> {
     /// `true` if the closure was executed and its result was published, or
     /// `false` if the task had already been completed by cancellation.
     #[inline]
-    pub(crate) fn start_and_complete<F>(&self, task: F) -> bool
+    pub(crate) fn start_and_complete<F>(self, task: F) -> bool
     where
         F: FnOnce() -> TaskResult<R, E>,
     {
-        if !self.start() {
+        let Ok(running) = self.try_start() else {
             return false;
-        }
-        self.complete(task());
-        true
+        };
+        running.complete(task())
     }
 
     /// Starts this slot and runs a callable to completion.
@@ -146,6 +170,8 @@ impl<R, E> Drop for TaskSlot<R, E> {
     /// Publishes a dropped-result error when the runner endpoint is abandoned.
     #[inline]
     fn drop(&mut self) {
-        let _ignored = self.state.try_drop_unfinished(self.state.is_accepted());
+        if let Some(state) = &self.state {
+            let _ignored = state.try_drop_unfinished(state.is_accepted());
+        }
     }
 }

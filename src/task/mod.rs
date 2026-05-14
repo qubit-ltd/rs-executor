@@ -11,6 +11,7 @@
 
 mod atomic_task_status;
 mod cancel_result;
+mod running_task_slot;
 pub(crate) mod task_admission_gate;
 mod task_endpoint_pair;
 mod task_execution_error;
@@ -42,6 +43,7 @@ pub use try_get::TryGet;
 /// executor services or execution strategies. Ordinary users should prefer
 /// [`TaskHandle`], [`TrackedTask`], and the executor/service traits.
 pub mod spi {
+    pub use super::running_task_slot::RunningTaskSlot;
     pub use super::task_endpoint_pair::TaskEndpointPair;
     pub use super::task_result_handle::TaskResultHandle;
     pub use super::task_runner::TaskRunner;

@@ -96,7 +96,9 @@ impl<R, E> TaskEndpointPair<R, E> {
     #[inline]
     pub fn into_parts(self) -> (TaskHandle<R, E>, TaskSlot<R, E>) {
         let handle = TaskHandle::new(Arc::clone(&self.state), self.receiver);
-        let slot = TaskSlot { state: self.state };
+        let slot = TaskSlot {
+            state: Some(self.state),
+        };
         (handle, slot)
     }
 
@@ -109,7 +111,9 @@ impl<R, E> TaskEndpointPair<R, E> {
     pub fn into_tracked_parts(self) -> (TrackedTask<R, E>, TaskSlot<R, E>) {
         let handle = TaskHandle::new(Arc::clone(&self.state), self.receiver);
         let tracked = TrackedTask::new(handle);
-        let slot = TaskSlot { state: self.state };
+        let slot = TaskSlot {
+            state: Some(self.state),
+        };
         (tracked, slot)
     }
 }

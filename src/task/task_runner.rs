@@ -17,6 +17,7 @@ use qubit_function::Callable;
 use super::{
     TaskExecutionError,
     TaskResult,
+    running_task_slot::RunningTaskSlot,
     task_slot::TaskSlot,
 };
 
@@ -80,6 +81,25 @@ impl<C> TaskRunner<C> {
         C: Callable<R, E>,
     {
         slot.start_and_complete(|| self.call())
+    }
+
+    /// Runs this task through an already-started task slot.
+    ///
+    /// # Parameters
+    ///
+    /// * `slot` - Running slot that has already won the pending-to-running
+    ///   transition.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the task result was published, or `false` if completion was
+    /// no longer possible.
+    #[inline]
+    pub fn run_started<R, E>(self, slot: RunningTaskSlot<R, E>) -> bool
+    where
+        C: Callable<R, E>,
+    {
+        slot.complete(self.call())
     }
 
     /// Runs this task and discards its final result.
