@@ -22,6 +22,8 @@ mod task_runner;
 mod task_slot;
 mod task_state;
 mod task_status;
+mod task_status_event;
+mod task_status_machine;
 mod tracked_task;
 mod tracked_task_handle;
 mod try_get;
