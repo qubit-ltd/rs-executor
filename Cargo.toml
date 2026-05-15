@@ -1,6 +1,6 @@
 [package]
 name = "qubit-executor"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -36,8 +36,8 @@ thiserror = "2.0"
 qubit-atomic = "0.13"
 qubit-function = "0.13"
 qubit-lock = { default-features = false, version = "0.6" }
-qubit-cas = "0.6.2"
-qubit-state-machine = "0.3.5"
+qubit-cas = "0.6"
+qubit-state-machine = "0.3"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
