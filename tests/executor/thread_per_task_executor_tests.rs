@@ -14,13 +14,14 @@ use std::{
     sync::{
         Arc,
         Mutex,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::Ordering,
     },
 };
 
+use qubit_atomic::{
+    Atomic,
+    atomic::primitive::AtomicUsize,
+};
 use qubit_executor::{
     TaskExecutionError,
     TaskStatus,
@@ -43,22 +44,22 @@ static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Default)]
 struct CountingHook {
-    accepted: AtomicUsize,
-    rejected: AtomicUsize,
-    finished: AtomicUsize,
+    accepted: Atomic<usize>,
+    rejected: Atomic<usize>,
+    finished: Atomic<usize>,
 }
 
 impl TaskHook for CountingHook {
     fn on_accepted(&self, _task_id: TaskId) {
-        self.accepted.fetch_add(1, Ordering::AcqRel);
+        self.accepted.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     fn on_rejected(&self, _error: &SubmissionError) {
-        self.rejected.fetch_add(1, Ordering::AcqRel);
+        self.rejected.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
-        self.finished.fetch_add(1, Ordering::AcqRel);
+        self.finished.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 }
 
@@ -100,7 +101,7 @@ impl TaskHook for RecordingHook {
 }
 
 fn shared_runner_task() -> Result<usize, &'static str> {
-    match SHARED_RUNNER_TASK_CALLS.fetch_add(1, Ordering::AcqRel) {
+    match SHARED_RUNNER_TASK_CALLS.fetch_add_with_ordering(1, Ordering::AcqRel) {
         0 => Ok(42),
         1 => Err("shared failure"),
         _ => panic!("shared panic"),
@@ -152,7 +153,7 @@ fn test_thread_per_task_executor_hook_events_are_ordered() {
 
 #[test]
 fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
-    SHARED_RUNNER_TASK_CALLS.store(0, Ordering::Release);
+    SHARED_RUNNER_TASK_CALLS.store(0);
     let executor = ThreadPerTaskExecutor::new();
 
     let success = executor
@@ -204,9 +205,9 @@ fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
-    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
-    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
-    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
+    assert_eq!(hook.accepted.load(), 0);
+    assert_eq!(hook.rejected.load(), 1);
+    assert_eq!(hook.finished.load(), 0);
 }
 
 #[test]

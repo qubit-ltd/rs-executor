@@ -14,10 +14,7 @@ use std::{
     sync::{
         Arc,
         Mutex,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::Ordering,
     },
     time::Duration,
 };
@@ -42,22 +39,22 @@ use qubit_executor::{
 
 #[derive(Default)]
 struct CountingHook {
-    accepted: AtomicUsize,
-    rejected: AtomicUsize,
-    finished: AtomicUsize,
+    accepted: Atomic<usize>,
+    rejected: Atomic<usize>,
+    finished: Atomic<usize>,
 }
 
 impl TaskHook for CountingHook {
     fn on_accepted(&self, _task_id: TaskId) {
-        self.accepted.fetch_add(1, Ordering::AcqRel);
+        self.accepted.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     fn on_rejected(&self, _error: &SubmissionError) {
-        self.rejected.fetch_add(1, Ordering::AcqRel);
+        self.rejected.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
-        self.finished.fetch_add(1, Ordering::AcqRel);
+        self.finished.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 }
 
@@ -239,9 +236,9 @@ fn test_thread_per_task_executor_service_shutdown_rejection_notifies_hook() {
     let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
 
     assert!(matches!(result, Err(SubmissionError::Shutdown)));
-    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
-    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
-    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
+    assert_eq!(hook.accepted.load(), 0);
+    assert_eq!(hook.rejected.load(), 1);
+    assert_eq!(hook.finished.load(), 0);
 }
 
 #[test]
@@ -324,9 +321,9 @@ fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_fa
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
-    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
-    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
-    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
+    assert_eq!(hook.accepted.load(), 0);
+    assert_eq!(hook.rejected.load(), 1);
+    assert_eq!(hook.finished.load(), 0);
     service.shutdown();
     service.wait_termination();
 }
@@ -381,9 +378,9 @@ fn test_thread_per_task_executor_service_submit_reports_worker_spawn_failure_wit
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
-    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
-    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
-    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
+    assert_eq!(hook.accepted.load(), 0);
+    assert_eq!(hook.rejected.load(), 1);
+    assert_eq!(hook.finished.load(), 0);
     service.shutdown();
     service.wait_termination();
 }
@@ -420,9 +417,9 @@ fn test_thread_per_task_executor_service_submit_tracked_reports_worker_spawn_fai
         result,
         Err(SubmissionError::WorkerSpawnFailed { .. })
     ));
-    assert_eq!(hook.accepted.load(Ordering::Acquire), 0);
-    assert_eq!(hook.rejected.load(Ordering::Acquire), 1);
-    assert_eq!(hook.finished.load(Ordering::Acquire), 0);
+    assert_eq!(hook.accepted.load(), 0);
+    assert_eq!(hook.rejected.load(), 1);
+    assert_eq!(hook.finished.load(), 0);
     service.shutdown();
     service.wait_termination();
 }

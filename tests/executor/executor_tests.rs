@@ -11,13 +11,11 @@ use std::{
     io,
     sync::{
         Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::Ordering,
     },
 };
 
+use qubit_atomic::Atomic;
 use qubit_executor::executor::{
     DirectExecutor,
     Executor,
@@ -27,17 +25,17 @@ use qubit_executor::executor::{
 #[test]
 fn test_executor_execute_default_delegates_to_call() {
     let executor = DirectExecutor::new();
-    let calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::new(Atomic::new(0usize));
     let calls_for_task = Arc::clone(&calls);
 
     executor
         .execute(move || {
-            calls_for_task.fetch_add(1, Ordering::AcqRel);
+            calls_for_task.fetch_add_with_ordering(1, Ordering::AcqRel);
             Ok::<(), io::Error>(())
         })
         .expect("direct executor should accept the runnable")
         .get()
         .expect("direct executor should run the runnable");
 
-    assert_eq!(calls.load(Ordering::Acquire), 1);
+    assert_eq!(calls.load(), 1);
 }
