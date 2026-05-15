@@ -7,14 +7,9 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::sync::{
-    Arc,
-    atomic::{
-        AtomicBool,
-        Ordering,
-    },
-};
+use std::sync::Arc;
 
+use qubit_atomic::Atomic;
 use qubit_function::Callable;
 
 use crate::task::spi::{
@@ -35,7 +30,7 @@ pub(crate) struct CompletableScheduledTask<R, E> {
     /// Runner-side completion endpoint.
     slot: TaskSlot<R, E>,
     /// Shared marker used by the heap to skip externally cancelled tasks.
-    cancelled: Arc<AtomicBool>,
+    cancelled: Arc<Atomic<bool>>,
 }
 
 impl<R, E> CompletableScheduledTask<R, E> {
@@ -50,7 +45,7 @@ impl<R, E> CompletableScheduledTask<R, E> {
     /// # Returns
     ///
     /// A type-erased schedulable task entry.
-    pub(crate) fn new<C>(task: C, slot: TaskSlot<R, E>, cancelled: Arc<AtomicBool>) -> Self
+    pub(crate) fn new<C>(task: C, slot: TaskSlot<R, E>, cancelled: Arc<Atomic<bool>>) -> Self
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -80,7 +75,7 @@ where
     /// Returns whether this task has already been cancelled before start.
     #[inline]
     fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
+        self.cancelled.load()
     }
 
     /// Starts this task and returns a closure that completes it.
@@ -95,7 +90,7 @@ where
                 task(running_slot);
             })),
             Err(_) => {
-                cancelled.store(true, Ordering::Release);
+                cancelled.store(true);
                 None
             }
         }
@@ -108,7 +103,7 @@ where
             slot, cancelled, ..
         } = *self;
         if slot.cancel_unstarted() {
-            cancelled.store(true, Ordering::Release);
+            cancelled.store(true);
             true
         } else {
             false

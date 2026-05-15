@@ -9,14 +9,10 @@
  ******************************************************************************/
 use std::{
     future::IntoFuture,
-    sync::{
-        Arc,
-        atomic::{
-            AtomicBool,
-            Ordering,
-        },
-    },
+    sync::Arc,
 };
+
+use qubit_atomic::Atomic;
 
 use crate::{
     CancelResult,
@@ -44,7 +40,7 @@ pub struct ScheduledTaskHandle<R, E> {
     /// Standard tracked task handle.
     inner: TrackedTask<R, E>,
     /// Shared marker observed by the scheduler heap.
-    cancellation_marker: Arc<AtomicBool>,
+    cancellation_marker: Arc<Atomic<bool>>,
     /// Callback invoked after this handle cancels the pending task.
     on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>,
 }
@@ -63,7 +59,7 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// A scheduled task handle.
     pub(crate) const fn new(
         inner: TrackedTask<R, E>,
-        cancellation_marker: Arc<AtomicBool>,
+        cancellation_marker: Arc<Atomic<bool>>,
         on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>,
     ) -> Self {
         Self {
@@ -154,7 +150,7 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     fn cancel_inner(&self) -> CancelResult {
         let result = self.inner.cancel();
         if result == CancelResult::Cancelled {
-            self.cancellation_marker.store(true, Ordering::Release);
+            self.cancellation_marker.store(true);
             (self.on_cancelled)();
         }
         result

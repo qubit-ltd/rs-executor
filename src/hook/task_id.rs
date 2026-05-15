@@ -7,10 +7,7 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::sync::atomic::{
-    AtomicU64,
-    Ordering,
-};
+use qubit_atomic::atomic::primitive::AtomicU64;
 
 /// Unique identifier assigned to an accepted task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -51,5 +48,5 @@ static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
 /// A task id unique within this process until the counter wraps.
 #[inline]
 pub(crate) fn next_task_id() -> TaskId {
-    TaskId(NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed))
+    TaskId(NEXT_TASK_ID.fetch_inc())
 }

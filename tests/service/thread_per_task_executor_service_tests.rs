@@ -15,7 +15,6 @@ use std::{
         Arc,
         Mutex,
         atomic::{
-            AtomicBool,
             AtomicUsize,
             Ordering,
         },
@@ -23,6 +22,7 @@ use std::{
     time::Duration,
 };
 
+use qubit_atomic::Atomic;
 use qubit_executor::{
     ExecutorServiceLifecycle,
     TaskExecutionError,
@@ -247,13 +247,13 @@ fn test_thread_per_task_executor_service_shutdown_rejection_notifies_hook() {
 #[test]
 fn test_thread_per_task_executor_service_wait_termination_waits_for_tasks() {
     let service = ThreadPerTaskExecutorService::new();
-    let completed = Arc::new(AtomicBool::new(false));
+    let completed = Arc::new(Atomic::new(false));
     let completed_for_task = Arc::clone(&completed);
 
     service
         .submit(move || {
             std::thread::sleep(Duration::from_millis(80));
-            completed_for_task.store(true, Ordering::Release);
+            completed_for_task.store(true);
             Ok::<(), io::Error>(())
         })
         .expect("service should accept task");
@@ -266,7 +266,7 @@ fn test_thread_per_task_executor_service_wait_termination_waits_for_tasks() {
 
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());
-    assert!(completed.load(Ordering::Acquire));
+    assert!(completed.load());
 }
 
 #[test]

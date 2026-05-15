@@ -15,18 +15,14 @@
 
 use std::{
     cmp::Ordering as CompareOrdering,
-    sync::{
-        Arc,
-        atomic::{
-            AtomicBool,
-            Ordering,
-        },
-    },
+    sync::Arc,
     time::{
         Duration,
         Instant,
     },
 };
+
+use qubit_atomic::Atomic;
 
 use crate::{
     CancelResult,
@@ -115,7 +111,7 @@ pub fn verify_scheduled_task_ordering() {
 /// Verifies cancellation paths for completable scheduled task entries.
 pub fn verify_completable_scheduled_task_cancellation_paths() {
     let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
         slot,
@@ -128,10 +124,10 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
         .expect("pending task entry should start successfully");
     started_task();
     assert_eq!(handle.get().expect("started task should succeed"), 42);
-    assert!(!cancelled.load(Ordering::Acquire));
+    assert!(!cancelled.load());
 
     let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
         slot,
@@ -139,11 +135,11 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     ));
     entry.accept();
     assert!(entry.cancel());
-    assert!(cancelled.load(Ordering::Acquire));
+    assert!(cancelled.load());
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 
     let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
         slot,
@@ -152,11 +148,11 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
 
     assert_eq!(tracked.cancel(), CancelResult::Cancelled);
     assert!(entry.start().is_none());
-    assert!(cancelled.load(Ordering::Acquire));
+    assert!(cancelled.load());
     assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
 
     let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
         slot,
@@ -165,7 +161,7 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
 
     assert_eq!(tracked.cancel(), CancelResult::Cancelled);
     assert!(!entry.cancel());
-    assert!(!cancelled.load(Ordering::Acquire));
+    assert!(!cancelled.load());
     assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
 }
 

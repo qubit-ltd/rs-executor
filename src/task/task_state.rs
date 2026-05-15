@@ -7,16 +7,11 @@
  *    Licensed under the Apache License, Version 2.0.
  *
  ******************************************************************************/
-use std::sync::{
-    Arc,
-    atomic::{
-        AtomicBool,
-        Ordering,
-    },
-};
+use std::sync::Arc;
 
 use oneshot::Sender;
 use parking_lot::Mutex;
+use qubit_atomic::Atomic;
 
 use super::{
     TaskExecutionError,
@@ -37,7 +32,7 @@ pub(crate) struct TaskState<R, E> {
     /// Atomic task status used for start, completion, and cancellation races.
     pub(crate) status: AtomicTaskStatus,
     /// Whether submission has crossed the accepted lifecycle boundary.
-    pub(crate) accepted: AtomicBool,
+    pub(crate) accepted: Atomic<bool>,
     /// Sender used once by the winner of the terminal state race.
     pub(crate) sender: Mutex<Option<Sender<TaskResult<R, E>>>>,
     /// Optional hook notified when an accepted task starts and finishes.
@@ -63,7 +58,7 @@ impl<R, E> TaskState<R, E> {
         Self {
             task_id,
             status: AtomicTaskStatus::new(TaskStatus::Pending),
-            accepted: AtomicBool::new(false),
+            accepted: Atomic::new(false),
             sender: Mutex::new(Some(sender)),
             hook,
         }
@@ -77,7 +72,7 @@ impl<R, E> TaskState<R, E> {
     /// caller had already marked the task accepted.
     #[inline]
     pub(crate) fn accept(&self) -> bool {
-        if self.accepted.swap(true, Ordering::AcqRel) {
+        if self.accepted.swap(true) {
             return false;
         }
         if let Some(hook) = &self.hook {
@@ -93,7 +88,7 @@ impl<R, E> TaskState<R, E> {
     /// `true` after the task has crossed the accepted lifecycle boundary.
     #[inline]
     pub(crate) fn is_accepted(&self) -> bool {
-        self.accepted.load(Ordering::Acquire)
+        self.accepted.load()
     }
 
     /// Returns the currently observed task status.

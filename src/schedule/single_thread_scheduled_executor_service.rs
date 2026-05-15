@@ -11,12 +11,12 @@ use std::{
     sync::{
         Arc,
         Weak,
-        atomic::AtomicBool,
     },
     thread,
     time::Instant,
 };
 
+use qubit_atomic::Atomic;
 use qubit_function::{
     Callable,
     Runnable,
@@ -195,7 +195,7 @@ impl SingleThreadScheduledExecutorService {
         E: Send + 'static,
     {
         let (handle, slot) = TaskEndpointPair::new().into_parts();
-        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancelled = Arc::new(Atomic::new(false));
         let entry = CompletableScheduledTask::new(task, slot, cancelled);
         self.schedule_entry(deadline, Box::new(entry))?;
         Ok(handle)
@@ -307,7 +307,7 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
         E: Send + 'static,
     {
         let (tracked, slot) = TaskEndpointPair::new().into_tracked_parts();
-        let cancellation_marker = Arc::new(AtomicBool::new(false));
+        let cancellation_marker = Arc::new(Atomic::new(false));
         let entry = CompletableScheduledTask::new(task, slot, Arc::clone(&cancellation_marker));
         self.schedule_entry(instant, Box::new(entry))?;
         Ok(ScheduledTaskHandle::new(
