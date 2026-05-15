@@ -597,13 +597,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-atomic"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99f7d3c88198c535bd1251f4de3b0e46cc7a5787bb24ab38aa5d562d36c3333f"
+dependencies = [
+ "arc-swap",
+ "portable-atomic",
+]
+
+[[package]]
 name = "qubit-cas"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a22121104b2062d7a94a3c3a3e95771c7ccb9087242662f7d6baa8dd3fdb3787"
 dependencies = [
  "konst",
- "qubit-atomic",
+ "qubit-atomic 0.11.1",
  "qubit-error",
  "qubit-function",
  "qubit-retry",
@@ -637,7 +647,7 @@ dependencies = [
  "log",
  "oneshot",
  "parking_lot",
- "qubit-atomic",
+ "qubit-atomic 0.12.0",
  "qubit-cas",
  "qubit-function",
  "qubit-lock",
@@ -697,7 +707,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c7b1f93523ea543e0046a47fc836ae8366712f49a441787ed9d51eff4548968"
 dependencies = [
- "qubit-atomic",
+ "qubit-atomic 0.11.1",
  "qubit-cas",
  "thiserror",
 ]
