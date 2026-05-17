@@ -12,15 +12,15 @@ documentation = "https://docs.rs/qubit-executor"
 readme = "README.md"
 keywords = ["executor", "task", "concurrency", "service"]
 categories = ["concurrency", "asynchronous"]
-exclude = [
-    "align-ci.sh",
-    "ci-check.sh",
-    "coverage.sh",
-    "style-check.sh",
-    "update-submodule.sh",
-    ".github/*",
-    ".llvm-cov.toml",
-    ".cargo-audit.toml.example",
+include = [
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/README.zh_CN.md",
+    "/doc/**/user_guide*.md",
+    "/examples/**",
+    "/src/**",
+    "/tests/**",
 ]
 
 [lib]
@@ -34,10 +34,10 @@ parking_lot = "0.12"
 thiserror = "2.0"
 
 qubit-atomic = "0.13"
-qubit-function = "0.13"
+qubit-function = "0.14"
 qubit-lock = { default-features = false, version = "0.8" }
-qubit-cas = "0.6"
-qubit-state-machine = "0.3"
+qubit-cas = "0.7"
+qubit-state-machine = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
