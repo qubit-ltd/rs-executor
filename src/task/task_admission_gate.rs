@@ -9,7 +9,7 @@
  ******************************************************************************/
 //! Admission gate used to order task lifecycle hooks.
 
-use qubit_lock::ArcMonitor;
+use qubit_lock::ArcParkingLotMonitor;
 
 /// Gate that optionally blocks a spawned worker until acceptance is published.
 ///
@@ -23,7 +23,7 @@ pub(crate) enum TaskAdmissionGate {
     /// No-op gate used when no hook ordering needs to be enforced.
     Open,
     /// Monitor-backed gate used when hook ordering must be enforced.
-    Blocked(ArcMonitor<bool>),
+    Blocked(ArcParkingLotMonitor<bool>),
 }
 
 impl TaskAdmissionGate {
@@ -40,7 +40,7 @@ impl TaskAdmissionGate {
     #[inline]
     pub(crate) fn new(requires_ordering: bool) -> Self {
         if requires_ordering {
-            Self::Blocked(ArcMonitor::new(false))
+            Self::Blocked(ArcParkingLotMonitor::new(false))
         } else {
             Self::Open
         }

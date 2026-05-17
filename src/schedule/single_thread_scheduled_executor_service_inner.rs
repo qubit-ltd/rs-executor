@@ -10,7 +10,7 @@
 use std::sync::atomic::Ordering;
 
 use qubit_atomic::Atomic;
-use qubit_lock::Monitor;
+use qubit_lock::ParkingLotMonitor;
 
 use crate::service::{
     ExecutorServiceLifecycle,
@@ -22,7 +22,7 @@ use super::single_thread_scheduled_executor_service_state::SingleThreadScheduled
 /// Shared state for the single-thread scheduled executor service.
 pub(crate) struct SingleThreadScheduledExecutorServiceInner {
     /// Mutable lifecycle and heap state.
-    pub(crate) state: Monitor<SingleThreadScheduledExecutorServiceState>,
+    pub(crate) state: ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
     /// Number of accepted tasks still waiting for their scheduled start.
     queued_task_count: Atomic<usize>,
     /// Number of tasks currently executing on the scheduler thread.
@@ -41,7 +41,7 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Shared scheduler state before its worker thread starts.
     pub(crate) fn new() -> Self {
         Self {
-            state: Monitor::new(SingleThreadScheduledExecutorServiceState::new()),
+            state: ParkingLotMonitor::new(SingleThreadScheduledExecutorServiceState::new()),
             queued_task_count: Atomic::new(0),
             running_task_count: Atomic::new(0),
             completed_task_count: Atomic::new(0),
