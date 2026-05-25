@@ -80,11 +80,7 @@ where
 
     /// Starts this task and returns a closure that completes it.
     fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
-        let Self {
-            task,
-            slot,
-            cancelled,
-        } = *self;
+        let Self { task, slot, cancelled } = *self;
         match slot.try_start() {
             Ok(running_slot) => Some(Box::new(move || {
                 task(running_slot);
@@ -99,9 +95,7 @@ where
     /// Publishes cancellation for this unstarted scheduled task.
     #[inline]
     fn cancel(self: Box<Self>) -> bool {
-        let Self {
-            slot, cancelled, ..
-        } = *self;
+        let Self { slot, cancelled, .. } = *self;
         if slot.cancel_unstarted() {
             cancelled.store(true);
             true

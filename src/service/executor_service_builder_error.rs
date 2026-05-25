@@ -28,9 +28,7 @@ pub enum ExecutorServiceBuilderError {
     ZeroMaximumPoolSize,
 
     /// The configured core pool size is greater than the maximum pool size.
-    #[error(
-        "executor service core pool size {core_pool_size} exceeds maximum pool size {maximum_pool_size}"
-    )]
+    #[error("executor service core pool size {core_pool_size} exceeds maximum pool size {maximum_pool_size}")]
     CorePoolSizeExceedsMaximum {
         /// Configured core pool size.
         core_pool_size: usize,

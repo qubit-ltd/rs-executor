@@ -119,9 +119,7 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     ));
     entry.accept();
     assert!(!entry.is_cancelled());
-    let started_task = entry
-        .start()
-        .expect("pending task entry should start successfully");
+    let started_task = entry.start().expect("pending task entry should start successfully");
     started_task();
     assert_eq!(handle.get().expect("started task should succeed"), 42);
     assert!(!cancelled.load());
@@ -178,11 +176,9 @@ pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
     let inner = SingleThreadScheduledExecutorServiceInner::new();
     {
         let mut state = inner.state.lock();
-        state.tasks.push(ScheduledTask::new(
-            Instant::now(),
-            0,
-            Box::new(CancelRejectedEntry),
-        ));
+        state
+            .tasks
+            .push(ScheduledTask::new(Instant::now(), 0, Box::new(CancelRejectedEntry)));
         inner.add_queued_task();
     }
 

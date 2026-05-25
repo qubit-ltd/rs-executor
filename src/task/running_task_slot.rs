@@ -76,9 +76,7 @@ impl<R, E> RunningTaskSlot<R, E> {
     /// longer running or the result does not represent normal task completion.
     #[inline]
     pub fn complete(mut self, result: TaskResult<R, E>) -> bool {
-        let completed = self
-            .state()
-            .try_complete(result, self.state().is_accepted());
+        let completed = self.state().try_complete(result, self.state().is_accepted());
         if completed {
             self.state.take();
         }

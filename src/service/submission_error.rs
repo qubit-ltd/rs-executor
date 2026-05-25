@@ -57,10 +57,7 @@ impl PartialEq for SubmissionError {
             (self, other),
             (Self::Shutdown, Self::Shutdown)
                 | (Self::Saturated, Self::Saturated)
-                | (
-                    Self::WorkerSpawnFailed { .. },
-                    Self::WorkerSpawnFailed { .. }
-                )
+                | (Self::WorkerSpawnFailed { .. }, Self::WorkerSpawnFailed { .. })
         )
     }
 }

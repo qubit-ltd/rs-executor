@@ -82,8 +82,7 @@ impl Executor for DirectExecutor {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         handle.accept();
         slot.run(task);
         Ok(handle)

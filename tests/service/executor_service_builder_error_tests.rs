@@ -53,10 +53,9 @@ fn test_executor_service_builder_error_configuration_variants() {
 /// Tests conversion from rejected execution to build error.
 #[test]
 fn test_executor_service_builder_error_from_submission_error() {
-    let spawned =
-        ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed {
-            source: Arc::new(io::Error::other("spawn failed")),
-        });
+    let spawned = ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed {
+        source: Arc::new(io::Error::other("spawn failed")),
+    });
     assert_eq!(
         spawned.to_string(),
         "failed to spawn executor service worker unknown: spawn failed",
@@ -79,17 +78,11 @@ fn test_executor_service_builder_error_from_submission_error() {
     let ExecutorServiceBuilderError::SpawnWorker { source, .. } = shutdown else {
         panic!("shutdown during prestart should convert to spawn build error");
     };
-    assert_eq!(
-        source.to_string(),
-        "executor service shut down during prestart"
-    );
+    assert_eq!(source.to_string(), "executor service shut down during prestart");
 
     let saturated = ExecutorServiceBuilderError::from(SubmissionError::Saturated);
     let ExecutorServiceBuilderError::SpawnWorker { source, .. } = saturated else {
         panic!("saturation during prestart should convert to spawn build error");
     };
-    assert_eq!(
-        source.to_string(),
-        "executor service saturated during prestart"
-    );
+    assert_eq!(source.to_string(), "executor service saturated during prestart");
 }

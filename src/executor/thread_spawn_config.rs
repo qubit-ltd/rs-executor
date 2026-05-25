@@ -47,10 +47,7 @@ impl ThreadSpawnConfig {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread.
-    pub(crate) fn spawn(
-        self,
-        worker: impl FnOnce() + Send + 'static,
-    ) -> Result<(), SubmissionError> {
+    pub(crate) fn spawn(self, worker: impl FnOnce() + Send + 'static) -> Result<(), SubmissionError> {
         let mut builder = thread::Builder::new();
         if let Some(stack_size) = self.stack_size {
             builder = builder.stack_size(stack_size);

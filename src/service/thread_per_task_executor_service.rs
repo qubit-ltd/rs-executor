@@ -320,11 +320,7 @@ impl ThreadPerTaskExecutorService {
     ///
     /// Returns [`SubmissionError::Shutdown`] if the service is not running, or
     /// [`SubmissionError::WorkerSpawnFailed`] if the worker thread cannot be created.
-    fn submit_with_slot<R, E, H, S, F>(
-        &self,
-        split_pair: S,
-        run_slot: F,
-    ) -> Result<H, SubmissionError>
+    fn submit_with_slot<R, E, H, S, F>(&self, split_pair: S, run_slot: F) -> Result<H, SubmissionError>
     where
         R: Send + 'static,
         E: Send + 'static,
@@ -429,10 +425,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     }
 
     /// Accepts a callable and starts it with a tracked handle.
-    fn submit_tracked_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

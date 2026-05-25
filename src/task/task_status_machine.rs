@@ -24,8 +24,7 @@ use super::task_status_event::TaskStatusEvent;
 pub(super) const TASK_STATUS_EVENT_COUNT: usize = 6;
 
 /// Shared task status machine used by all task handles.
-pub(super) static TASK_STATUS_MACHINE: LazyLock<FastStateMachine> =
-    LazyLock::new(build_task_status_machine);
+pub(super) static TASK_STATUS_MACHINE: LazyLock<FastStateMachine> = LazyLock::new(build_task_status_machine);
 
 /// Builds the explicit task status transition table.
 ///
@@ -48,22 +47,10 @@ pub(super) fn build_task_status_machine() -> FastStateMachine {
         .final_states(&[succeeded, failed, panicked, cancelled, dropped])
         .cas_policy(FastCasPolicy::spin(16))
         .transition(pending, TaskStatusEvent::Start.as_usize(), running)
-        .transition(
-            pending,
-            TaskStatusEvent::CancelPending.as_usize(),
-            cancelled,
-        )
-        .transition(
-            running,
-            TaskStatusEvent::CompleteSucceeded.as_usize(),
-            succeeded,
-        )
+        .transition(pending, TaskStatusEvent::CancelPending.as_usize(), cancelled)
+        .transition(running, TaskStatusEvent::CompleteSucceeded.as_usize(), succeeded)
         .transition(running, TaskStatusEvent::CompleteFailed.as_usize(), failed)
-        .transition(
-            running,
-            TaskStatusEvent::CompletePanicked.as_usize(),
-            panicked,
-        )
+        .transition(running, TaskStatusEvent::CompletePanicked.as_usize(), panicked)
         .transition(pending, TaskStatusEvent::DropUnfinished.as_usize(), dropped)
         .transition(running, TaskStatusEvent::DropUnfinished.as_usize(), dropped)
         .build()

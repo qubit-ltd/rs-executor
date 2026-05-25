@@ -28,9 +28,7 @@ fn test_executor_service_submit_default_and_shutdown_rejection() {
 
     service
         .submit(move || {
-            done_tx
-                .send(())
-                .expect("test should receive submit completion");
+            done_tx.send(()).expect("test should receive submit completion");
             Ok::<(), io::Error>(())
         })
         .expect("service should accept runnable");

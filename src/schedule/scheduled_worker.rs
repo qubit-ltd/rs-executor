@@ -60,9 +60,7 @@ fn run_scheduled_worker(inner: Arc<SingleThreadScheduledExecutorServiceInner>) {
 ///
 /// A started task closure to run outside the scheduler lock, or `None` when the
 /// worker should terminate.
-fn next_ready_task(
-    inner: &SingleThreadScheduledExecutorServiceInner,
-) -> Option<StartedScheduledTask> {
+fn next_ready_task(inner: &SingleThreadScheduledExecutorServiceInner) -> Option<StartedScheduledTask> {
     let mut state = inner.state.lock();
     loop {
         prune_cancelled_front(&mut state);
@@ -102,11 +100,7 @@ fn next_ready_task(
 ///
 /// * `state` - Locked scheduler state.
 fn prune_cancelled_front(state: &mut SingleThreadScheduledExecutorServiceState) {
-    while state
-        .tasks
-        .peek()
-        .is_some_and(|task| task.entry.is_cancelled())
-    {
+    while state.tasks.peek().is_some_and(|task| task.entry.is_cancelled()) {
         state.tasks.pop();
     }
 }

@@ -90,10 +90,7 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
     /// thread cannot be created.
-    pub fn with_stack_size(
-        thread_name: &str,
-        stack_size: Option<usize>,
-    ) -> Result<Self, ExecutorServiceBuilderError> {
+    pub fn with_stack_size(thread_name: &str, stack_size: Option<usize>) -> Result<Self, ExecutorServiceBuilderError> {
         let inner = Arc::new(SingleThreadScheduledExecutorServiceInner::new());
         let worker_inner = Arc::clone(&inner);
         let mut builder = thread::Builder::new().name(thread_name.to_string());
@@ -101,10 +98,7 @@ impl SingleThreadScheduledExecutorService {
             builder = builder.stack_size(stack_size);
         }
         if let Err(source) = builder.spawn(move || ScheduledWorker::run(worker_inner)) {
-            return Err(ExecutorServiceBuilderError::SpawnWorker {
-                index: Some(0),
-                source,
-            });
+            return Err(ExecutorServiceBuilderError::SpawnWorker { index: Some(0), source });
         }
         Ok(Self { inner })
     }
@@ -150,11 +144,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
-    fn schedule_entry(
-        &self,
-        deadline: Instant,
-        entry: Box<dyn ScheduledTaskEntry>,
-    ) -> Result<(), SubmissionError> {
+    fn schedule_entry(&self, deadline: Instant, entry: Box<dyn ScheduledTaskEntry>) -> Result<(), SubmissionError> {
         let mut state = self.inner.state.lock();
         if state.lifecycle != ExecutorServiceLifecycle::Running {
             return Err(SubmissionError::Shutdown);
@@ -162,9 +152,7 @@ impl SingleThreadScheduledExecutorService {
         entry.accept();
         let sequence = state.next_sequence;
         state.next_sequence = state.next_sequence.wrapping_add(1);
-        state
-            .tasks
-            .push(ScheduledTask::new(deadline, sequence, entry));
+        state.tasks.push(ScheduledTask::new(deadline, sequence, entry));
         self.inner.add_queued_task();
         self.inner.state.notify_all();
         Ok(())
@@ -184,11 +172,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
-    fn schedule_result_handle<C, R, E>(
-        &self,
-        deadline: Instant,
-        task: C,
-    ) -> Result<TaskHandle<R, E>, SubmissionError>
+    fn schedule_result_handle<C, R, E>(&self, deadline: Instant, task: C) -> Result<TaskHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -245,10 +229,7 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution with a scheduled task handle.
-    fn submit_tracked_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

@@ -21,10 +21,7 @@ use qubit_executor::{
 fn test_task_slot_start_run_and_cancel_paths() {
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     assert!(completion.run(|| Ok(42)));
-    assert_eq!(
-        handle.get().expect("completed task should return value"),
-        42
-    );
+    assert_eq!(handle.get().expect("completed task should return value"), 42);
 
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
@@ -46,12 +43,7 @@ fn test_task_slot_try_start_returns_running_slot() {
     assert_eq!(handle.status(), TaskStatus::Running);
     assert_eq!(handle.cancel(), CancelResult::AlreadyRunning);
     assert!(running.run(|| Ok(42)));
-    assert_eq!(
-        handle
-            .get()
-            .expect("running slot should publish callable result"),
-        42,
-    );
+    assert_eq!(handle.get().expect("running slot should publish callable result"), 42,);
 }
 
 /// Test explicitly starting a cancelled slot fails without running user code.

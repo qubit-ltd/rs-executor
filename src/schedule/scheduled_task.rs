@@ -36,11 +36,7 @@ impl ScheduledTask {
     /// # Returns
     ///
     /// A scheduled task heap entry.
-    pub(crate) const fn new(
-        deadline: Instant,
-        sequence: usize,
-        entry: Box<dyn ScheduledTaskEntry>,
-    ) -> Self {
+    pub(crate) const fn new(deadline: Instant, sequence: usize, entry: Box<dyn ScheduledTaskEntry>) -> Self {
         Self {
             deadline,
             sequence,

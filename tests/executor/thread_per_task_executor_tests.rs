@@ -70,10 +70,7 @@ struct RecordingHook {
 
 impl RecordingHook {
     fn events(&self) -> Vec<&'static str> {
-        self.events
-            .lock()
-            .expect("events lock should not be poisoned")
-            .clone()
+        self.events.lock().expect("events lock should not be poisoned").clone()
     }
 }
 
@@ -159,12 +156,7 @@ fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
     let success = executor
         .call(shared_runner_task as fn() -> Result<usize, &'static str>)
         .expect("worker thread should spawn");
-    assert_eq!(
-        success
-            .get()
-            .expect("first shared task call should succeed"),
-        42,
-    );
+    assert_eq!(success.get().expect("first shared task call should succeed"), 42,);
 
     let failure = executor
         .call(shared_runner_task as fn() -> Result<usize, &'static str>)
@@ -184,10 +176,7 @@ fn test_thread_per_task_executor_shared_callable_covers_runner_outcomes() {
 fn test_thread_per_task_executor_builder_rejects_zero_stack_size() {
     let result = ThreadPerTaskExecutor::builder().stack_size(0).build();
 
-    assert!(matches!(
-        result,
-        Err(ExecutorServiceBuilderError::ZeroStackSize)
-    ));
+    assert!(matches!(result, Err(ExecutorServiceBuilderError::ZeroStackSize)));
 }
 
 #[test]
@@ -201,10 +190,7 @@ fn test_thread_per_task_executor_builder_reports_worker_spawn_failure() {
 
     let result = executor.call(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     assert_eq!(hook.accepted.load(), 0);
     assert_eq!(hook.rejected.load(), 1);
     assert_eq!(hook.finished.load(), 0);
@@ -219,8 +205,5 @@ fn test_thread_per_task_executor_reports_worker_spawn_failure_without_hook() {
 
     let result = executor.call(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
 }

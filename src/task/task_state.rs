@@ -179,12 +179,7 @@ impl<R, E> TaskState<R, E> {
     /// * `result` - Terminal result to send to the task handle.
     /// * `notify_hook` - Whether to emit the finished hook.
     /// * `status` - Terminal status installed before this call.
-    fn publish_terminal_result(
-        &self,
-        result: TaskResult<R, E>,
-        notify_hook: bool,
-        status: TaskStatus,
-    ) {
+    fn publish_terminal_result(&self, result: TaskResult<R, E>, notify_hook: bool, status: TaskStatus) {
         let sender = self.sender.lock().take();
         if let Some(sender) = sender {
             let _ignored = sender.send(result);

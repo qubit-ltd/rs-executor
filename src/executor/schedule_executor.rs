@@ -118,8 +118,7 @@ impl Executor for ScheduleExecutor {
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();

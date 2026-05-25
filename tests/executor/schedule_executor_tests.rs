@@ -37,9 +37,7 @@ fn test_schedule_executor_runs_task_at_instant() {
     assert_eq!(executor.instant(), instant);
     let handle = executor
         .execute(move || {
-            started_tx
-                .send(Instant::now())
-                .expect("test should receive start time");
+            started_tx.send(Instant::now()).expect("test should receive start time");
             Ok::<(), io::Error>(())
         })
         .expect("worker thread should spawn");
@@ -68,8 +66,7 @@ fn test_schedule_executor_runs_past_instant_promptly() {
 
 #[test]
 fn test_schedule_executor_with_hook_runs_past_instant_promptly() {
-    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1))
-        .with_hook(Arc::new(NoopTaskHook));
+    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1)).with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(|| Ok::<usize, io::Error>(42))
@@ -98,10 +95,7 @@ fn test_schedule_executor_reports_worker_spawn_failure() {
 
     let result = executor.call(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. }),
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. }),));
 }
 
 #[test]
@@ -110,8 +104,5 @@ fn test_schedule_executor_reports_worker_spawn_failure_without_hook() {
 
     let result = executor.call(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. }),
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. }),));
 }

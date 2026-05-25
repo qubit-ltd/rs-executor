@@ -47,11 +47,7 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn schedule<T, E>(
-        &self,
-        delay: Duration,
-        task: T,
-    ) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
+    fn schedule<T, E>(&self, delay: Duration, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -76,11 +72,7 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn schedule_callable<C, R, E>(
-        &self,
-        delay: Duration,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn schedule_callable<C, R, E>(&self, delay: Duration, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -105,11 +97,7 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn schedule_at<T, E>(
-        &self,
-        instant: Instant,
-        task: T,
-    ) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
+    fn schedule_at<T, E>(&self, instant: Instant, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,

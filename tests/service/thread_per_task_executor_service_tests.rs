@@ -65,10 +65,7 @@ struct RecordingHook {
 
 impl RecordingHook {
     fn events(&self) -> Vec<&'static str> {
-        self.events
-            .lock()
-            .expect("events lock should not be poisoned")
-            .clone()
+        self.events.lock().expect("events lock should not be poisoned").clone()
     }
 }
 
@@ -132,10 +129,7 @@ fn test_thread_per_task_executor_service_submit_callable_returns_value() {
         .submit_callable(ok_usize_task as fn() -> Result<usize, io::Error>)
         .expect("service should accept the callable");
 
-    assert_eq!(
-        handle.get().expect("callable should complete successfully"),
-        42,
-    );
+    assert_eq!(handle.get().expect("callable should complete successfully"), 42,);
 }
 
 #[test]
@@ -215,12 +209,10 @@ fn test_thread_per_task_executor_service_shutdown_rejects_new_tasks() {
     assert!(service.is_not_running());
     assert!(service.is_terminated());
 
-    let callable_result =
-        service.submit_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
+    let callable_result = service.submit_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
     assert!(matches!(callable_result, Err(SubmissionError::Shutdown)));
 
-    let tracked_result =
-        service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
+    let tracked_result = service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
     assert!(matches!(tracked_result, Err(SubmissionError::Shutdown)));
 }
 
@@ -317,10 +309,7 @@ fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_fa
 
     let result = service.submit_callable(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     assert_eq!(hook.accepted.load(), 0);
     assert_eq!(hook.rejected.load(), 1);
     assert_eq!(hook.finished.load(), 0);
@@ -329,8 +318,7 @@ fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_fa
 }
 
 #[test]
-fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_failure_without_hook()
-{
+fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_failure_without_hook() {
     let service = ThreadPerTaskExecutorService::builder()
         .stack_size(usize::MAX)
         .build()
@@ -338,10 +326,7 @@ fn test_thread_per_task_executor_service_submit_callable_reports_worker_spawn_fa
 
     let result = service.submit_callable(|| Ok::<usize, io::Error>(42));
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     service.shutdown();
     service.wait_termination();
 }
@@ -355,10 +340,7 @@ fn test_thread_per_task_executor_service_submit_reports_worker_spawn_failure() {
 
     let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     service.shutdown();
     service.wait_termination();
 }
@@ -374,10 +356,7 @@ fn test_thread_per_task_executor_service_submit_reports_worker_spawn_failure_wit
 
     let result = service.submit(ok_unit_task as fn() -> Result<(), io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     assert_eq!(hook.accepted.load(), 0);
     assert_eq!(hook.rejected.load(), 1);
     assert_eq!(hook.finished.load(), 0);
@@ -394,10 +373,7 @@ fn test_thread_per_task_executor_service_submit_tracked_reports_worker_spawn_fai
 
     let result = service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     service.shutdown();
     service.wait_termination();
 }
@@ -413,10 +389,7 @@ fn test_thread_per_task_executor_service_submit_tracked_reports_worker_spawn_fai
 
     let result = service.submit_tracked_callable(ok_usize_task as fn() -> Result<usize, io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. })
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. })));
     assert_eq!(hook.accepted.load(), 0);
     assert_eq!(hook.rejected.load(), 1);
     assert_eq!(hook.finished.load(), 0);
@@ -438,12 +411,7 @@ fn test_thread_per_task_executor_service_repeated_shutdown_and_stop_are_idempote
 
 #[test]
 fn test_thread_per_task_executor_service_builder_rejects_zero_stack_size() {
-    let result = ThreadPerTaskExecutorService::builder()
-        .stack_size(0)
-        .build();
+    let result = ThreadPerTaskExecutorService::builder().stack_size(0).build();
 
-    assert!(matches!(
-        result,
-        Err(ExecutorServiceBuilderError::ZeroStackSize)
-    ));
+    assert!(matches!(result, Err(ExecutorServiceBuilderError::ZeroStackSize)));
 }

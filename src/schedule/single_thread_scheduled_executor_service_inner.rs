@@ -72,39 +72,29 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Records that a queued task has been accepted.
     #[inline]
     pub(crate) fn add_queued_task(&self) {
-        self.queued_task_count
-            .fetch_add_with_ordering(1, Ordering::AcqRel);
+        self.queued_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     /// Records that a queued task was cancelled before start.
     pub(crate) fn finish_queued_cancellation(&self) {
-        let previous = self
-            .queued_task_count
-            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        let previous = self.queued_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
         debug_assert!(previous > 0, "scheduled service queued counter underflow");
-        self.cancelled_task_count
-            .fetch_add_with_ordering(1, Ordering::AcqRel);
+        self.cancelled_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
         self.state.notify_all();
     }
 
     /// Records that a queued task has become running.
     pub(crate) fn start_task(&self) {
-        let previous = self
-            .queued_task_count
-            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        let previous = self.queued_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
         debug_assert!(previous > 0, "scheduled service queued counter underflow");
-        self.running_task_count
-            .fetch_add_with_ordering(1, Ordering::AcqRel);
+        self.running_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     /// Records completion for the currently running task.
     pub(crate) fn finish_running_task(&self) {
-        let previous = self
-            .running_task_count
-            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        let previous = self.running_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
         debug_assert!(previous > 0, "scheduled service running counter underflow");
-        self.completed_task_count
-            .fetch_add_with_ordering(1, Ordering::AcqRel);
+        self.completed_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
         self.state.notify_all();
     }
 
