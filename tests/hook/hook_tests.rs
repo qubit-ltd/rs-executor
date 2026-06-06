@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     io,
     panic,
@@ -65,7 +63,10 @@ struct RecordingHook {
 
 impl RecordingHook {
     fn events(&self) -> Vec<String> {
-        self.events.lock().expect("events lock should not be poisoned").clone()
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .clone()
     }
 }
 
@@ -170,7 +171,9 @@ fn test_task_hook_rejected_panics_do_not_break_rejection() {
         .build()
         .expect("nonzero stack size should build");
 
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| executor.call(|| Ok::<usize, io::Error>(42))));
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        executor.call(|| Ok::<usize, io::Error>(42))
+    }));
 
     assert!(matches!(
         result.expect("hook panic should be contained"),
