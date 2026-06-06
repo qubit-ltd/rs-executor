@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use qubit_function::Callable;
@@ -76,13 +74,18 @@ impl Executor for DirectExecutor {
     ///
     /// An already completed tracked task carrying the callable result.
     #[inline]
-    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let (handle, slot) =
+            TaskEndpointPair::with_optional_hook(self.hook.clone())
+                .into_tracked_parts();
         handle.accept();
         slot.run(task);
         Ok(handle)

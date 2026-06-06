@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use qubit_function::Callable;
@@ -37,11 +35,12 @@ use super::{
 ///
 /// # Semantics
 ///
-/// * **One task, one thread** — each [`Executor::call`] or [`Executor::execute`]
-///   spawns a new OS thread. There is no pool and no submission queue.
-/// * **Blocking or async wait** — [`TrackedTask::get`] blocks the calling thread,
-///   while awaiting the handle uses a waker and does not block the polling
-///   thread.
+/// * **One task, one thread** — each [`Executor::call`] or
+///   [`Executor::execute`] spawns a new OS thread. There is no pool and no
+///   submission queue.
+/// * **Blocking or async wait** — [`TrackedTask::get`] blocks the calling
+///   thread, while awaiting the handle uses a waker and does not block the
+///   polling thread.
 /// * **Completion probe** — [`TrackedTask::is_done`] reads the terminal task
 ///   state; result publication to the handle may still be racing with that
 ///   observation (you still need [`TrackedTask::get`] for the value).
@@ -120,13 +119,17 @@ impl ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread.
-    fn spawn_worker(&self, worker: impl FnOnce() + Send + 'static) -> Result<(), SubmissionError> {
+    fn spawn_worker(
+        &self,
+        worker: impl FnOnce() + Send + 'static,
+    ) -> Result<(), SubmissionError> {
         ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 }
 
 impl Default for ThreadPerTaskExecutor {
-    /// Creates an executor using the platform default worker stack size and no hook.
+    /// Creates an executor using the platform default worker stack size and no
+    /// hook.
     #[inline]
     fn default() -> Self {
         Self {
@@ -137,7 +140,8 @@ impl Default for ThreadPerTaskExecutor {
 }
 
 impl Executor for ThreadPerTaskExecutor {
-    /// Spawns one OS thread for the callable and returns a handle to its result.
+    /// Spawns one OS thread for the callable and returns a handle to its
+    /// result.
     ///
     /// # Parameters
     ///
@@ -152,13 +156,18 @@ impl Executor for ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the worker thread
     /// cannot be created.
-    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let (handle, slot) =
+            TaskEndpointPair::with_optional_hook(self.hook.clone())
+                .into_tracked_parts();
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();

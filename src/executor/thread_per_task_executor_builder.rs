@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use crate::{
@@ -74,10 +72,12 @@ impl ThreadPerTaskExecutorBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured stack
-    /// size is zero.
+    /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured
+    /// stack size is zero.
     #[inline]
-    pub fn build(self) -> Result<ThreadPerTaskExecutor, ExecutorServiceBuilderError> {
+    pub fn build(
+        self,
+    ) -> Result<ThreadPerTaskExecutor, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }

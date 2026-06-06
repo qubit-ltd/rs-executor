@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Tests for [`DirectExecutor`](qubit_executor::executor::DirectExecutor).
 
 use std::{
@@ -70,16 +68,25 @@ fn test_direct_executor_call_converts_task_failure_and_panic() {
     assert!(failed.get().is_err());
 
     let panicked = executor
-        .call(|| -> Result<usize, io::Error> { panic!("direct executor panic") })
+        .call(|| -> Result<usize, io::Error> {
+            panic!("direct executor panic")
+        })
         .expect("direct executor should accept callable");
     assert!(panicked.get().is_err());
 }
 
 #[test]
 fn test_qubit_function_task_types_remain_compatible() {
-    let mut runnable: BoxRunnable<io::Error> = Runnable::into_box(|| Ok::<(), io::Error>(()));
+    let mut runnable: BoxRunnable<io::Error> =
+        Runnable::into_box(|| Ok::<(), io::Error>(()));
     runnable.run().expect("boxed runnable should run");
 
-    let mut callable: BoxCallable<i32, io::Error> = Callable::into_box(|| Ok::<i32, io::Error>(42));
-    assert_eq!(callable.call().expect("boxed callable should return a value"), 42,);
+    let mut callable: BoxCallable<i32, io::Error> =
+        Callable::into_box(|| Ok::<i32, io::Error>(42));
+    assert_eq!(
+        callable
+            .call()
+            .expect("boxed callable should return a value"),
+        42,
+    );
 }

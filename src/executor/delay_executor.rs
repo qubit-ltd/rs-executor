@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     sync::Arc,
     thread,
@@ -47,10 +45,9 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// scheduler worker. It is intentionally not a general-purpose delayed task
 /// scheduler and does not coalesce timers across tasks.
 ///
-/// The returned [`TrackedTask`] is created immediately. Dropping the handle does
-/// not cancel the helper thread; use [`TrackedTask::cancel`] before the helper
-/// thread starts the task when pre-start cancellation is needed.
-///
+/// The returned [`TrackedTask`] is created immediately. Dropping the handle
+/// does not cancel the helper thread; use [`TrackedTask::cancel`] before the
+/// helper thread starts the task when pre-start cancellation is needed.
 #[derive(Clone)]
 pub struct DelayExecutor {
     /// Duration to sleep before each submitted task starts.
@@ -95,7 +92,8 @@ impl DelayExecutor {
         self
     }
 
-    /// Returns a copy of this executor using the supplied helper thread stack size.
+    /// Returns a copy of this executor using the supplied helper thread stack
+    /// size.
     ///
     /// # Parameters
     ///
@@ -157,13 +155,18 @@ impl Executor for DelayExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
     /// cannot be created.
-    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+        let (handle, slot) =
+            TaskEndpointPair::with_optional_hook(self.hook.clone())
+                .into_tracked_parts();
         let delay = self.delay;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
