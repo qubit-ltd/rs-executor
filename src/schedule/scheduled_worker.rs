@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     sync::Arc,
     time::Instant,
@@ -60,7 +58,9 @@ fn run_scheduled_worker(inner: Arc<SingleThreadScheduledExecutorServiceInner>) {
 ///
 /// A started task closure to run outside the scheduler lock, or `None` when the
 /// worker should terminate.
-fn next_ready_task(inner: &SingleThreadScheduledExecutorServiceInner) -> Option<StartedScheduledTask> {
+fn next_ready_task(
+    inner: &SingleThreadScheduledExecutorServiceInner,
+) -> Option<StartedScheduledTask> {
     let mut state = inner.state.lock();
     loop {
         prune_cancelled_front(&mut state);
@@ -68,11 +68,14 @@ fn next_ready_task(inner: &SingleThreadScheduledExecutorServiceInner) -> Option<
             inner.terminate(&mut state);
             return None;
         }
-        if state.tasks.is_empty() && state.lifecycle != ExecutorServiceLifecycle::Running {
+        if state.tasks.is_empty()
+            && state.lifecycle != ExecutorServiceLifecycle::Running
+        {
             inner.terminate(&mut state);
             return None;
         }
-        let Some(next_deadline) = state.tasks.peek().map(|task| task.deadline) else {
+        let Some(next_deadline) = state.tasks.peek().map(|task| task.deadline)
+        else {
             state = state.wait();
             continue;
         };
@@ -99,8 +102,14 @@ fn next_ready_task(inner: &SingleThreadScheduledExecutorServiceInner) -> Option<
 /// # Parameters
 ///
 /// * `state` - Locked scheduler state.
-fn prune_cancelled_front(state: &mut SingleThreadScheduledExecutorServiceState) {
-    while state.tasks.peek().is_some_and(|task| task.entry.is_cancelled()) {
+fn prune_cancelled_front(
+    state: &mut SingleThreadScheduledExecutorServiceState,
+) {
+    while state
+        .tasks
+        .peek()
+        .is_some_and(|task| task.entry.is_cancelled())
+    {
         state.tasks.pop();
     }
 }

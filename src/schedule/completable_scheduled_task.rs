@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use qubit_atomic::Atomic;
@@ -45,7 +43,11 @@ impl<R, E> CompletableScheduledTask<R, E> {
     /// # Returns
     ///
     /// A type-erased schedulable task entry.
-    pub(crate) fn new<C>(task: C, slot: TaskSlot<R, E>, cancelled: Arc<Atomic<bool>>) -> Self
+    pub(crate) fn new<C>(
+        task: C,
+        slot: TaskSlot<R, E>,
+        cancelled: Arc<Atomic<bool>>,
+    ) -> Self
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -80,7 +82,11 @@ where
 
     /// Starts this task and returns a closure that completes it.
     fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
-        let Self { task, slot, cancelled } = *self;
+        let Self {
+            task,
+            slot,
+            cancelled,
+        } = *self;
         match slot.try_start() {
             Ok(running_slot) => Some(Box::new(move || {
                 task(running_slot);
@@ -95,7 +101,9 @@ where
     /// Publishes cancellation for this unstarted scheduled task.
     #[inline]
     fn cancel(self: Box<Self>) -> bool {
-        let Self { slot, cancelled, .. } = *self;
+        let Self {
+            slot, cancelled, ..
+        } = *self;
         if slot.cancel_unstarted() {
             cancelled.store(true);
             true

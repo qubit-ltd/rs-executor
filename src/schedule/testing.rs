@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Internal test support for scheduled executor services.
 //!
 //! This module is hidden from public documentation and exists so integration
@@ -98,10 +96,16 @@ pub fn verify_scheduled_task_ordering() {
     assert!(!Box::new(CancelRejectedEntry).cancel());
 
     assert!(scheduled_task(deadline, 7) == scheduled_task(deadline, 7));
-    assert!(scheduled_task(deadline, 7) != scheduled_task(deadline + Duration::from_millis(1), 7));
+    assert!(
+        scheduled_task(deadline, 7)
+            != scheduled_task(deadline + Duration::from_millis(1), 7)
+    );
     assert!(scheduled_task(deadline, 7) != scheduled_task(deadline, 8));
     assert!(scheduled_task(deadline, 0) > scheduled_task(deadline, 1));
-    assert!(scheduled_task(deadline, 0) > scheduled_task(deadline + Duration::from_millis(1), 0));
+    assert!(
+        scheduled_task(deadline, 0)
+            > scheduled_task(deadline + Duration::from_millis(1), 0)
+    );
     assert_eq!(
         scheduled_task(deadline, 0).partial_cmp(&scheduled_task(deadline, 1)),
         Some(CompareOrdering::Greater)
@@ -119,7 +123,9 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     ));
     entry.accept();
     assert!(!entry.is_cancelled());
-    let started_task = entry.start().expect("pending task entry should start successfully");
+    let started_task = entry
+        .start()
+        .expect("pending task entry should start successfully");
     started_task();
     assert_eq!(handle.get().expect("started task should succeed"), 42);
     assert!(!cancelled.load());
@@ -136,7 +142,8 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     assert!(cancelled.load());
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 
-    let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let (tracked, slot) =
+        TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
@@ -149,7 +156,8 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     assert!(cancelled.load());
     assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
 
-    let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let (tracked, slot) =
+        TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
@@ -176,9 +184,11 @@ pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
     let inner = SingleThreadScheduledExecutorServiceInner::new();
     {
         let mut state = inner.state.lock();
-        state
-            .tasks
-            .push(ScheduledTask::new(Instant::now(), 0, Box::new(CancelRejectedEntry)));
+        state.tasks.push(ScheduledTask::new(
+            Instant::now(),
+            0,
+            Box::new(CancelRejectedEntry),
+        ));
         inner.add_queued_task();
     }
 

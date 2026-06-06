@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::atomic::Ordering;
 
 use qubit_atomic::Atomic;
@@ -22,7 +20,8 @@ use super::single_thread_scheduled_executor_service_state::SingleThreadScheduled
 /// Shared state for the single-thread scheduled executor service.
 pub(crate) struct SingleThreadScheduledExecutorServiceInner {
     /// Mutable lifecycle and heap state.
-    pub(crate) state: ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
+    pub(crate) state:
+        ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
     /// Number of accepted tasks still waiting for their scheduled start.
     queued_task_count: Atomic<usize>,
     /// Number of tasks currently executing on the scheduler thread.
@@ -41,7 +40,9 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Shared scheduler state before its worker thread starts.
     pub(crate) fn new() -> Self {
         Self {
-            state: ParkingLotMonitor::new(SingleThreadScheduledExecutorServiceState::new()),
+            state: ParkingLotMonitor::new(
+                SingleThreadScheduledExecutorServiceState::new(),
+            ),
             queued_task_count: Atomic::new(0),
             running_task_count: Atomic::new(0),
             completed_task_count: Atomic::new(0),
@@ -72,29 +73,48 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Records that a queued task has been accepted.
     #[inline]
     pub(crate) fn add_queued_task(&self) {
-        self.queued_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
+        self.queued_task_count
+            .fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     /// Records that a queued task was cancelled before start.
     pub(crate) fn finish_queued_cancellation(&self) {
-        let previous = self.queued_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
-        debug_assert!(previous > 0, "scheduled service queued counter underflow");
-        self.cancelled_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
+        let previous = self
+            .queued_task_count
+            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        debug_assert!(
+            previous > 0,
+            "scheduled service queued counter underflow"
+        );
+        self.cancelled_task_count
+            .fetch_add_with_ordering(1, Ordering::AcqRel);
         self.state.notify_all();
     }
 
     /// Records that a queued task has become running.
     pub(crate) fn start_task(&self) {
-        let previous = self.queued_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
-        debug_assert!(previous > 0, "scheduled service queued counter underflow");
-        self.running_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
+        let previous = self
+            .queued_task_count
+            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        debug_assert!(
+            previous > 0,
+            "scheduled service queued counter underflow"
+        );
+        self.running_task_count
+            .fetch_add_with_ordering(1, Ordering::AcqRel);
     }
 
     /// Records completion for the currently running task.
     pub(crate) fn finish_running_task(&self) {
-        let previous = self.running_task_count.fetch_sub_with_ordering(1, Ordering::AcqRel);
-        debug_assert!(previous > 0, "scheduled service running counter underflow");
-        self.completed_task_count.fetch_add_with_ordering(1, Ordering::AcqRel);
+        let previous = self
+            .running_task_count
+            .fetch_sub_with_ordering(1, Ordering::AcqRel);
+        debug_assert!(
+            previous > 0,
+            "scheduled service running counter underflow"
+        );
+        self.completed_task_count
+            .fetch_add_with_ordering(1, Ordering::AcqRel);
         self.state.notify_all();
     }
 
@@ -170,7 +190,10 @@ impl SingleThreadScheduledExecutorServiceInner {
     }
 
     /// Marks the scheduler thread as terminated.
-    pub(crate) fn terminate(&self, state: &mut SingleThreadScheduledExecutorServiceState) {
+    pub(crate) fn terminate(
+        &self,
+        state: &mut SingleThreadScheduledExecutorServiceState,
+    ) {
         state.terminated = true;
         self.state.notify_all();
     }

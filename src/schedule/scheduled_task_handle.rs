@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     future::IntoFuture,
     sync::Arc,
@@ -34,8 +32,8 @@ use crate::{
 ///
 /// The handle delegates result and status observation to the standard
 /// [`TrackedTask`] while also waking the scheduler when pre-start cancellation
-/// wins. This prevents a cancelled timer entry from keeping the single scheduler
-/// thread asleep until the original deadline.
+/// wins. This prevents a cancelled timer entry from keeping the single
+/// scheduler thread asleep until the original deadline.
 pub struct ScheduledTaskHandle<R, E> {
     /// Standard tracked task handle.
     inner: TrackedTask<R, E>,
@@ -101,8 +99,8 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` after the task succeeds, fails, panics, is cancelled, or loses its
-    /// completion endpoint.
+    /// `true` after the task succeeds, fails, panics, is cancelled, or loses
+    /// its completion endpoint.
     #[inline]
     pub fn is_done(&self) -> bool
     where
@@ -215,7 +213,8 @@ impl<R, E> IntoFuture for ScheduledTaskHandle<R, E> {
     type Output = TaskResult<R, E>;
     type IntoFuture = TaskHandleFuture<R, E>;
 
-    /// Converts this scheduled handle into a future resolving to the task result.
+    /// Converts this scheduled handle into a future resolving to the task
+    /// result.
     #[inline]
     fn into_future(self) -> Self::IntoFuture {
         self.inner.into_future()

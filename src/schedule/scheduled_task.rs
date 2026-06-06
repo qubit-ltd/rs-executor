@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     cmp::Ordering as CompareOrdering,
     time::Instant,
@@ -36,7 +34,11 @@ impl ScheduledTask {
     /// # Returns
     ///
     /// A scheduled task heap entry.
-    pub(crate) const fn new(deadline: Instant, sequence: usize, entry: Box<dyn ScheduledTaskEntry>) -> Self {
+    pub(crate) const fn new(
+        deadline: Instant,
+        sequence: usize,
+        entry: Box<dyn ScheduledTaskEntry>,
+    ) -> Self {
         Self {
             deadline,
             sequence,
@@ -56,7 +58,8 @@ impl PartialEq for ScheduledTask {
 }
 
 impl Ord for ScheduledTask {
-    /// Orders earliest deadlines first when used in [`std::collections::BinaryHeap`].
+    /// Orders earliest deadlines first when used in
+    /// [`std::collections::BinaryHeap`].
     #[inline]
     fn cmp(&self, other: &Self) -> CompareOrdering {
         other

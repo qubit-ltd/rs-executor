@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 /// Runnable closure produced after a scheduled task wins the start race.
 pub(crate) type StartedScheduledTask = Box<dyn FnOnce() + Send + 'static>;
 
@@ -22,8 +20,8 @@ pub(crate) trait ScheduledTaskEntry: Send + 'static {
     ///
     /// # Returns
     ///
-    /// A runnable closure if the task should execute, or `None` if it had already
-    /// been cancelled before start.
+    /// A runnable closure if the task should execute, or `None` if it had
+    /// already been cancelled before start.
     fn start(self: Box<Self>) -> Option<StartedScheduledTask>;
 
     /// Cancels this task before it starts.

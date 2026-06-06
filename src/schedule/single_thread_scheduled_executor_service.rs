@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     sync::{
         Arc,
@@ -75,7 +73,8 @@ impl SingleThreadScheduledExecutorService {
         Self::with_stack_size(thread_name, None)
     }
 
-    /// Starts a new scheduled service with an optional scheduler thread stack size.
+    /// Starts a new scheduled service with an optional scheduler thread stack
+    /// size.
     ///
     /// # Parameters
     ///
@@ -90,15 +89,23 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
     /// thread cannot be created.
-    pub fn with_stack_size(thread_name: &str, stack_size: Option<usize>) -> Result<Self, ExecutorServiceBuilderError> {
+    pub fn with_stack_size(
+        thread_name: &str,
+        stack_size: Option<usize>,
+    ) -> Result<Self, ExecutorServiceBuilderError> {
         let inner = Arc::new(SingleThreadScheduledExecutorServiceInner::new());
         let worker_inner = Arc::clone(&inner);
         let mut builder = thread::Builder::new().name(thread_name.to_string());
         if let Some(stack_size) = stack_size {
             builder = builder.stack_size(stack_size);
         }
-        if let Err(source) = builder.spawn(move || ScheduledWorker::run(worker_inner)) {
-            return Err(ExecutorServiceBuilderError::SpawnWorker { index: Some(0), source });
+        if let Err(source) =
+            builder.spawn(move || ScheduledWorker::run(worker_inner))
+        {
+            return Err(ExecutorServiceBuilderError::SpawnWorker {
+                index: Some(0),
+                source,
+            });
         }
         Ok(Self { inner })
     }
@@ -107,7 +114,8 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Returns
     ///
-    /// Number of accepted scheduled tasks that have not started or been cancelled.
+    /// Number of accepted scheduled tasks that have not started or been
+    /// cancelled.
     #[inline]
     pub fn queued_count(&self) -> usize {
         self.inner.queued_count()
@@ -127,8 +135,8 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Returns
     ///
-    /// Callback that decrements queued accounting and wakes the scheduler when a
-    /// scheduled handle cancels a pending task.
+    /// Callback that decrements queued accounting and wakes the scheduler when
+    /// a scheduled handle cancels a pending task.
     fn cancellation_callback(&self) -> Arc<dyn Fn() + Send + Sync + 'static> {
         let inner = Arc::downgrade(&self.inner);
         Arc::new(move || finish_queued_cancellation(&inner))
@@ -144,7 +152,11 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
-    fn schedule_entry(&self, deadline: Instant, entry: Box<dyn ScheduledTaskEntry>) -> Result<(), SubmissionError> {
+    fn schedule_entry(
+        &self,
+        deadline: Instant,
+        entry: Box<dyn ScheduledTaskEntry>,
+    ) -> Result<(), SubmissionError> {
         let mut state = self.inner.state.lock();
         if state.lifecycle != ExecutorServiceLifecycle::Running {
             return Err(SubmissionError::Shutdown);
@@ -152,7 +164,9 @@ impl SingleThreadScheduledExecutorService {
         entry.accept();
         let sequence = state.next_sequence;
         state.next_sequence = state.next_sequence.wrapping_add(1);
-        state.tasks.push(ScheduledTask::new(deadline, sequence, entry));
+        state
+            .tasks
+            .push(ScheduledTask::new(deadline, sequence, entry));
         self.inner.add_queued_task();
         self.inner.state.notify_all();
         Ok(())
@@ -172,7 +186,11 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
-    fn schedule_result_handle<C, R, E>(&self, deadline: Instant, task: C) -> Result<TaskHandle<R, E>, SubmissionError>
+    fn schedule_result_handle<C, R, E>(
+        &self,
+        deadline: Instant,
+        task: C,
+    ) -> Result<TaskHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -219,7 +237,10 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution on the scheduler thread.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -229,7 +250,10 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution with a scheduled task handle.
-    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -289,7 +313,11 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
     {
         let (tracked, slot) = TaskEndpointPair::new().into_tracked_parts();
         let cancellation_marker = Arc::new(Atomic::new(false));
-        let entry = CompletableScheduledTask::new(task, slot, Arc::clone(&cancellation_marker));
+        let entry = CompletableScheduledTask::new(
+            task,
+            slot,
+            Arc::clone(&cancellation_marker),
+        );
         self.schedule_entry(instant, Box::new(entry))?;
         Ok(ScheduledTaskHandle::new(
             tracked,
@@ -304,7 +332,9 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
 /// # Parameters
 ///
 /// * `inner` - Weak reference to shared scheduled service state.
-fn finish_queued_cancellation(inner: &Weak<SingleThreadScheduledExecutorServiceInner>) {
+fn finish_queued_cancellation(
+    inner: &Weak<SingleThreadScheduledExecutorServiceInner>,
+) {
     if let Some(inner) = inner.upgrade() {
         inner.finish_queued_cancellation();
     }
