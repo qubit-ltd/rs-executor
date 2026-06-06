@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 // qubit-style: allow inline-tests
 use core::mem::transmute;
 
@@ -20,8 +18,8 @@ pub(crate) const TASK_STATUS_COUNT: usize = 7;
 
 /// Observable lifecycle status for a submitted task.
 ///
-/// `#[repr(usize)]` assigns stable discriminants `0..TASK_STATUS_COUNT` for internal
-/// compact state-machine encoding.
+/// `#[repr(usize)]` assigns stable discriminants `0..TASK_STATUS_COUNT` for
+/// internal compact state-machine encoding.
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
@@ -53,7 +51,11 @@ impl TaskStatus {
     pub const fn is_done(self) -> bool {
         matches!(
             self,
-            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
+            Self::Succeeded
+                | Self::Failed
+                | Self::Panicked
+                | Self::Cancelled
+                | Self::Dropped
         )
     }
 
@@ -164,7 +166,8 @@ mod compact_encoding_tests {
         TaskStatus::from_usize(usize::MAX);
     }
 
-    /// [`TASK_STATUS_COUNT`] must stay aligned with `#[repr(usize)]` discriminants.
+    /// [`TASK_STATUS_COUNT`] must stay aligned with `#[repr(usize)]`
+    /// discriminants.
     #[test]
     fn task_status_variant_count_matches_constant() {
         assert_eq!(

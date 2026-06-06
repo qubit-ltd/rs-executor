@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use oneshot::Receiver;
@@ -69,12 +67,14 @@ impl<R, E> TaskEndpointPair<R, E> {
         Self::with_optional_hook(Some(hook))
     }
 
-    /// Creates a new unsplit task completion pair with an optional lifecycle hook.
+    /// Creates a new unsplit task completion pair with an optional lifecycle
+    /// hook.
     ///
     /// # Parameters
     ///
-    /// * `hook` - Hook notified about this task's lifecycle after acceptance, or
-    ///   `None` for the fast path with no hook allocation or callback dispatch.
+    /// * `hook` - Hook notified about this task's lifecycle after acceptance,
+    ///   or `None` for the fast path with no hook allocation or callback
+    ///   dispatch.
     ///
     /// # Returns
     ///

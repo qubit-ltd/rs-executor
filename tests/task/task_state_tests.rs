@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     io,
     thread,
@@ -18,9 +16,12 @@ use qubit_executor::task::spi::TaskEndpointPair;
 /// Test shared handle internals wake blocking waiters after completion.
 #[test]
 fn test_task_state_notifies_blocking_waiter_on_completion() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
-    let waiter = thread::spawn(move || handle.get().expect("waiter should receive result"));
+    let waiter = thread::spawn(move || {
+        handle.get().expect("waiter should receive result")
+    });
     thread::sleep(Duration::from_millis(20));
     completion.run(|| Ok(42));
 

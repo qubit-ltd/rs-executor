@@ -1,17 +1,16 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 // qubit-style: allow inline-tests
 
 use super::task_status::TaskStatus;
 
-/// Event codes accepted by the task status state machine (`#[repr(usize)]` discriminants `0..8`).
+/// Event codes accepted by the task status state machine (`#[repr(usize)]`
+/// discriminants `0..8`).
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(super) enum TaskStatusEvent {
@@ -40,7 +39,8 @@ impl TaskStatusEvent {
         self as usize
     }
 
-    /// Returns the completion event matching a normal running-task terminal status.
+    /// Returns the completion event matching a normal running-task terminal
+    /// status.
     ///
     /// # Parameters
     ///
@@ -49,13 +49,17 @@ impl TaskStatusEvent {
     /// # Returns
     ///
     /// `Some(event)` for success, failure, and panic statuses; `None` for
-    /// non-terminal states and terminal states owned by explicit cancel/drop APIs.
+    /// non-terminal states and terminal states owned by explicit cancel/drop
+    /// APIs.
     pub(super) fn from_completion_status(status: TaskStatus) -> Option<Self> {
         match status {
             TaskStatus::Succeeded => Some(Self::CompleteSucceeded),
             TaskStatus::Failed => Some(Self::CompleteFailed),
             TaskStatus::Panicked => Some(Self::CompletePanicked),
-            TaskStatus::Pending | TaskStatus::Running | TaskStatus::Cancelled | TaskStatus::Dropped => None,
+            TaskStatus::Pending
+            | TaskStatus::Running
+            | TaskStatus::Cancelled
+            | TaskStatus::Dropped => None,
         }
     }
 }

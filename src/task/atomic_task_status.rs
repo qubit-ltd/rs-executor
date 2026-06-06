@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use qubit_cas::FastCasState;
 
 use super::task_status::TaskStatus;
@@ -70,7 +68,8 @@ impl AtomicTaskStatus {
     ///
     /// # Parameters
     ///
-    /// * `status` - Success, failure, or panic status represented by the task result.
+    /// * `status` - Success, failure, or panic status represented by the task
+    ///   result.
     ///
     /// # Returns
     ///
@@ -78,7 +77,8 @@ impl AtomicTaskStatus {
     /// cancellation or dropped statuses, which are handled by explicit APIs.
     #[inline]
     pub(crate) fn try_complete(&self, status: TaskStatus) -> bool {
-        let Some(event) = TaskStatusEvent::from_completion_status(status) else {
+        let Some(event) = TaskStatusEvent::from_completion_status(status)
+        else {
             return false;
         };
         self.try_transition(event)

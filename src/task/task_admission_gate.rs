@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Admission gate used to order task lifecycle hooks.
 
 use qubit_lock::ArcParkingLotMonitor;
@@ -61,8 +59,8 @@ impl TaskAdmissionGate {
 
     /// Opens the gate and wakes the waiting worker.
     ///
-    /// This method should be called after the task has emitted its accepted hook.
-    /// It is a no-op for the open variant.
+    /// This method should be called after the task has emitted its accepted
+    /// hook. It is a no-op for the open variant.
     #[inline]
     pub(crate) fn open(&self) {
         if let Self::Blocked(ready) = self {

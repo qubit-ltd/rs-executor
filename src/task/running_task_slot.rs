@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use qubit_function::Callable;
@@ -76,14 +74,17 @@ impl<R, E> RunningTaskSlot<R, E> {
     /// longer running or the result does not represent normal task completion.
     #[inline]
     pub fn complete(mut self, result: TaskResult<R, E>) -> bool {
-        let completed = self.state().try_complete(result, self.state().is_accepted());
+        let completed = self
+            .state()
+            .try_complete(result, self.state().is_accepted());
         if completed {
             self.state.take();
         }
         completed
     }
 
-    /// Runs a callable and publishes its final result through this running slot.
+    /// Runs a callable and publishes its final result through this running
+    /// slot.
     ///
     /// The callable is always executed because the pending-to-running
     /// transition has already succeeded. Task failures and panics are converted

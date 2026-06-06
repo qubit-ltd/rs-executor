@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::error::Error;
 use std::fmt;
 
@@ -22,7 +20,6 @@ pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 /// # Type Parameters
 ///
 /// * `E` - The error type returned by the task itself.
-///
 #[derive(Debug)]
 pub enum TaskExecutionError<E> {
     /// The task ran and returned `Err(E)`.
@@ -77,7 +74,8 @@ impl<E> TaskExecutionError<E> {
         matches!(self, Self::Cancelled)
     }
 
-    /// Returns true when the task result was abandoned by the completion endpoint.
+    /// Returns true when the task result was abandoned by the completion
+    /// endpoint.
     ///
     /// # Returns
     ///

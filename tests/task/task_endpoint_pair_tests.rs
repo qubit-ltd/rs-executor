@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     io,
     sync::{
@@ -34,7 +32,10 @@ struct RecordingHook {
 
 impl RecordingHook {
     fn events(&self) -> Vec<String> {
-        self.events.lock().expect("events lock should not be poisoned").clone()
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .clone()
     }
 }
 
@@ -61,7 +62,8 @@ impl TaskHook for RecordingHook {
     }
 }
 
-/// Test a completion pair can be created with default and split into usable endpoints.
+/// Test a completion pair can be created with default and split into usable
+/// endpoints.
 #[test]
 fn test_task_endpoint_pair_default_splits_to_working_endpoints() {
     let pair = TaskEndpointPair::<usize, io::Error>::default();
@@ -75,7 +77,8 @@ fn test_task_endpoint_pair_default_splits_to_working_endpoints() {
 
 #[test]
 fn test_task_endpoint_pair_with_hook_splits_to_working_endpoints() {
-    let pair = TaskEndpointPair::<usize, io::Error>::with_hook(Arc::new(NoopTaskHook));
+    let pair =
+        TaskEndpointPair::<usize, io::Error>::with_hook(Arc::new(NoopTaskHook));
     let (handle, completion) = pair.into_parts();
 
     completion.accept();
@@ -101,11 +104,15 @@ fn test_task_endpoint_pair_cancel_pending_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     assert_eq!(
         hook.events(),
-        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Cancelled"),],
+        vec![
+            format!("accepted:{task_id}"),
+            format!("finished:{task_id}:Cancelled"),
+        ],
     );
 }
 
-/// Test runner-side cancellation reports cancellation instead of dropped completion.
+/// Test runner-side cancellation reports cancellation instead of dropped
+/// completion.
 #[test]
 fn test_task_endpoint_pair_cancel_unstarted_slot_finishes_accepted_task() {
     let hook = Arc::new(RecordingHook::default());
@@ -120,11 +127,15 @@ fn test_task_endpoint_pair_cancel_unstarted_slot_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     assert_eq!(
         hook.events(),
-        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Cancelled"),],
+        vec![
+            format!("accepted:{task_id}"),
+            format!("finished:{task_id}:Cancelled"),
+        ],
     );
 }
 
-/// Test runner-side cancellation before acceptance does not emit lifecycle hooks.
+/// Test runner-side cancellation before acceptance does not emit lifecycle
+/// hooks.
 #[test]
 fn test_task_endpoint_pair_cancel_unstarted_before_accept_skips_hooks() {
     let hook = Arc::new(RecordingHook::default());
@@ -140,7 +151,8 @@ fn test_task_endpoint_pair_cancel_unstarted_before_accept_skips_hooks() {
     );
 }
 
-/// Test dropping an accepted pending slot publishes `Dropped` without a start event.
+/// Test dropping an accepted pending slot publishes `Dropped` without a start
+/// event.
 #[test]
 fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
     let hook = Arc::new(RecordingHook::default());
@@ -155,6 +167,9 @@ fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Dropped)));
     assert_eq!(
         hook.events(),
-        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Dropped"),],
+        vec![
+            format!("accepted:{task_id}"),
+            format!("finished:{task_id}:Dropped"),
+        ],
     );
 }

@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::panic::{
     AssertUnwindSafe,
     catch_unwind,
@@ -46,12 +44,13 @@ impl<C> TaskRunner<C> {
         Self { task }
     }
 
-    /// Runs the callable and converts task failure and panic into a handle result.
+    /// Runs the callable and converts task failure and panic into a handle
+    /// result.
     ///
     /// # Returns
     ///
-    /// `Ok(R)` if the task succeeds. If the task returns `Err(E)` or panics, the
-    /// corresponding [`TaskExecutionError`] is returned.
+    /// `Ok(R)` if the task succeeds. If the task returns `Err(E)` or panics,
+    /// the corresponding [`TaskExecutionError`] is returned.
     pub fn call<R, E>(self) -> TaskResult<R, E>
     where
         C: Callable<R, E>,

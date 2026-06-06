@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::sync::Arc;
 
 use qubit_function::Callable;
@@ -47,16 +45,20 @@ impl<R, E> TaskSlot<R, E> {
     /// consuming runner-side API transfers it to another endpoint.
     #[inline]
     fn state(&self) -> &TaskState<R, E> {
-        self.state.as_deref().expect("task slot state should be present")
+        self.state
+            .as_deref()
+            .expect("task slot state should be present")
     }
 
-    /// Marks this runner endpoint as accepted and arms lifecycle hook reporting.
+    /// Marks this runner endpoint as accepted and arms lifecycle hook
+    /// reporting.
     ///
     /// Calling this method emits `on_accepted` before any later `on_started` or
-    /// `on_finished` event for the same task. Executor implementations must call
-    /// it only after submission has succeeded. Dropping a slot before acceptance
-    /// still releases result waiters with `Dropped`, but does not emit lifecycle
-    /// hook events for a task that was rejected before acceptance.
+    /// `on_finished` event for the same task. Executor implementations must
+    /// call it only after submission has succeeded. Dropping a slot before
+    /// acceptance still releases result waiters with `Dropped`, but does
+    /// not emit lifecycle hook events for a task that was rejected before
+    /// acceptance.
     #[inline]
     pub fn accept(&self) {
         let _accepted_now = self.state().accept();
@@ -82,7 +84,9 @@ impl<R, E> TaskSlot<R, E> {
     /// if another path had already started or completed the task.
     #[inline]
     pub fn cancel_unstarted(mut self) -> bool {
-        self.state.take().is_some_and(|state| state.try_cancel_pending())
+        self.state
+            .take()
+            .is_some_and(|state| state.try_cancel_pending())
     }
 
     /// Attempts to move this slot from pending into running state.
@@ -100,7 +104,10 @@ impl<R, E> TaskSlot<R, E> {
         if !self.start() {
             return Err(self);
         }
-        let state = self.state.take().expect("started task slot state should be present");
+        let state = self
+            .state
+            .take()
+            .expect("started task slot state should be present");
         Ok(RunningTaskSlot::new(state))
     }
 

@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use oneshot::{
     Receiver,
     TryRecvError,
@@ -49,7 +47,10 @@ impl<R, E> TaskHandle<R, E> {
     ///
     /// A task result handle.
     #[inline]
-    pub(crate) const fn new(state: Arc<TaskState<R, E>>, receiver: Receiver<TaskResult<R, E>>) -> Self {
+    pub(crate) const fn new(
+        state: Arc<TaskState<R, E>>,
+        receiver: Receiver<TaskResult<R, E>>,
+    ) -> Self {
         Self { state, receiver }
     }
 
@@ -80,7 +81,9 @@ impl<R, E> TaskHandle<R, E> {
     /// a value, the corresponding [`crate::TaskExecutionError`] is returned.
     #[inline]
     pub fn get(self) -> TaskResult<R, E> {
-        self.receiver.recv().unwrap_or(Err(TaskExecutionError::Dropped))
+        self.receiver
+            .recv()
+            .unwrap_or(Err(TaskExecutionError::Dropped))
     }
 
     /// Attempts to retrieve the final result without blocking.
@@ -94,8 +97,12 @@ impl<R, E> TaskHandle<R, E> {
         let Self { state, receiver } = self;
         match receiver.try_recv() {
             Ok(result) => TryGet::Ready(result),
-            Err(TryRecvError::Empty) => TryGet::Pending(Self { state, receiver }),
-            Err(TryRecvError::Disconnected) => TryGet::Ready(Err(TaskExecutionError::Dropped)),
+            Err(TryRecvError::Empty) => {
+                TryGet::Pending(Self { state, receiver })
+            }
+            Err(TryRecvError::Disconnected) => {
+                TryGet::Ready(Err(TaskExecutionError::Dropped))
+            }
         }
     }
 
