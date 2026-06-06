@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::io;
 
 use thiserror::Error;
@@ -28,7 +26,9 @@ pub enum ExecutorServiceBuilderError {
     ZeroMaximumPoolSize,
 
     /// The configured core pool size is greater than the maximum pool size.
-    #[error("executor service core pool size {core_pool_size} exceeds maximum pool size {maximum_pool_size}")]
+    #[error(
+        "executor service core pool size {core_pool_size} exceeds maximum pool size {maximum_pool_size}"
+    )]
     CorePoolSizeExceedsMaximum {
         /// Configured core pool size.
         core_pool_size: usize,
@@ -72,17 +72,23 @@ impl ExecutorServiceBuilderError {
     /// A build error carrying equivalent failure context.
     pub fn from_submission_error(error: SubmissionError) -> Self {
         match error {
-            SubmissionError::WorkerSpawnFailed { source } => Self::SpawnWorker {
-                index: None,
-                source: io::Error::new(source.kind(), source.to_string()),
-            },
+            SubmissionError::WorkerSpawnFailed { source } => {
+                Self::SpawnWorker {
+                    index: None,
+                    source: io::Error::new(source.kind(), source.to_string()),
+                }
+            }
             SubmissionError::Shutdown => Self::SpawnWorker {
                 index: None,
-                source: io::Error::other("executor service shut down during prestart"),
+                source: io::Error::other(
+                    "executor service shut down during prestart",
+                ),
             },
             SubmissionError::Saturated => Self::SpawnWorker {
                 index: None,
-                source: io::Error::other("executor service saturated during prestart"),
+                source: io::Error::other(
+                    "executor service saturated during prestart",
+                ),
             },
         }
     }

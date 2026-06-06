@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use qubit_function::{
     Callable,
     Runnable,
@@ -58,9 +56,9 @@ use super::{
 /// accepted work that is intentionally removed before it starts, typically by
 /// calling
 /// [`TaskSlot::cancel_unstarted`](crate::task::spi::TaskSlot::cancel_unstarted).
-/// Work already running in ordinary Rust code, blocking calls, or OS threads may
-/// not be forcibly interrupted, so termination can still wait for that work to
-/// return.
+/// Work already running in ordinary Rust code, blocking calls, or OS threads
+/// may not be forcibly interrupted, so termination can still wait for that work
+/// to return.
 ///
 /// A service reaches [`ExecutorServiceLifecycle::Terminated`] after shutdown or
 /// stop has been requested and no accepted work remains active. Accepted work
@@ -78,8 +76,8 @@ use super::{
 /// arbitrary user code, blocking calls, or OS-thread tasks that cannot be
 /// interrupted.
 ///
-/// Code that needs deterministic cleanup must request termination explicitly and
-/// then wait for it:
+/// Code that needs deterministic cleanup must request termination explicitly
+/// and then wait for it:
 ///
 /// 1. Call [`shutdown`](Self::shutdown) to drain accepted work, or
 ///    [`stop`](Self::stop) to request best-effort cancellation or abort of work
@@ -90,8 +88,8 @@ use super::{
 ///
 /// If a service owns OS threads or blocking tasks, already-running task bodies
 /// can keep external resources such as file descriptors, sockets, locks, or
-/// reference-counted objects alive until those task bodies return. Services that
-/// need stronger cleanup behavior should expose an explicit close/join API
+/// reference-counted objects alive until those task bodies return. Services
+/// that need stronger cleanup behavior should expose an explicit close/join API
 /// rather than relying on destructor side effects.
 pub trait ExecutorService: Send + Sync {
     /// Result handle returned for an accepted callable task.
@@ -146,7 +144,10 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -168,7 +169,10 @@ pub trait ExecutorService: Send + Sync {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
+    fn submit_tracked<T, E>(
+        &self,
+        task: T,
+    ) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -193,7 +197,10 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
-    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -241,7 +248,8 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// `true` only while the lifecycle is [`ExecutorServiceLifecycle::Running`].
+    /// `true` only while the lifecycle is
+    /// [`ExecutorServiceLifecycle::Running`].
     #[inline]
     fn is_running(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::Running
@@ -262,7 +270,8 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// `true` only while the lifecycle is [`ExecutorServiceLifecycle::Stopping`].
+    /// `true` only while the lifecycle is
+    /// [`ExecutorServiceLifecycle::Stopping`].
     #[inline]
     fn is_stopping(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::Stopping
@@ -272,8 +281,8 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// `true` once the service has started graceful shutdown, abrupt stop, or has
-    /// already terminated.
+    /// `true` once the service has started graceful shutdown, abrupt stop, or
+    /// has already terminated.
     #[inline]
     fn is_not_running(&self) -> bool {
         self.lifecycle() != ExecutorServiceLifecycle::Running
@@ -294,9 +303,9 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// This method is a synchronous, blocking wait. It returns only after
     /// [`shutdown`](Self::shutdown) or [`stop`](Self::stop) has been requested
-    /// and no accepted tasks remain active. If it is called while the service is
-    /// still [`ExecutorServiceLifecycle::Running`] and no other thread requests
-    /// shutdown or stop, it may block forever.
+    /// and no accepted tasks remain active. If it is called while the service
+    /// is still [`ExecutorServiceLifecycle::Running`] and no other thread
+    /// requests shutdown or stop, it may block forever.
     ///
     /// This method is the portable way to wait for service-owned resources to
     /// quiesce after an explicit shutdown or stop request. Dropping a service

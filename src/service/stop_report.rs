@@ -1,18 +1,15 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 /// Summary returned by an immediate executor-service stop request.
 ///
 /// The report is intentionally count-based. In a generic Rust executor service,
 /// pending tasks may have different result and error types, so returning a
 /// strongly typed list of unstarted tasks is not generally meaningful.
-///
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct StopReport {
     /// Number of tasks that were still queued when stop was requested.

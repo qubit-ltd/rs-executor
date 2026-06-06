@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 
 /// Lifecycle state for a managed executor service.
 ///
@@ -24,8 +22,8 @@
 /// * [`Terminated`](Self::Terminated) means shutdown or stop has been requested
 ///   and no accepted work remains active.
 ///
-/// `ShuttingDown` and `Stopping` are both non-running states. The distinction is
-/// what happens to accepted work: orderly shutdown preserves accepted work,
+/// `ShuttingDown` and `Stopping` are both non-running states. The distinction
+/// is what happens to accepted work: orderly shutdown preserves accepted work,
 /// while abrupt stop is a best-effort cancellation or abort request. Already
 /// running blocking code or OS threads may not be forcibly stopped; concrete
 /// services document those runtime-specific limits.
@@ -48,7 +46,8 @@ pub enum ExecutorServiceLifecycle {
     /// the runtime cannot interrupt may continue until that work returns.
     Stopping = 2,
 
-    /// The service no longer accepts tasks and has no accepted work in progress.
+    /// The service no longer accepts tasks and has no accepted work in
+    /// progress.
     ///
     /// This state is reached only after shutdown or stop has been requested and
     /// all accepted work has completed, been cancelled, been dropped by its

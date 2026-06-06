@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     io,
     sync::Arc,
@@ -19,7 +17,6 @@ use thiserror::Error;
 /// This error is about task acceptance only. It does not describe task
 /// execution success or failure; accepted tasks report their final result
 /// through the handle returned by the service.
-///
 #[derive(Debug, Clone, Error)]
 pub enum SubmissionError {
     /// The service has been shut down and no longer accepts new tasks.
@@ -32,7 +29,9 @@ pub enum SubmissionError {
 
     /// The service accepted the task conceptually but could not create the
     /// worker thread required to execute it.
-    #[error("task rejected because the executor service failed to spawn a worker: {source}")]
+    #[error(
+        "task rejected because the executor service failed to spawn a worker: {source}"
+    )]
     WorkerSpawnFailed {
         /// I/O error reported while spawning the worker.
         source: Arc<io::Error>,
@@ -57,7 +56,10 @@ impl PartialEq for SubmissionError {
             (self, other),
             (Self::Shutdown, Self::Shutdown)
                 | (Self::Saturated, Self::Saturated)
-                | (Self::WorkerSpawnFailed { .. }, Self::WorkerSpawnFailed { .. })
+                | (
+                    Self::WorkerSpawnFailed { .. },
+                    Self::WorkerSpawnFailed { .. }
+                )
         )
     }
 }

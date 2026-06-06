@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use super::{
     ExecutorServiceBuilderError,
     ThreadPerTaskExecutorService,
@@ -72,14 +70,17 @@ impl ThreadPerTaskExecutorServiceBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured stack
-    /// size is zero.
+    /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured
+    /// stack size is zero.
     #[inline]
-    pub fn build(self) -> Result<ThreadPerTaskExecutorService, ExecutorServiceBuilderError> {
+    pub fn build(
+        self,
+    ) -> Result<ThreadPerTaskExecutorService, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }
-        let mut service = ThreadPerTaskExecutorService::from_stack_size(self.stack_size);
+        let mut service =
+            ThreadPerTaskExecutorService::from_stack_size(self.stack_size);
         service.hook = self.hook;
         Ok(service)
     }

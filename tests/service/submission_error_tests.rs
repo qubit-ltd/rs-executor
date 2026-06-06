@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     error::Error,
     io,
@@ -44,6 +42,7 @@ fn test_submission_error_variants_display_and_compare() {
         "first",
     );
 
-    let created = SubmissionError::worker_spawn_failed(io::Error::other("created"));
+    let created =
+        SubmissionError::worker_spawn_failed(io::Error::other("created"));
     assert!(matches!(created, SubmissionError::WorkerSpawnFailed { .. }));
 }

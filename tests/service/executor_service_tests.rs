@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2025 - 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     io,
     sync::mpsc,
@@ -20,7 +18,8 @@ use qubit_executor::service::{
     ThreadPerTaskExecutorService,
 };
 
-/// Test default runnable submission and lifecycle rejection through the service trait.
+/// Test default runnable submission and lifecycle rejection through the service
+/// trait.
 #[test]
 fn test_executor_service_submit_default_and_shutdown_rejection() {
     let service = ThreadPerTaskExecutorService::new();
@@ -28,7 +27,9 @@ fn test_executor_service_submit_default_and_shutdown_rejection() {
 
     service
         .submit(move || {
-            done_tx.send(()).expect("test should receive submit completion");
+            done_tx
+                .send(())
+                .expect("test should receive submit completion");
             Ok::<(), io::Error>(())
         })
         .expect("service should accept runnable");
@@ -48,7 +49,8 @@ fn test_executor_service_submit_default_and_shutdown_rejection() {
     assert!(service.is_not_running());
 }
 
-/// Test callable submission returns a lightweight result handle with non-blocking polling.
+/// Test callable submission returns a lightweight result handle with
+/// non-blocking polling.
 #[test]
 fn test_executor_service_submit_callable_returns_result_handle() {
     let service = ThreadPerTaskExecutorService::new();
@@ -72,7 +74,8 @@ fn test_executor_service_submit_tracked_callable_exposes_tracking() {
     assert_eq!(handle.get().expect("tracked callable should succeed"), 42);
 }
 
-/// Test default tracked runnable submission delegates to tracked callable submission.
+/// Test default tracked runnable submission delegates to tracked callable
+/// submission.
 #[test]
 fn test_executor_service_submit_tracked_default_returns_unit_handle() {
     let service = ThreadPerTaskExecutorService::new();
