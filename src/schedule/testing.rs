@@ -13,6 +13,10 @@
 
 use std::{
     cmp::Ordering as CompareOrdering,
+    panic::{
+        self,
+        AssertUnwindSafe,
+    },
     sync::Arc,
     time::{
         Duration,
@@ -171,8 +175,30 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
 }
 
-/// Verifies lifecycle-only paths on the shared scheduler state.
+/// Verifies lifecycle and counter-invariant paths on shared scheduler state.
 pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
+    let inner = SingleThreadScheduledExecutorServiceInner::new();
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        inner.finish_queued_cancellation();
+    }));
+    assert!(result.is_err(), "queued counter underflow should panic");
+    assert_eq!(inner.queued_count(), 0);
+
+    let inner = SingleThreadScheduledExecutorServiceInner::new();
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        inner.start_task();
+    }));
+    assert!(result.is_err(), "task start counter underflow should panic");
+    assert_eq!(inner.queued_count(), 0);
+    assert_eq!(inner.running_count(), 0);
+
+    let inner = SingleThreadScheduledExecutorServiceInner::new();
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        inner.finish_running_task();
+    }));
+    assert!(result.is_err(), "running counter underflow should panic");
+    assert_eq!(inner.running_count(), 0);
+
     let inner = SingleThreadScheduledExecutorServiceInner::default();
 
     assert!(!inner.is_not_running());

@@ -38,6 +38,12 @@ use qubit_executor::{
 fn test_single_thread_scheduled_executor_service_internal_support_paths() {
     qubit_executor::schedule::testing::verify_scheduled_task_ordering();
     qubit_executor::schedule::testing::verify_completable_scheduled_task_cancellation_paths();
+}
+
+/// Verifies private scheduler-state invariants through the existing test
+/// bridge.
+#[test]
+fn test_single_thread_scheduled_executor_service_inner_paths() {
     qubit_executor::schedule::testing::verify_single_thread_scheduled_executor_service_inner_paths();
 }
 
