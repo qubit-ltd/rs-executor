@@ -115,7 +115,7 @@ impl SingleThreadScheduledExecutorServiceInner {
 
     /// Requests graceful shutdown.
     pub(crate) fn shutdown(&self) {
-        self.state.write(|state| {
+        self.state.with_write(|state| {
             if state.lifecycle == ExecutorServiceLifecycle::Running {
                 state.lifecycle = ExecutorServiceLifecycle::ShuttingDown;
             }
@@ -151,7 +151,7 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// `true` if new scheduled tasks are rejected.
     pub(crate) fn is_not_running(&self) -> bool {
         self.state
-            .read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
+            .with_read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
     }
 
     /// Returns the current lifecycle state.
@@ -161,7 +161,7 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// [`ExecutorServiceLifecycle::Terminated`] after the worker has exited,
     /// otherwise the stored lifecycle state.
     pub(crate) fn lifecycle(&self) -> ExecutorServiceLifecycle {
-        self.state.read(|state| {
+        self.state.with_read(|state| {
             if state.terminated {
                 ExecutorServiceLifecycle::Terminated
             } else {
@@ -176,7 +176,7 @@ impl SingleThreadScheduledExecutorServiceInner {
     ///
     /// `true` after shutdown and scheduler termination.
     pub(crate) fn is_terminated(&self) -> bool {
-        self.state.read(|state| state.terminated)
+        self.state.with_read(|state| state.terminated)
     }
 
     /// Waits until the scheduler thread exits.

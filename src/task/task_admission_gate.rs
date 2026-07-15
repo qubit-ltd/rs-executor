@@ -64,7 +64,7 @@ impl TaskAdmissionGate {
     #[inline]
     pub(crate) fn open(&self) {
         if let Self::Blocked(ready) = self {
-            ready.write(|ready| {
+            ready.with_write(|ready| {
                 *ready = true;
             });
             ready.notify_one();
