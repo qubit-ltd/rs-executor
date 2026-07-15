@@ -1,6 +1,6 @@
 [package]
 name = "qubit-executor"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -37,10 +37,10 @@ parking_lot = "0.12"
 thiserror = "2.0"
 
 qubit-atomic = "0.13"
-qubit-function = "0.15"
-qubit-lock = { default-features = false, version = "0.9" }
-qubit-cas = "0.8"
-qubit-state-machine = "0.5"
+qubit-function = { version = "0.16.0", path = "../rs-function" }
+qubit-lock = { default-features = false, version = "0.10.0", path = "../rs-lock" }
+qubit-cas = { version = "0.9", path = "../rs-cas" }
+qubit-state-machine = "0.6"
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }

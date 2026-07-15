@@ -78,11 +78,11 @@ fn test_direct_executor_call_converts_task_failure_and_panic() {
 #[test]
 fn test_qubit_function_task_types_remain_compatible() {
     let mut runnable: BoxRunnable<io::Error> =
-        Runnable::into_box(|| Ok::<(), io::Error>(()));
+        BoxRunnable::new(|| Ok::<(), io::Error>(()));
     runnable.run().expect("boxed runnable should run");
 
     let mut callable: BoxCallable<i32, io::Error> =
-        Callable::into_box(|| Ok::<i32, io::Error>(42));
+        BoxCallable::new(|| Ok::<i32, io::Error>(42));
     assert_eq!(
         callable
             .call()
