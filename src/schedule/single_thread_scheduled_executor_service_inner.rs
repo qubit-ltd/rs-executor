@@ -150,8 +150,9 @@ impl SingleThreadScheduledExecutorServiceInner {
     ///
     /// `true` if new scheduled tasks are rejected.
     pub(crate) fn is_not_running(&self) -> bool {
-        self.state
-            .with_read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
+        self.state.with_read(|state| {
+            state.lifecycle != ExecutorServiceLifecycle::Running
+        })
     }
 
     /// Returns the current lifecycle state.
