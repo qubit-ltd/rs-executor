@@ -23,8 +23,6 @@ use qubit_executor::executor::{
 use qubit_function::{
     BoxCallable,
     BoxRunnable,
-    Callable,
-    Runnable,
 };
 
 #[test]
@@ -77,16 +75,36 @@ fn test_direct_executor_call_converts_task_failure_and_panic() {
 
 #[test]
 fn test_qubit_function_task_types_remain_compatible() {
-    let mut runnable: BoxRunnable<io::Error> =
-        BoxRunnable::new(|| Ok::<(), io::Error>(()));
-    runnable.run().expect("boxed runnable should run");
+    let executor = DirectExecutor::new();
+    let value = Arc::new(Atomic::new(0usize));
+    let first_value = Arc::clone(&value);
+    let second_value = Arc::clone(&value);
+    let runnable: BoxRunnable<io::Error> = BoxRunnable::new(move || {
+        first_value.fetch_add_with_ordering(1, Ordering::AcqRel);
+        Ok::<(), io::Error>(())
+    })
+    .and_then(move || {
+        second_value.fetch_add_with_ordering(1, Ordering::AcqRel);
+        Ok::<(), io::Error>(())
+    });
 
-    let mut callable: BoxCallable<i32, io::Error> =
-        BoxCallable::new(|| Ok::<i32, io::Error>(42));
+    executor
+        .execute(runnable)
+        .expect("direct executor should accept composed boxed runnable")
+        .get()
+        .expect("composed boxed runnable should succeed");
+    assert_eq!(value.load(), 2);
+
+    let callable: BoxCallable<i32, io::Error> =
+        BoxCallable::new(|| Ok::<i32, io::Error>(20))
+            .map(|value| value + 1)
+            .and_then(|value| Ok(value * 2));
     assert_eq!(
-        callable
-            .call()
-            .expect("boxed callable should return a value"),
+        executor
+            .call(callable)
+            .expect("direct executor should accept composed boxed callable")
+            .get()
+            .expect("composed boxed callable should return a value"),
         42,
     );
 }
