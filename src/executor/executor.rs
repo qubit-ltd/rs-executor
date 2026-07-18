@@ -15,12 +15,13 @@ use crate::{
     service::SubmissionError,
 };
 
-/// Executes fallible one-time tasks according to an implementation-defined
-/// strategy.
+/// Executes fallible tasks according to an implementation-defined strategy.
 ///
 /// `Executor` models an execution strategy, not a managed task service. An
 /// executor may run a task immediately, retry it, delay it, or schedule it on
-/// another runtime. Accepted task results are always exposed through a
+/// another runtime. The abstraction does not prescribe how many times an
+/// accepted task is invoked; that behavior belongs to the concrete execution
+/// strategy. Accepted task results are always exposed through a
 /// [`TrackedTask`]. The outer `Result` returned by [`Self::call`] and
 /// [`Self::execute`] reports submission failure only.
 pub trait Executor: Send + Sync {
