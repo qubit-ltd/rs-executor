@@ -76,14 +76,15 @@ fn next_ready_task(
         }
         let Some(next_deadline) = state.tasks.peek().map(|task| task.deadline)
         else {
-            state = state.wait();
+            state.wait();
             continue;
         };
         let now = Instant::now();
         if next_deadline > now {
             let timeout = next_deadline.saturating_duration_since(now);
-            let (next_state, _) = state.wait_timeout(timeout);
-            state = next_state;
+            let _status = state
+                .wait_for(timeout)
+                .expect("standard Timer should register");
             continue;
         }
         let Some(task) = state.tasks.pop() else {
