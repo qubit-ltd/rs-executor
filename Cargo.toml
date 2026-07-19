@@ -37,7 +37,7 @@ parking_lot = "0.12"
 thiserror = "2.0"
 
 qubit-atomic = "0.13"
-qubit-function = { version = "0.16.0", path = "../rs-function" }
+qubit-function = "0.16"
 qubit-lock = { default-features = false, features = ["monitor", "parking-lot"], version = "0.11.0", path = "../rs-lock" }
 qubit-cas = { version = "0.9", path = "../rs-cas" }
 qubit-state-machine = "0.6"
