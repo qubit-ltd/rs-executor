@@ -90,44 +90,65 @@ mod tests {
     fn build_task_status_machine_allows_expected_lifecycle_transitions() {
         let machine = build_task_status_machine();
 
-        let state = FastCasState::new(TaskStatus::Pending.as_usize());
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Pending);
+        let state = FastCasState::new(TaskStatus::Pending.as_usize() as u64);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Pending
+        );
         assert!(machine.try_trigger(&state, TaskStatusEvent::Start.as_usize()));
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Running);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Running
+        );
 
-        let state = FastCasState::new(TaskStatus::Pending.as_usize());
+        let state = FastCasState::new(TaskStatus::Pending.as_usize() as u64);
         assert!(machine.try_trigger(&state, TaskStatusEvent::CancelPending.as_usize(),));
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Cancelled);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Cancelled
+        );
 
-        let state = FastCasState::new(TaskStatus::Running.as_usize());
+        let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
         assert!(machine.try_trigger(
             &state,
             TaskStatusEvent::CompleteSucceeded.as_usize(),
         ));
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Succeeded);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Succeeded
+        );
 
-        let state = FastCasState::new(TaskStatus::Running.as_usize());
+        let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
         assert!(
             machine.try_trigger(
                 &state,
                 TaskStatusEvent::DropUnfinished.as_usize()
             )
         );
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Dropped);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Dropped
+        );
     }
 
     #[test]
     fn build_task_status_machine_rejects_invalid_transitions() {
         let machine = build_task_status_machine();
 
-        let state = FastCasState::new(TaskStatus::Succeeded.as_usize());
+        let state = FastCasState::new(TaskStatus::Succeeded.as_usize() as u64);
         assert!(
             !machine.try_trigger(&state, TaskStatusEvent::Start.as_usize())
         );
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Succeeded);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Succeeded
+        );
 
-        let state = FastCasState::new(TaskStatus::Running.as_usize());
+        let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
         assert!(!machine.try_trigger(&state, TaskStatusEvent::CancelPending.as_usize(),));
-        assert_eq!(TaskStatus::from_usize(state.load()), TaskStatus::Running);
+        assert_eq!(
+            TaskStatus::from_usize(state.load() as usize),
+            TaskStatus::Running
+        );
     }
 }

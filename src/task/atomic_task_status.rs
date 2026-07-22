@@ -30,7 +30,7 @@ impl AtomicTaskStatus {
     #[inline]
     pub(crate) fn new(status: TaskStatus) -> Self {
         Self {
-            value: FastCasState::new(status.as_usize()),
+            value: FastCasState::new(status.as_usize() as u64),
         }
     }
 
@@ -41,7 +41,7 @@ impl AtomicTaskStatus {
     /// The currently observed task status.
     #[inline]
     pub(crate) fn load(&self) -> TaskStatus {
-        TaskStatus::from_usize(self.value.load())
+        TaskStatus::from_usize(self.value.load() as usize)
     }
 
     /// Attempts to move a pending task into running state.
