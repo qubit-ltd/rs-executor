@@ -9,7 +9,7 @@
 
 use std::sync::LazyLock;
 
-use qubit_cas::FastCasPolicy;
+use qubit_fast_cas::FastCasPolicy;
 use qubit_state_machine::FastStateMachine;
 
 use super::task_status::{
@@ -78,7 +78,7 @@ pub(super) fn build_task_status_machine() -> FastStateMachine {
 
 #[cfg(test)]
 mod tests {
-    use qubit_cas::FastCasState;
+    use qubit_fast_cas::FastCasState;
 
     use super::{
         super::task_status::TaskStatus,

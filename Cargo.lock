@@ -269,7 +269,6 @@ version = "0.9.0"
 dependencies = [
  "qubit-atomic",
  "qubit-error",
- "qubit-fast-cas",
  "qubit-function",
  "qubit-retry",
 ]
@@ -304,7 +303,7 @@ dependencies = [
  "oneshot",
  "parking_lot",
  "qubit-atomic",
- "qubit-cas",
+ "qubit-fast-cas",
  "qubit-function",
  "qubit-lock",
  "qubit-state-machine",
@@ -358,6 +357,7 @@ version = "0.6.0"
 dependencies = [
  "qubit-atomic",
  "qubit-cas",
+ "qubit-fast-cas",
  "thiserror",
 ]
 

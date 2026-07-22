@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_cas::FastCasState;
+use qubit_fast_cas::FastCasState;
 
 use super::task_status::TaskStatus;
 use super::task_status_event::TaskStatusEvent;
