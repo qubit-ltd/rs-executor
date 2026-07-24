@@ -93,7 +93,7 @@ fn next_ready_task(
         let Some(started_task) = task.entry.start() else {
             continue;
         };
-        inner.start_task();
+        state.start_task();
         return Some(started_task);
     }
 }

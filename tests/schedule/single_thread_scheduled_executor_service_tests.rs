@@ -44,7 +44,14 @@ fn test_single_thread_scheduled_executor_service_internal_support_paths() {
 /// bridge.
 #[test]
 fn test_single_thread_scheduled_executor_service_inner_paths() {
-    qubit_executor::schedule::testing::verify_single_thread_scheduled_executor_service_inner_paths();
+    qubit_executor::schedule::testing::verify_single_thread_scheduled_executor_service_inner_paths(
+    );
+}
+
+#[test]
+fn test_single_thread_scheduled_cancellation_obeys_monitor_handshake() {
+    qubit_executor::schedule::testing::
+        verify_single_thread_scheduled_cancellation_obeys_monitor_handshake();
 }
 
 #[test]

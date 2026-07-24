@@ -10,8 +10,6 @@ use std::{
     sync::Arc,
 };
 
-use qubit_atomic::Atomic;
-
 use crate::{
     CancelResult,
     TaskResult,
@@ -37,8 +35,6 @@ use crate::{
 pub struct ScheduledTaskHandle<R, E> {
     /// Standard tracked task handle.
     inner: TrackedTask<R, E>,
-    /// Shared marker observed by the scheduler heap.
-    cancellation_marker: Arc<Atomic<bool>>,
     /// Callback invoked after this handle cancels the pending task.
     on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>,
 }
@@ -49,7 +45,6 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// # Parameters
     ///
     /// * `inner` - Standard tracked task handle.
-    /// * `cancellation_marker` - Shared marker observed by the scheduler heap.
     /// * `on_cancelled` - Callback invoked when this handle cancels the task.
     ///
     /// # Returns
@@ -57,12 +52,10 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// A scheduled task handle.
     pub(crate) const fn new(
         inner: TrackedTask<R, E>,
-        cancellation_marker: Arc<Atomic<bool>>,
         on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>,
     ) -> Self {
         Self {
             inner,
-            cancellation_marker,
             on_cancelled,
         }
     }
@@ -148,7 +141,6 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     fn cancel_inner(&self) -> CancelResult {
         let result = self.inner.cancel();
         if result == CancelResult::Cancelled {
-            self.cancellation_marker.store(true);
             (self.on_cancelled)();
         }
         result
@@ -177,14 +169,12 @@ where
     fn try_get(self) -> TryGet<Self, R, E> {
         let Self {
             inner,
-            cancellation_marker,
             on_cancelled,
         } = self;
         match inner.try_get() {
             TryGet::Ready(result) => TryGet::Ready(result),
             TryGet::Pending(inner) => TryGet::Pending(Self {
                 inner,
-                cancellation_marker,
                 on_cancelled,
             }),
         }

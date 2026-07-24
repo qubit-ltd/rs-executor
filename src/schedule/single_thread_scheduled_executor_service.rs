@@ -6,10 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::{
-    sync::{
-        Arc,
-        Weak,
-    },
+    sync::Arc,
     thread,
     time::Instant,
 };
@@ -137,9 +134,16 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Callback that decrements queued accounting and wakes the scheduler when
     /// a scheduled handle cancels a pending task.
-    fn cancellation_callback(&self) -> Arc<dyn Fn() + Send + Sync + 'static> {
+    fn cancellation_callback(
+        &self,
+        cancellation_marker: Arc<Atomic<bool>>,
+    ) -> Arc<dyn Fn() + Send + Sync + 'static> {
         let inner = Arc::downgrade(&self.inner);
-        Arc::new(move || finish_queued_cancellation(&inner))
+        Arc::new(move || {
+            if let Some(inner) = inner.upgrade() {
+                inner.finish_queued_cancellation(&cancellation_marker);
+            }
+        })
     }
 
     /// Accepts a type-erased task into the deadline heap.
@@ -167,7 +171,7 @@ impl SingleThreadScheduledExecutorService {
         state
             .tasks
             .push(ScheduledTask::new(deadline, sequence, entry));
-        self.inner.add_queued_task();
+        state.accept_task();
         self.inner.state.notify_all();
         Ok(())
     }
@@ -313,29 +317,11 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
     {
         let (tracked, slot) = TaskEndpointPair::new().into_tracked_parts();
         let cancellation_marker = Arc::new(Atomic::new(false));
-        let entry = CompletableScheduledTask::new(
-            task,
-            slot,
-            Arc::clone(&cancellation_marker),
-        );
+        let cancellation_callback =
+            self.cancellation_callback(Arc::clone(&cancellation_marker));
+        let entry =
+            CompletableScheduledTask::new(task, slot, cancellation_marker);
         self.schedule_entry(instant, Box::new(entry))?;
-        Ok(ScheduledTaskHandle::new(
-            tracked,
-            cancellation_marker,
-            self.cancellation_callback(),
-        ))
-    }
-}
-
-/// Records queued cancellation if the scheduled service still exists.
-///
-/// # Parameters
-///
-/// * `inner` - Weak reference to shared scheduled service state.
-fn finish_queued_cancellation(
-    inner: &Weak<SingleThreadScheduledExecutorServiceInner>,
-) {
-    if let Some(inner) = inner.upgrade() {
-        inner.finish_queued_cancellation();
+        Ok(ScheduledTaskHandle::new(tracked, cancellation_callback))
     }
 }

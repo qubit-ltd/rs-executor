@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_atomic::AtomicCount;
+use qubit_atomic::Atomic;
 use qubit_lock::ParkingLotMonitor;
 
 use crate::service::{
@@ -20,14 +20,6 @@ pub(crate) struct SingleThreadScheduledExecutorServiceInner {
     /// Mutable lifecycle and heap state.
     pub(crate) state:
         ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
-    /// Number of accepted tasks still waiting for their scheduled start.
-    queued_task_count: AtomicCount,
-    /// Number of tasks currently executing on the scheduler thread.
-    running_task_count: AtomicCount,
-    /// Number of tasks that ran to completion.
-    completed_task_count: AtomicCount,
-    /// Number of scheduled tasks cancelled before execution.
-    cancelled_task_count: AtomicCount,
 }
 
 impl SingleThreadScheduledExecutorServiceInner {
@@ -41,10 +33,6 @@ impl SingleThreadScheduledExecutorServiceInner {
             state: ParkingLotMonitor::new(
                 SingleThreadScheduledExecutorServiceState::new(),
             ),
-            queued_task_count: AtomicCount::zero(),
-            running_task_count: AtomicCount::zero(),
-            completed_task_count: AtomicCount::zero(),
-            cancelled_task_count: AtomicCount::zero(),
         }
     }
 
@@ -55,7 +43,8 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Number of accepted tasks that have not started or been cancelled.
     #[inline]
     pub(crate) fn queued_count(&self) -> usize {
-        self.queued_task_count.get()
+        self.state
+            .with_read(SingleThreadScheduledExecutorServiceState::queued_count)
     }
 
     /// Returns the currently running task count.
@@ -65,40 +54,28 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// `1` when the scheduler thread is running a task, otherwise `0`.
     #[inline]
     pub(crate) fn running_count(&self) -> usize {
-        self.running_task_count.get()
+        self.state
+            .with_read(SingleThreadScheduledExecutorServiceState::running_count)
     }
 
-    /// Records that a queued task has been accepted.
+    /// Publishes cancellation for a queued task.
     ///
-    /// # Panics
+    /// # Parameters
     ///
-    /// Panics if the queued task count overflows.
-    #[inline]
-    pub(crate) fn add_queued_task(&self) {
-        self.queued_task_count.inc();
-    }
-
-    /// Records that a queued task was cancelled before start.
+    /// * `cancellation_marker` - Marker observed by the scheduler heap.
     ///
     /// # Panics
     ///
     /// Panics if no queued task is recorded or the cancellation count
     /// overflows.
-    pub(crate) fn finish_queued_cancellation(&self) {
-        self.queued_task_count.dec();
-        self.cancelled_task_count.inc();
-        self.state.notify_all();
-    }
-
-    /// Records that a queued task has become running.
-    ///
-    /// # Panics
-    ///
-    /// Panics if no queued task is recorded or the running task count
-    /// overflows.
-    pub(crate) fn start_task(&self) {
-        self.queued_task_count.dec();
-        self.running_task_count.inc();
+    pub(crate) fn finish_queued_cancellation(
+        &self,
+        cancellation_marker: &Atomic<bool>,
+    ) {
+        self.state.with_write_notify_all(|state| {
+            state.cancel_queued_task();
+            cancellation_marker.store(true);
+        });
     }
 
     /// Records completion for the currently running task.
@@ -108,19 +85,18 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Panics if no running task is recorded or the completed task count
     /// overflows.
     pub(crate) fn finish_running_task(&self) {
-        self.running_task_count.dec();
-        self.completed_task_count.inc();
-        self.state.notify_all();
+        self.state.with_write_notify_all(
+            SingleThreadScheduledExecutorServiceState::finish_running_task,
+        );
     }
 
     /// Requests graceful shutdown.
     pub(crate) fn shutdown(&self) {
-        self.state.with_write(|state| {
+        self.state.with_write_notify_all(|state| {
             if state.lifecycle == ExecutorServiceLifecycle::Running {
                 state.lifecycle = ExecutorServiceLifecycle::ShuttingDown;
             }
         });
-        self.state.notify_all();
     }
 
     /// Requests immediate shutdown and cancels queued scheduled tasks.
@@ -131,15 +107,15 @@ impl SingleThreadScheduledExecutorServiceInner {
     pub(crate) fn stop(&self) -> StopReport {
         let mut state = self.state.lock();
         state.lifecycle = ExecutorServiceLifecycle::Stopping;
-        let queued = self.queued_count();
+        let queued = state.queued_count();
         let mut cancelled = 0;
         while let Some(task) = state.tasks.pop() {
             if task.entry.cancel() {
-                self.finish_queued_cancellation();
+                state.cancel_queued_task();
                 cancelled += 1;
             }
         }
-        let running = self.running_count();
+        let running = state.running_count();
         self.state.notify_all();
         StopReport::new(queued, running, cancelled)
     }

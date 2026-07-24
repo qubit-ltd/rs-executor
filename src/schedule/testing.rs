@@ -17,7 +17,11 @@ use std::{
         self,
         AssertUnwindSafe,
     },
-    sync::Arc,
+    sync::{
+        Arc,
+        mpsc,
+    },
+    thread,
     time::{
         Duration,
         Instant,
@@ -178,15 +182,20 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
 /// Verifies lifecycle and counter-invariant paths on shared scheduler state.
 pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
     let inner = SingleThreadScheduledExecutorServiceInner::new();
+    let cancellation_marker = Atomic::new(false);
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        inner.finish_queued_cancellation();
+        inner.finish_queued_cancellation(&cancellation_marker);
     }));
     assert!(result.is_err(), "queued counter underflow should panic");
     assert_eq!(inner.queued_count(), 0);
+    assert!(
+        !cancellation_marker.load(),
+        "failed cancellation transition should not publish its marker"
+    );
 
     let inner = SingleThreadScheduledExecutorServiceInner::new();
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        inner.start_task();
+        inner.state.lock().start_task();
     }));
     assert!(result.is_err(), "task start counter underflow should panic");
     assert_eq!(inner.queued_count(), 0);
@@ -215,7 +224,7 @@ pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
             0,
             Box::new(CancelRejectedEntry),
         ));
-        inner.add_queued_task();
+        state.accept_task();
     }
 
     let report = inner.stop();
@@ -223,4 +232,57 @@ pub fn verify_single_thread_scheduled_executor_service_inner_paths() {
     assert_eq!(report.queued, 1);
     assert_eq!(report.cancelled, 0);
     assert_eq!(report.running, 0);
+}
+
+/// Verifies queued cancellation uses the scheduler monitor handshake.
+pub fn verify_single_thread_scheduled_cancellation_obeys_monitor_handshake() {
+    let inner = Arc::new(SingleThreadScheduledExecutorServiceInner::new());
+    let cancellation_marker = Arc::new(Atomic::new(false));
+    let mut state = inner.state.lock();
+    state.accept_task();
+    let (started_sender, started_receiver) = mpsc::channel();
+    let (completed_sender, completed_receiver) = mpsc::channel();
+    let cancellation_inner = Arc::clone(&inner);
+    let cancellation_thread_marker = Arc::clone(&cancellation_marker);
+    let cancellation_thread = thread::spawn(move || {
+        started_sender
+            .send(())
+            .expect("cancellation thread start should be observable");
+        cancellation_inner
+            .finish_queued_cancellation(&cancellation_thread_marker);
+        completed_sender
+            .send(())
+            .expect("cancellation completion should be observable");
+    });
+
+    started_receiver
+        .recv()
+        .expect("cancellation thread should start");
+    let completed_while_state_locked = completed_receiver
+        .recv_timeout(Duration::from_millis(100))
+        .is_ok();
+    assert!(
+        !cancellation_marker.load(),
+        "cancellation marker bypassed the scheduler monitor"
+    );
+    drop(state);
+    if !completed_while_state_locked {
+        completed_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect(
+                "cancellation should finish after releasing scheduler state",
+            );
+    }
+    cancellation_thread
+        .join()
+        .expect("cancellation thread should not panic");
+
+    assert!(
+        !completed_while_state_locked,
+        "cancellation publication bypassed the scheduler monitor"
+    );
+    assert!(
+        cancellation_marker.load(),
+        "cancellation marker should publish after releasing scheduler state"
+    );
 }
