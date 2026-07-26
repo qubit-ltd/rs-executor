@@ -5,31 +5,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    sync::Arc,
-    thread,
-    time::Duration,
-};
+use std::{sync::Arc, thread, time::Duration};
 
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{
-        TaskHook,
-        notify_rejected_optional,
-    },
+    hook::{TaskHook, notify_rejected_optional},
     service::SubmissionError,
-    task::{
-        spi::TaskEndpointPair,
-        task_admission_gate::TaskAdmissionGate,
-    },
+    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
 };
 
-use super::{
-    Executor,
-    thread_spawn_config::ThreadSpawnConfig,
-};
+use super::{Executor, thread_spawn_config::ThreadSpawnConfig};
 
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
@@ -155,18 +142,14 @@ impl Executor for DelayExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
     /// cannot be created.
-    fn call<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
         let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone())
-                .into_tracked_parts();
+            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let delay = self.delay;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();

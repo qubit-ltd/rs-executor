@@ -5,25 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    sync::Arc,
-    thread,
-    time::Instant,
-};
+use std::{sync::Arc, thread, time::Instant};
 
 use qubit_atomic::Atomic;
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::{Callable, Runnable};
 
 use crate::{
     TaskHandle,
     service::{
-        ExecutorService,
-        ExecutorServiceBuilderError,
-        ExecutorServiceLifecycle,
-        StopReport,
+        ExecutorService, ExecutorServiceBuilderError, ExecutorServiceLifecycle, StopReport,
         SubmissionError,
     },
     task::spi::TaskEndpointPair,
@@ -31,10 +21,8 @@ use crate::{
 
 use super::{
     completable_scheduled_task::CompletableScheduledTask,
-    scheduled_executor_service::ScheduledExecutorService,
-    scheduled_task::ScheduledTask,
-    scheduled_task_entry::ScheduledTaskEntry,
-    scheduled_task_handle::ScheduledTaskHandle,
+    scheduled_executor_service::ScheduledExecutorService, scheduled_task::ScheduledTask,
+    scheduled_task_entry::ScheduledTaskEntry, scheduled_task_handle::ScheduledTaskHandle,
     scheduled_worker::ScheduledWorker,
     single_thread_scheduled_executor_service_inner::SingleThreadScheduledExecutorServiceInner,
 };
@@ -96,9 +84,7 @@ impl SingleThreadScheduledExecutorService {
         if let Some(stack_size) = stack_size {
             builder = builder.stack_size(stack_size);
         }
-        if let Err(source) =
-            builder.spawn(move || ScheduledWorker::run(worker_inner))
-        {
+        if let Err(source) = builder.spawn(move || ScheduledWorker::run(worker_inner)) {
             return Err(ExecutorServiceBuilderError::SpawnWorker {
                 index: Some(0),
                 source,
@@ -241,10 +227,7 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution on the scheduler thread.
-    fn submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -317,10 +300,8 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
     {
         let (tracked, slot) = TaskEndpointPair::new().into_tracked_parts();
         let cancellation_marker = Arc::new(Atomic::new(false));
-        let cancellation_callback =
-            self.cancellation_callback(Arc::clone(&cancellation_marker));
-        let entry =
-            CompletableScheduledTask::new(task, slot, cancellation_marker);
+        let cancellation_callback = self.cancellation_callback(Arc::clone(&cancellation_marker));
+        let entry = CompletableScheduledTask::new(task, slot, cancellation_marker);
         self.schedule_entry(instant, Box::new(entry))?;
         Ok(ScheduledTaskHandle::new(tracked, cancellation_callback))
     }

@@ -10,10 +10,7 @@ use std::sync::Arc;
 use oneshot::Receiver;
 use oneshot::channel;
 
-use crate::hook::{
-    TaskHook,
-    next_task_id,
-};
+use crate::hook::{TaskHook, next_task_id};
 
 use super::task_execution_error::TaskResult;
 use super::task_handle::TaskHandle;

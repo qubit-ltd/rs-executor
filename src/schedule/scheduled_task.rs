@@ -5,10 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    cmp::Ordering as CompareOrdering,
-    time::Instant,
-};
+use std::{cmp::Ordering as CompareOrdering, time::Instant};
 
 use super::scheduled_task_entry::ScheduledTaskEntry;
 

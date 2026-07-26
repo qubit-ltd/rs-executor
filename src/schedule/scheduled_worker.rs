@@ -5,10 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    sync::Arc,
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 use crate::service::ExecutorServiceLifecycle;
 
@@ -68,14 +65,11 @@ fn next_ready_task(
             inner.terminate(&mut state);
             return None;
         }
-        if state.tasks.is_empty()
-            && state.lifecycle != ExecutorServiceLifecycle::Running
-        {
+        if state.tasks.is_empty() && state.lifecycle != ExecutorServiceLifecycle::Running {
             inner.terminate(&mut state);
             return None;
         }
-        let Some(next_deadline) = state.tasks.peek().map(|task| task.deadline)
-        else {
+        let Some(next_deadline) = state.tasks.peek().map(|task| task.deadline) else {
             state.wait();
             continue;
         };
@@ -103,9 +97,7 @@ fn next_ready_task(
 /// # Parameters
 ///
 /// * `state` - Locked scheduler state.
-fn prune_cancelled_front(
-    state: &mut SingleThreadScheduledExecutorServiceState,
-) {
+fn prune_cancelled_front(state: &mut SingleThreadScheduledExecutorServiceState) {
     while state
         .tasks
         .peek()

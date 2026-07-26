@@ -6,17 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::{
-    panic::{
-        AssertUnwindSafe,
-        catch_unwind,
-    },
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::Arc,
 };
 
-use crate::{
-    TaskStatus,
-    service::SubmissionError,
-};
+use crate::{TaskStatus, service::SubmissionError};
 
 use super::TaskId;
 
@@ -116,10 +110,7 @@ pub(crate) fn notify_rejected(hook: &dyn TaskHook, error: &SubmissionError) {
 /// * `hook` - Optional hook to notify.
 /// * `error` - Submission error explaining the rejection.
 #[inline]
-pub(crate) fn notify_rejected_optional(
-    hook: Option<&Arc<dyn TaskHook>>,
-    error: &SubmissionError,
-) {
+pub(crate) fn notify_rejected_optional(hook: Option<&Arc<dyn TaskHook>>, error: &SubmissionError) {
     if let Some(hook) = hook {
         notify_rejected(hook.as_ref(), error);
     }
@@ -144,10 +135,6 @@ pub(crate) fn notify_started(hook: &dyn TaskHook, task_id: TaskId) {
 /// * `task_id` - Finished task id.
 /// * `status` - Terminal task status.
 #[inline]
-pub(crate) fn notify_finished(
-    hook: &dyn TaskHook,
-    task_id: TaskId,
-    status: TaskStatus,
-) {
+pub(crate) fn notify_finished(hook: &dyn TaskHook, task_id: TaskId, status: TaskStatus) {
     contain_hook_panic(|| hook.on_finished(task_id, status));
 }

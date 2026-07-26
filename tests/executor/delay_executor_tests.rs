@@ -12,19 +12,12 @@ use std::{
     sync::Arc,
     sync::mpsc,
     thread,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::{Duration, Instant},
 };
 
 use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    executor::{
-        DelayExecutor,
-        Executor,
-    },
+    CancelResult, TaskExecutionError,
+    executor::{DelayExecutor, Executor},
     hook::NoopTaskHook,
     service::SubmissionError,
 };
@@ -62,8 +55,7 @@ fn test_delay_executor_delays_task_start() {
 
 #[test]
 fn test_delay_executor_returns_callable_value() {
-    let executor =
-        DelayExecutor::new(Duration::ZERO).with_hook(Arc::new(NoopTaskHook));
+    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(delayed_value_task as fn() -> Result<usize, io::Error>)
@@ -91,8 +83,7 @@ fn test_delay_executor_reports_worker_spawn_failure() {
         .with_hook(Arc::new(NoopTaskHook))
         .with_stack_size(usize::MAX);
 
-    let result =
-        executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+    let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
 
     assert!(matches!(
         result,

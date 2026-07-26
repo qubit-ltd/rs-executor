@@ -5,10 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    io,
-    sync::Arc,
-};
+use std::{io, sync::Arc};
 
 use thiserror::Error;
 
@@ -29,9 +26,7 @@ pub enum SubmissionError {
 
     /// The service accepted the task conceptually but could not create the
     /// worker thread required to execute it.
-    #[error(
-        "task rejected because the executor service failed to spawn a worker: {source}"
-    )]
+    #[error("task rejected because the executor service failed to spawn a worker: {source}")]
     WorkerSpawnFailed {
         /// I/O error reported while spawning the worker.
         source: Arc<io::Error>,

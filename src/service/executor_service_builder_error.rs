@@ -72,23 +72,17 @@ impl ExecutorServiceBuilderError {
     /// A build error carrying equivalent failure context.
     pub fn from_submission_error(error: SubmissionError) -> Self {
         match error {
-            SubmissionError::WorkerSpawnFailed { source } => {
-                Self::SpawnWorker {
-                    index: None,
-                    source: io::Error::new(source.kind(), source.to_string()),
-                }
-            }
+            SubmissionError::WorkerSpawnFailed { source } => Self::SpawnWorker {
+                index: None,
+                source: io::Error::new(source.kind(), source.to_string()),
+            },
             SubmissionError::Shutdown => Self::SpawnWorker {
                 index: None,
-                source: io::Error::other(
-                    "executor service shut down during prestart",
-                ),
+                source: io::Error::other("executor service shut down during prestart"),
             },
             SubmissionError::Saturated => Self::SpawnWorker {
                 index: None,
-                source: io::Error::other(
-                    "executor service saturated during prestart",
-                ),
+                source: io::Error::other("executor service saturated during prestart"),
             },
         }
     }

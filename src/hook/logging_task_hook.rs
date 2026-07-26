@@ -7,10 +7,7 @@
 // =============================================================================
 use crate::{
     TaskStatus,
-    hook::{
-        TaskHook,
-        TaskId,
-    },
+    hook::{TaskHook, TaskId},
     service::SubmissionError,
 };
 
