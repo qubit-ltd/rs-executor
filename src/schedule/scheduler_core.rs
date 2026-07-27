@@ -9,7 +9,11 @@
 use std::time::{Duration, Instant};
 
 use qubit_collections::map::ordered_index_map::OwnedEntry;
-use qubit_lock::ParkingLotMonitor;
+use qubit_lock::{
+    ParkingLotMonitor,
+    TimeError,
+    WaitTimeoutResult,
+};
 
 use crate::{
     hook::TaskId,
@@ -146,21 +150,25 @@ impl SchedulerCore {
 
     /// Waits for worker termination for at most `timeout`.
     pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
-        let deadline = Instant::now() + timeout;
-        let mut state = self.state.lock();
-        loop {
-            if state.terminated {
+        let deadline = match self.state.timer().now().checked_add(timeout) {
+            Ok(deadline) => deadline,
+            Err(TimeError::InstantOverflow) => {
+                self.wait_for_termination();
                 return true;
             }
-            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
-                return false;
-            };
-            if remaining.is_zero() {
-                return false;
+            Err(error) => panic!("scheduler deadline construction failed: {error}"),
+        };
+        match self
+            .state
+            .wait_until_ready_with_deadline(deadline, |state| state.terminated)
+        {
+            Ok(WaitTimeoutResult::Ready(())) => true,
+            Ok(WaitTimeoutResult::TimedOut) => false,
+            Err(TimeError::InstantOverflow) => {
+                self.wait_for_termination();
+                true
             }
-            let _ = state
-                .wait_for(remaining)
-                .expect("scheduler termination waiter should remain registered");
+            Err(error) => panic!("scheduler termination wait failed: {error}"),
         }
     }
 }
