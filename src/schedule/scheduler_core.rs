@@ -62,7 +62,7 @@ impl SchedulerCore {
             .get(&task_id)
             .expect("inserted scheduled task must remain addressable");
         entry.accept();
-        self.state.notify_all();
+        state.notify_all();
         Ok(())
     }
 

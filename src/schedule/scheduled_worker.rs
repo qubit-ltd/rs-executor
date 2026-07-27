@@ -32,7 +32,7 @@ fn next_ready_task(core: &SchedulerCore) -> Option<StartedScheduledTask> {
     loop {
         if state.can_terminate() {
             state.terminated = true;
-            core.state.notify_all();
+            state.notify_all();
             return None;
         }
         if state.stop_draining {
