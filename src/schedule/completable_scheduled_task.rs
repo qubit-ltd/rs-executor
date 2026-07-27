@@ -5,21 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::sync::Arc;
-
-use qubit_atomic::Atomic;
 use qubit_function::Callable;
 
-use crate::task::spi::{
-    RunningTaskSlot,
-    TaskRunner,
-    TaskSlot,
-};
+use crate::task::spi::{RunningTaskSlot, TaskRunner, TaskSlot};
 
-use super::scheduled_task_entry::{
-    ScheduledTaskEntry,
-    StartedScheduledTask,
-};
+use super::scheduled_task_entry::{ScheduledTaskEntry, StartedScheduledTask};
 
 /// Callable task paired with a standard task completion endpoint.
 pub(crate) struct CompletableScheduledTask<R, E> {
@@ -27,8 +17,6 @@ pub(crate) struct CompletableScheduledTask<R, E> {
     task: Box<dyn FnOnce(RunningTaskSlot<R, E>) + Send + 'static>,
     /// Runner-side completion endpoint.
     slot: TaskSlot<R, E>,
-    /// Shared marker used by the heap to skip externally cancelled tasks.
-    cancelled: Arc<Atomic<bool>>,
 }
 
 impl<R, E> CompletableScheduledTask<R, E> {
@@ -38,16 +26,11 @@ impl<R, E> CompletableScheduledTask<R, E> {
     ///
     /// * `task` - Callable to run after the scheduled instant.
     /// * `slot` - Runner-side task completion endpoint.
-    /// * `cancelled` - Shared cancellation marker.
     ///
     /// # Returns
     ///
     /// A type-erased schedulable task entry.
-    pub(crate) fn new<C>(
-        task: C,
-        slot: TaskSlot<R, E>,
-        cancelled: Arc<Atomic<bool>>,
-    ) -> Self
+    pub(crate) fn new<C>(task: C, slot: TaskSlot<R, E>) -> Self
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -58,7 +41,6 @@ impl<R, E> CompletableScheduledTask<R, E> {
                 TaskRunner::new(task).run_started(running_slot);
             }),
             slot,
-            cancelled,
         }
     }
 }
@@ -74,41 +56,21 @@ where
         self.slot.accept();
     }
 
-    /// Returns whether this task has already been cancelled before start.
-    #[inline]
-    fn is_cancelled(&self) -> bool {
-        self.cancelled.load()
-    }
-
     /// Starts this task and returns a closure that completes it.
     fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
-        let Self {
-            task,
-            slot,
-            cancelled,
-        } = *self;
+        let Self { task, slot } = *self;
         match slot.try_start() {
             Ok(running_slot) => Some(Box::new(move || {
                 task(running_slot);
             })),
-            Err(_) => {
-                cancelled.store(true);
-                None
-            }
+            Err(_) => None,
         }
     }
 
     /// Publishes cancellation for this unstarted scheduled task.
     #[inline]
     fn cancel(self: Box<Self>) -> bool {
-        let Self {
-            slot, cancelled, ..
-        } = *self;
-        if slot.cancel_unstarted() {
-            cancelled.store(true);
-            true
-        } else {
-            false
-        }
+        let Self { slot, .. } = *self;
+        slot.cancel_unstarted()
     }
 }

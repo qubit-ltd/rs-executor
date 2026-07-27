@@ -9,16 +9,12 @@
 
 mod completable_scheduled_task;
 mod scheduled_executor_service;
-mod scheduled_task;
 mod scheduled_task_entry;
 mod scheduled_task_handle;
 mod scheduled_worker;
+mod scheduler_core;
+mod scheduler_state;
 mod single_thread_scheduled_executor_service;
-mod single_thread_scheduled_executor_service_inner;
-mod single_thread_scheduled_executor_service_state;
-
-#[doc(hidden)]
-pub mod testing;
 
 pub use scheduled_executor_service::ScheduledExecutorService;
 pub use scheduled_task_handle::ScheduledTaskHandle;

@@ -5,21 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use std::time::Duration;
 
-use crate::task::spi::{
-    TaskResultHandle,
-    TrackedTaskHandle,
-};
+use qubit_function::{Callable, Runnable};
 
-use super::{
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
-};
+use crate::task::spi::{TaskResultHandle, TrackedTaskHandle};
+
+use super::{ExecutorServiceLifecycle, StopReport, SubmissionError};
 
 /// Managed task service with submission and lifecycle control.
 ///
@@ -169,10 +161,7 @@ pub trait ExecutorService: Send + Sync {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn submit_tracked<T, E>(
-        &self,
-        task: T,
-    ) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
+    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -315,4 +304,11 @@ pub trait ExecutorService: Send + Sync {
     /// Implementations must not present this method as an asynchronous or
     /// non-blocking operation.
     fn wait_termination(&self);
+
+    /// Waits at most `timeout` for this service to terminate.
+    ///
+    /// A zero timeout probes the current lifecycle without blocking. Returns
+    /// `true` when the service is terminated before the deadline, or `false`
+    /// when the deadline expires first.
+    fn wait_termination_timeout(&self, timeout: Duration) -> bool;
 }

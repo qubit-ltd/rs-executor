@@ -10,10 +10,7 @@ use std::sync::Arc;
 use qubit_function::Callable;
 
 use super::{
-    TaskResult,
-    running_task_slot::RunningTaskSlot,
-    task_runner::TaskRunner,
-    task_state::TaskState,
+    TaskResult, running_task_slot::RunningTaskSlot, task_runner::TaskRunner, task_state::TaskState,
 };
 
 /// Runner-side slot for one task submission.

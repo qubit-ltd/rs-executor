@@ -12,10 +12,7 @@ use std::sync::LazyLock;
 use qubit_fast_cas::FastCasPolicy;
 use qubit_state_machine::FastStateMachine;
 
-use super::task_status::{
-    TASK_STATUS_COUNT,
-    TaskStatus,
-};
+use super::task_status::{TASK_STATUS_COUNT, TaskStatus};
 use super::task_status_event::TaskStatusEvent;
 
 /// Number of event codes represented by [`TaskStatusEvent`].
@@ -69,8 +66,7 @@ mod tests {
     use qubit_fast_cas::FastCasState;
 
     use super::{
-        super::task_status::TaskStatus,
-        super::task_status_event::TaskStatusEvent,
+        super::task_status::TaskStatus, super::task_status_event::TaskStatusEvent,
         build_task_status_machine,
     };
 
@@ -90,32 +86,21 @@ mod tests {
         );
 
         let state = FastCasState::new(TaskStatus::Pending.as_usize() as u64);
-        assert!(
-            machine
-                .try_trigger(&state, TaskStatusEvent::CancelPending.as_u64(),)
-        );
+        assert!(machine.try_trigger(&state, TaskStatusEvent::CancelPending.as_u64(),));
         assert_eq!(
             TaskStatus::from_usize(state.load() as usize),
             TaskStatus::Cancelled
         );
 
         let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
-        assert!(
-            machine.try_trigger(
-                &state,
-                TaskStatusEvent::CompleteSucceeded.as_u64(),
-            )
-        );
+        assert!(machine.try_trigger(&state, TaskStatusEvent::CompleteSucceeded.as_u64(),));
         assert_eq!(
             TaskStatus::from_usize(state.load() as usize),
             TaskStatus::Succeeded
         );
 
         let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
-        assert!(
-            machine
-                .try_trigger(&state, TaskStatusEvent::DropUnfinished.as_u64())
-        );
+        assert!(machine.try_trigger(&state, TaskStatusEvent::DropUnfinished.as_u64()));
         assert_eq!(
             TaskStatus::from_usize(state.load() as usize),
             TaskStatus::Dropped
@@ -134,10 +119,7 @@ mod tests {
         );
 
         let state = FastCasState::new(TaskStatus::Running.as_usize() as u64);
-        assert!(
-            !machine
-                .try_trigger(&state, TaskStatusEvent::CancelPending.as_u64(),)
-        );
+        assert!(!machine.try_trigger(&state, TaskStatusEvent::CancelPending.as_u64(),));
         assert_eq!(
             TaskStatus::from_usize(state.load() as usize),
             TaskStatus::Running

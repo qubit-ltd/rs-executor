@@ -18,6 +18,7 @@ mod task_handle_future;
 mod task_result_handle;
 mod task_runner;
 mod task_slot;
+mod task_slot_cell;
 mod task_state;
 mod task_status;
 mod task_status_event;
@@ -27,10 +28,7 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
-pub use task_execution_error::{
-    TaskExecutionError,
-    TaskResult,
-};
+pub use task_execution_error::{TaskExecutionError, TaskResult};
 pub use task_handle::TaskHandle;
 pub use task_handle_future::TaskHandleFuture;
 pub use task_status::TaskStatus;
@@ -48,5 +46,6 @@ pub mod spi {
     pub use super::task_result_handle::TaskResultHandle;
     pub use super::task_runner::TaskRunner;
     pub use super::task_slot::TaskSlot;
+    pub use super::task_slot_cell::TaskSlotCell;
     pub use super::tracked_task_handle::TrackedTaskHandle;
 }

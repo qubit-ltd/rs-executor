@@ -13,9 +13,6 @@ pub(crate) trait ScheduledTaskEntry: Send + 'static {
     /// Marks this task as accepted by the scheduled service.
     fn accept(&self);
 
-    /// Returns whether this task has already been cancelled before start.
-    fn is_cancelled(&self) -> bool;
-
     /// Attempts to move this task from pending to running state.
     ///
     /// # Returns
