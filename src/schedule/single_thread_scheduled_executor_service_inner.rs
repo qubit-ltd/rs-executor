@@ -8,14 +8,18 @@
 use qubit_atomic::Atomic;
 use qubit_lock::ParkingLotMonitor;
 
-use crate::service::{ExecutorServiceLifecycle, StopReport};
+use crate::service::{
+    ExecutorServiceLifecycle,
+    StopReport,
+};
 
 use super::single_thread_scheduled_executor_service_state::SingleThreadScheduledExecutorServiceState;
 
 /// Shared state for the single-thread scheduled executor service.
 pub(crate) struct SingleThreadScheduledExecutorServiceInner {
     /// Mutable lifecycle and heap state.
-    pub(crate) state: ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
+    pub(crate) state:
+        ParkingLotMonitor<SingleThreadScheduledExecutorServiceState>,
 }
 
 impl SingleThreadScheduledExecutorServiceInner {
@@ -26,7 +30,9 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Shared scheduler state before its worker thread starts.
     pub(crate) fn new() -> Self {
         Self {
-            state: ParkingLotMonitor::new(SingleThreadScheduledExecutorServiceState::new()),
+            state: ParkingLotMonitor::new(
+                SingleThreadScheduledExecutorServiceState::new(),
+            ),
         }
     }
 
@@ -62,7 +68,10 @@ impl SingleThreadScheduledExecutorServiceInner {
     ///
     /// Panics if no queued task is recorded or the cancellation count
     /// overflows.
-    pub(crate) fn finish_queued_cancellation(&self, cancellation_marker: &Atomic<bool>) {
+    pub(crate) fn finish_queued_cancellation(
+        &self,
+        cancellation_marker: &Atomic<bool>,
+    ) {
         self.state.with_write_notify_all(|state| {
             state.cancel_queued_task();
             cancellation_marker.store(true);
@@ -76,8 +85,9 @@ impl SingleThreadScheduledExecutorServiceInner {
     /// Panics if no running task is recorded or the completed task count
     /// overflows.
     pub(crate) fn finish_running_task(&self) {
-        self.state
-            .with_write_notify_all(SingleThreadScheduledExecutorServiceState::finish_running_task);
+        self.state.with_write_notify_all(
+            SingleThreadScheduledExecutorServiceState::finish_running_task,
+        );
     }
 
     /// Requests graceful shutdown.
@@ -116,8 +126,9 @@ impl SingleThreadScheduledExecutorServiceInner {
     ///
     /// `true` if new scheduled tasks are rejected.
     pub(crate) fn is_not_running(&self) -> bool {
-        self.state
-            .with_read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
+        self.state.with_read(|state| {
+            state.lifecycle != ExecutorServiceLifecycle::Running
+        })
     }
 
     /// Returns the current lifecycle state.
@@ -151,7 +162,10 @@ impl SingleThreadScheduledExecutorServiceInner {
     }
 
     /// Marks the scheduler thread as terminated.
-    pub(crate) fn terminate(&self, state: &mut SingleThreadScheduledExecutorServiceState) {
+    pub(crate) fn terminate(
+        &self,
+        state: &mut SingleThreadScheduledExecutorServiceState,
+    ) {
         state.terminated = true;
         self.state.notify_all();
     }

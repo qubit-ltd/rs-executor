@@ -13,20 +13,36 @@
 
 use std::{
     cmp::Ordering as CompareOrdering,
-    panic::{self, AssertUnwindSafe},
-    sync::{Arc, mpsc},
+    panic::{
+        self,
+        AssertUnwindSafe,
+    },
+    sync::{
+        Arc,
+        mpsc,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use qubit_atomic::Atomic;
 
-use crate::{CancelResult, TaskExecutionError, task::spi::TaskEndpointPair};
+use crate::{
+    CancelResult,
+    TaskExecutionError,
+    task::spi::TaskEndpointPair,
+};
 
 use super::{
     completable_scheduled_task::CompletableScheduledTask,
     scheduled_task::ScheduledTask,
-    scheduled_task_entry::{ScheduledTaskEntry, StartedScheduledTask},
+    scheduled_task_entry::{
+        ScheduledTaskEntry,
+        StartedScheduledTask,
+    },
     single_thread_scheduled_executor_service_inner::SingleThreadScheduledExecutorServiceInner,
 };
 
@@ -88,10 +104,16 @@ pub fn verify_scheduled_task_ordering() {
     assert!(!Box::new(CancelRejectedEntry).cancel());
 
     assert!(scheduled_task(deadline, 7) == scheduled_task(deadline, 7));
-    assert!(scheduled_task(deadline, 7) != scheduled_task(deadline + Duration::from_millis(1), 7));
+    assert!(
+        scheduled_task(deadline, 7)
+            != scheduled_task(deadline + Duration::from_millis(1), 7)
+    );
     assert!(scheduled_task(deadline, 7) != scheduled_task(deadline, 8));
     assert!(scheduled_task(deadline, 0) > scheduled_task(deadline, 1));
-    assert!(scheduled_task(deadline, 0) > scheduled_task(deadline + Duration::from_millis(1), 0));
+    assert!(
+        scheduled_task(deadline, 0)
+            > scheduled_task(deadline + Duration::from_millis(1), 0)
+    );
     assert_eq!(
         scheduled_task(deadline, 0).partial_cmp(&scheduled_task(deadline, 1)),
         Some(CompareOrdering::Greater)
@@ -128,7 +150,8 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     assert!(cancelled.load());
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
 
-    let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let (tracked, slot) =
+        TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
@@ -141,7 +164,8 @@ pub fn verify_completable_scheduled_task_cancellation_paths() {
     assert!(cancelled.load());
     assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
 
-    let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let (tracked, slot) =
+        TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     let cancelled = Arc::new(Atomic::new(false));
     let entry = Box::new(CompletableScheduledTask::new(
         || Ok::<usize, ()>(42),
@@ -224,7 +248,8 @@ pub fn verify_single_thread_scheduled_cancellation_obeys_monitor_handshake() {
         started_sender
             .send(())
             .expect("cancellation thread start should be observable");
-        cancellation_inner.finish_queued_cancellation(&cancellation_thread_marker);
+        cancellation_inner
+            .finish_queued_cancellation(&cancellation_thread_marker);
         completed_sender
             .send(())
             .expect("cancellation completion should be observable");
@@ -244,7 +269,9 @@ pub fn verify_single_thread_scheduled_cancellation_obeys_monitor_handshake() {
     if !completed_while_state_locked {
         completed_receiver
             .recv_timeout(Duration::from_secs(1))
-            .expect("cancellation should finish after releasing scheduler state");
+            .expect(
+                "cancellation should finish after releasing scheduler state",
+            );
     }
     cancellation_thread
         .join()

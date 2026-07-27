@@ -5,14 +5,24 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{future::IntoFuture, sync::Arc};
+use std::{
+    future::IntoFuture,
+    sync::Arc,
+};
 
 use crate::{
-    CancelResult, TaskResult, TaskStatus, TrackedTask, TryGet,
+    CancelResult,
+    TaskResult,
+    TaskStatus,
+    TrackedTask,
+    TryGet,
     hook::TaskId,
     task::{
         TaskHandleFuture,
-        spi::{TaskResultHandle, TrackedTaskHandle},
+        spi::{
+            TaskResultHandle,
+            TrackedTaskHandle,
+        },
     },
 };
 

@@ -9,12 +9,21 @@
 
 use std::{
     io,
-    sync::{Arc, atomic::Ordering},
+    sync::{
+        Arc,
+        atomic::Ordering,
+    },
 };
 
 use qubit_atomic::Atomic;
-use qubit_executor::executor::{DirectExecutor, Executor};
-use qubit_function::{BoxCallable, BoxRunnable};
+use qubit_executor::executor::{
+    DirectExecutor,
+    Executor,
+};
+use qubit_function::{
+    BoxCallable,
+    BoxRunnable,
+};
 
 #[test]
 fn test_direct_executor_execute_runs_inline() {
@@ -57,7 +66,9 @@ fn test_direct_executor_call_converts_task_failure_and_panic() {
     assert!(failed.get().is_err());
 
     let panicked = executor
-        .call(|| -> Result<usize, io::Error> { panic!("direct executor panic") })
+        .call(|| -> Result<usize, io::Error> {
+            panic!("direct executor panic")
+        })
         .expect("direct executor should accept callable");
     assert!(panicked.get().is_err());
 }
@@ -84,9 +95,10 @@ fn test_qubit_function_task_types_remain_compatible() {
         .expect("composed boxed runnable should succeed");
     assert_eq!(value.load(), 2);
 
-    let callable: BoxCallable<i32, io::Error> = BoxCallable::new(|| Ok::<i32, io::Error>(20))
-        .map(|value| value + 1)
-        .and_then(|value| Ok(value * 2));
+    let callable: BoxCallable<i32, io::Error> =
+        BoxCallable::new(|| Ok::<i32, io::Error>(20))
+            .map(|value| value + 1)
+            .and_then(|value| Ok(value * 2));
     assert_eq!(
         executor
             .call(callable)

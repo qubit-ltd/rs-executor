@@ -17,15 +17,35 @@ pub mod service;
 pub mod task;
 
 pub use crate::executor::{
-    DelayExecutor, DirectExecutor, Executor, ScheduleExecutor, ThreadPerTaskExecutor,
+    DelayExecutor,
+    DirectExecutor,
+    Executor,
+    ScheduleExecutor,
+    ThreadPerTaskExecutor,
     ThreadPerTaskExecutorBuilder,
 };
 pub use crate::schedule::{
-    ScheduledExecutorService, ScheduledTaskHandle, SingleThreadScheduledExecutorService,
+    ScheduledExecutorService,
+    ScheduledTaskHandle,
+    SingleThreadScheduledExecutorService,
 };
 pub use crate::service::{
-    ExecutorService, ExecutorServiceBuilderError, ExecutorServiceLifecycle, StopReport,
-    SubmissionError, ThreadPerTaskExecutorService, ThreadPerTaskExecutorServiceBuilder,
+    ExecutorService,
+    ExecutorServiceBuilderError,
+    ExecutorServiceLifecycle,
+    StopReport,
+    SubmissionError,
+    ThreadPerTaskExecutorService,
+    ThreadPerTaskExecutorServiceBuilder,
 };
-pub use crate::task::{CancelResult, TaskExecutionError, TaskResult, TaskStatus};
-pub use crate::task::{TaskHandle, TrackedTask, TryGet};
+pub use crate::task::{
+    CancelResult,
+    TaskExecutionError,
+    TaskResult,
+    TaskStatus,
+};
+pub use crate::task::{
+    TaskHandle,
+    TrackedTask,
+    TryGet,
+};

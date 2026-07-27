@@ -5,7 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{ExecutorServiceBuilderError, ThreadPerTaskExecutorService};
+use super::{
+    ExecutorServiceBuilderError,
+    ThreadPerTaskExecutorService,
+};
 use crate::hook::TaskHook;
 use std::sync::Arc;
 
@@ -70,11 +73,14 @@ impl ThreadPerTaskExecutorServiceBuilder {
     /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured
     /// stack size is zero.
     #[inline]
-    pub fn build(self) -> Result<ThreadPerTaskExecutorService, ExecutorServiceBuilderError> {
+    pub fn build(
+        self,
+    ) -> Result<ThreadPerTaskExecutorService, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }
-        let mut service = ThreadPerTaskExecutorService::from_stack_size(self.stack_size);
+        let mut service =
+            ThreadPerTaskExecutorService::from_stack_size(self.stack_size);
         service.hook = self.hook;
         Ok(service)
     }

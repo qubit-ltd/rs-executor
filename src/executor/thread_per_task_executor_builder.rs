@@ -7,7 +7,10 @@
 // =============================================================================
 use std::sync::Arc;
 
-use crate::{hook::TaskHook, service::ExecutorServiceBuilderError};
+use crate::{
+    hook::TaskHook,
+    service::ExecutorServiceBuilderError,
+};
 
 use super::ThreadPerTaskExecutor;
 
@@ -72,7 +75,9 @@ impl ThreadPerTaskExecutorBuilder {
     /// Returns [`ExecutorServiceBuilderError::ZeroStackSize`] if the configured
     /// stack size is zero.
     #[inline]
-    pub fn build(self) -> Result<ThreadPerTaskExecutor, ExecutorServiceBuilderError> {
+    pub fn build(
+        self,
+    ) -> Result<ThreadPerTaskExecutor, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }

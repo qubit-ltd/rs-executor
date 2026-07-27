@@ -9,16 +9,35 @@
 
 use std::{
     io,
-    sync::{Arc, Condvar, Mutex, atomic::Ordering},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::Ordering,
+    },
     time::Duration,
 };
 
-use qubit_atomic::{Atomic, atomic::primitive::AtomicUsize};
+use qubit_atomic::{
+    Atomic,
+    atomic::primitive::AtomicUsize,
+};
 use qubit_executor::{
-    TaskExecutionError, TaskStatus,
-    executor::{Executor, ThreadPerTaskExecutor},
-    hook::{NoopTaskHook, TaskHook, TaskId},
-    service::{ExecutorServiceBuilderError, SubmissionError},
+    TaskExecutionError,
+    TaskStatus,
+    executor::{
+        Executor,
+        ThreadPerTaskExecutor,
+    },
+    hook::{
+        NoopTaskHook,
+        TaskHook,
+        TaskId,
+    },
+    service::{
+        ExecutorServiceBuilderError,
+        SubmissionError,
+    },
 };
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -62,10 +81,9 @@ impl RecordingHook {
 
     /// Waits until at least `expected_count` events have been recorded.
     fn wait_for_event_count(&self, expected_count: usize) -> Vec<&'static str> {
-        let events = self
-            .events
-            .lock()
-            .expect("events lock should not be poisoned before waiting for events");
+        let events = self.events.lock().expect(
+            "events lock should not be poisoned before waiting for events",
+        );
         let (events, _) = self
             .events_changed
             .wait_timeout_while(events, Duration::from_secs(1), |events| {
@@ -91,7 +109,8 @@ impl TaskHook for RecordingHook {
 }
 
 fn shared_runner_task() -> Result<usize, &'static str> {
-    match SHARED_RUNNER_TASK_CALLS.fetch_add_with_ordering(1, Ordering::AcqRel) {
+    match SHARED_RUNNER_TASK_CALLS.fetch_add_with_ordering(1, Ordering::AcqRel)
+    {
         0 => Ok(42),
         1 => Err("shared failure"),
         _ => panic!("shared panic"),
@@ -113,7 +132,8 @@ fn test_thread_per_task_executor_execute_runs_task() {
 
 #[test]
 fn test_thread_per_task_executor_call_returns_value() {
-    let executor = ThreadPerTaskExecutor::new().with_hook(Arc::new(NoopTaskHook));
+    let executor =
+        ThreadPerTaskExecutor::new().with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(|| Ok::<usize, io::Error>(42))

@@ -10,9 +10,16 @@ use std::sync::Arc;
 use qubit_atomic::Atomic;
 use qubit_function::Callable;
 
-use crate::task::spi::{RunningTaskSlot, TaskRunner, TaskSlot};
+use crate::task::spi::{
+    RunningTaskSlot,
+    TaskRunner,
+    TaskSlot,
+};
 
-use super::scheduled_task_entry::{ScheduledTaskEntry, StartedScheduledTask};
+use super::scheduled_task_entry::{
+    ScheduledTaskEntry,
+    StartedScheduledTask,
+};
 
 /// Callable task paired with a standard task completion endpoint.
 pub(crate) struct CompletableScheduledTask<R, E> {
@@ -36,7 +43,11 @@ impl<R, E> CompletableScheduledTask<R, E> {
     /// # Returns
     ///
     /// A type-erased schedulable task entry.
-    pub(crate) fn new<C>(task: C, slot: TaskSlot<R, E>, cancelled: Arc<Atomic<bool>>) -> Self
+    pub(crate) fn new<C>(
+        task: C,
+        slot: TaskSlot<R, E>,
+        cancelled: Arc<Atomic<bool>>,
+    ) -> Self
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

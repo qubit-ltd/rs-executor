@@ -5,18 +5,31 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{sync::Arc, thread, time::Instant};
+use std::{
+    sync::Arc,
+    thread,
+    time::Instant,
+};
 
 use qubit_function::Callable;
 
 use crate::{
     TrackedTask,
-    hook::{TaskHook, notify_rejected_optional},
+    hook::{
+        TaskHook,
+        notify_rejected_optional,
+    },
     service::SubmissionError,
-    task::{spi::TaskEndpointPair, task_admission_gate::TaskAdmissionGate},
+    task::{
+        spi::TaskEndpointPair,
+        task_admission_gate::TaskAdmissionGate,
+    },
 };
 
-use super::{Executor, thread_spawn_config::ThreadSpawnConfig};
+use super::{
+    Executor,
+    thread_spawn_config::ThreadSpawnConfig,
+};
 
 /// Executor that starts each task at a specified monotonic instant.
 ///
@@ -98,14 +111,18 @@ impl ScheduleExecutor {
 impl Executor for ScheduleExecutor {
     /// Starts a helper thread that waits until the scheduled instant and then
     /// runs the callable.
-    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
         let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
+            TaskEndpointPair::with_optional_hook(self.hook.clone())
+                .into_tracked_parts();
         let instant = self.instant;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
@@ -119,7 +136,9 @@ impl Executor for ScheduleExecutor {
                 }
                 slot.run(task);
             })
-            .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
+            .inspect_err(|error| {
+                notify_rejected_optional(hook.as_ref(), error)
+            })?;
         handle.accept();
         gate.open();
         Ok(handle)
