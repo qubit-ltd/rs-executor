@@ -29,14 +29,15 @@ pub(super) enum TaskStatusEvent {
 }
 
 impl TaskStatusEvent {
-    /// Returns the compact event code used by [`FastStateMachine`].
+    /// Returns the fast state-machine event code.
     ///
     /// # Returns
     ///
-    /// A stable integer code in `0..TASK_STATUS_EVENT_COUNT`.
+    /// A stable `u64` code accepted by
+    /// [`qubit_state_machine::FastStateMachine`].
     #[inline]
-    pub(super) fn as_usize(self) -> usize {
-        self as usize
+    pub(super) const fn as_u64(self) -> u64 {
+        self as u64
     }
 
     /// Returns the completion event matching a normal running-task terminal
@@ -70,13 +71,13 @@ mod tests {
     use super::TaskStatusEvent;
 
     #[test]
-    fn task_status_event_as_usize_matches_stable_discriminants() {
-        assert_eq!(TaskStatusEvent::Start.as_usize(), 0);
-        assert_eq!(TaskStatusEvent::CancelPending.as_usize(), 1);
-        assert_eq!(TaskStatusEvent::CompleteSucceeded.as_usize(), 2);
-        assert_eq!(TaskStatusEvent::CompleteFailed.as_usize(), 3);
-        assert_eq!(TaskStatusEvent::CompletePanicked.as_usize(), 4);
-        assert_eq!(TaskStatusEvent::DropUnfinished.as_usize(), 5);
+    fn task_status_event_as_u64_matches_stable_discriminants() {
+        assert_eq!(TaskStatusEvent::Start.as_u64(), 0);
+        assert_eq!(TaskStatusEvent::CancelPending.as_u64(), 1);
+        assert_eq!(TaskStatusEvent::CompleteSucceeded.as_u64(), 2);
+        assert_eq!(TaskStatusEvent::CompleteFailed.as_u64(), 3);
+        assert_eq!(TaskStatusEvent::CompletePanicked.as_u64(), 4);
+        assert_eq!(TaskStatusEvent::DropUnfinished.as_u64(), 5);
     }
 
     #[test]
@@ -90,7 +91,7 @@ mod tests {
             TaskStatusEvent::DropUnfinished,
         ];
         for (i, event) in events.iter().enumerate() {
-            assert_eq!(event.as_usize(), i, "event index {i}");
+            assert_eq!(event.as_u64(), i as u64, "event index {i}");
         }
     }
 

@@ -8,7 +8,10 @@
 // qubit-style: allow inline-tests
 use core::mem::transmute;
 
-use super::{TaskExecutionError, TaskResult};
+use super::{
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Number of [`TaskStatus`] variants; compact codes are `0..TASK_STATUS_COUNT`.
 pub(crate) const TASK_STATUS_COUNT: usize = 7;
@@ -48,7 +51,11 @@ impl TaskStatus {
     pub const fn is_done(self) -> bool {
         matches!(
             self,
-            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
+            Self::Succeeded
+                | Self::Failed
+                | Self::Panicked
+                | Self::Cancelled
+                | Self::Dropped
         )
     }
 
@@ -60,6 +67,17 @@ impl TaskStatus {
     #[inline]
     pub(crate) const fn as_usize(self) -> usize {
         self as usize
+    }
+
+    /// Converts this status to the fast state-machine representation.
+    ///
+    /// # Returns
+    ///
+    /// A stable `u64` code accepted by
+    /// [`qubit_state_machine::FastStateMachine`].
+    #[inline]
+    pub(crate) const fn as_u64(self) -> u64 {
+        self as u64
     }
 
     /// Converts a compact state-machine representation into a task status.
@@ -106,7 +124,10 @@ impl TaskStatus {
 
 #[cfg(test)]
 mod compact_encoding_tests {
-    use super::{TASK_STATUS_COUNT, TaskStatus};
+    use super::{
+        TASK_STATUS_COUNT,
+        TaskStatus,
+    };
 
     #[test]
     fn task_status_as_usize_matches_stable_discriminants() {
@@ -117,6 +138,17 @@ mod compact_encoding_tests {
         assert_eq!(TaskStatus::Panicked.as_usize(), 4);
         assert_eq!(TaskStatus::Cancelled.as_usize(), 5);
         assert_eq!(TaskStatus::Dropped.as_usize(), 6);
+    }
+
+    #[test]
+    fn task_status_as_u64_matches_stable_discriminants() {
+        assert_eq!(TaskStatus::Pending.as_u64(), 0);
+        assert_eq!(TaskStatus::Running.as_u64(), 1);
+        assert_eq!(TaskStatus::Succeeded.as_u64(), 2);
+        assert_eq!(TaskStatus::Failed.as_u64(), 3);
+        assert_eq!(TaskStatus::Panicked.as_u64(), 4);
+        assert_eq!(TaskStatus::Cancelled.as_u64(), 5);
+        assert_eq!(TaskStatus::Dropped.as_u64(), 6);
     }
 
     #[test]

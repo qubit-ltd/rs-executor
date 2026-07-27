@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-fast-cas"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "qubit-function"
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-retry"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "parse-display",
  "qubit-argument",

@@ -77,7 +77,8 @@ impl AtomicTaskStatus {
     /// cancellation or dropped statuses, which are handled by explicit APIs.
     #[inline]
     pub(crate) fn try_complete(&self, status: TaskStatus) -> bool {
-        let Some(event) = TaskStatusEvent::from_completion_status(status) else {
+        let Some(event) = TaskStatusEvent::from_completion_status(status)
+        else {
             return false;
         };
         self.try_transition(event)
@@ -104,6 +105,6 @@ impl AtomicTaskStatus {
     /// `true` if the configured transition exists and the CAS update succeeds.
     #[inline]
     fn try_transition(&self, event: TaskStatusEvent) -> bool {
-        TASK_STATUS_MACHINE.try_trigger(&self.value, event.as_usize())
+        TASK_STATUS_MACHINE.try_trigger(&self.value, event.as_u64())
     }
 }
