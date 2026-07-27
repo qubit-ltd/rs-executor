@@ -1,4 +1,5 @@
 // =============================================================================
+// qubit-style: allow source-test-pair
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
