@@ -40,7 +40,7 @@ qubit-atomic = "0.13"
 qubit-function = "0.16"
 qubit-lock = { default-features = false, features = ["monitor", "parking-lot"], version = "0.11.0", path = "../rs-lock" }
 qubit-fast-cas = { version = "0.3", path = "../rs-fast-cas" }
-qubit-state-machine = { version = "0.6", path = "../rs-state-machine" }
+qubit-state-machine = { version = "0.6", path = "../rs-state-machine", default-features = false, features = ["fast"] }
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
