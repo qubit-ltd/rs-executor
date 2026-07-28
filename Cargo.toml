@@ -40,7 +40,7 @@ qubit-atomic = "0.13"
 qubit-collections = { version = "0.2", path = "../rs-collections" }
 qubit-function = "0.16"
 qubit-lock = { default-features = false, features = ["monitor", "parking-lot"], version = "0.11.0", path = "../rs-lock" }
-qubit-clock = { version = "0.11.0", path = "../rs-clock" }
+qubit-clock = { version = "0.11" }
 qubit-fast-cas = { version = "0.3", path = "../rs-fast-cas" }
 qubit-state-machine = { version = "0.6", path = "../rs-state-machine", default-features = false, features = ["fast"] }
 
