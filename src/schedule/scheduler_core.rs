@@ -6,21 +6,33 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
+use qubit_clock::TimeError;
 use qubit_collections::map::ordered_index_map::OwnedEntry;
 use qubit_lock::{
     ParkingLotMonitor,
-    TimeError,
     WaitTimeoutResult,
 };
 
 use crate::{
     hook::TaskId,
-    service::{ExecutorServiceLifecycle, StopReport},
+    service::{
+        ExecutorServiceLifecycle,
+        StopReport,
+    },
 };
 
-use super::{scheduled_task_entry::ScheduledTaskEntry, scheduler_state::SchedulerState};
+use super::{
+    scheduled_task_entry::ScheduledTaskEntry,
+    scheduler_state::SchedulerState,
+};
+
+type ScheduledTaskEntries =
+    Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>;
 
 /// Shared coordinator for a single scheduled worker.
 pub(crate) struct SchedulerCore {
@@ -89,25 +101,22 @@ impl SchedulerCore {
 
     /// Requests immediate shutdown and cancels detached queued entries.
     pub(crate) fn stop(&self) -> StopReport {
-        let (entries, queued, running): (
-            Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>,
-            usize,
-            usize,
-        ) = self.state.with_write_notify_all(|state| {
-            if state.lifecycle == ExecutorServiceLifecycle::Terminated {
-                return (Vec::new(), 0, 0);
-            }
-            state.lifecycle = ExecutorServiceLifecycle::Stopping;
-            let queued = state.tasks.len();
-            let running = usize::from(state.worker_active);
-            let mut entries = Vec::with_capacity(queued);
-            while let Some(entry) = state.tasks.pop_first() {
-                entries.push(entry);
-            }
-            state.stop_draining = !entries.is_empty();
-            (entries, queued, running)
-        });
-        let entries: Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>> = entries;
+        let (entries, queued, running): (ScheduledTaskEntries, usize, usize) =
+            self.state.with_write_notify_all(|state| {
+                if state.lifecycle == ExecutorServiceLifecycle::Terminated {
+                    return (Vec::new(), 0, 0);
+                }
+                state.lifecycle = ExecutorServiceLifecycle::Stopping;
+                let queued = state.tasks.len();
+                let running = usize::from(state.worker_active);
+                let mut entries = Vec::with_capacity(queued);
+                while let Some(entry) = state.tasks.pop_first() {
+                    entries.push(entry);
+                }
+                state.stop_draining = !entries.is_empty();
+                (entries, queued, running)
+            });
+        let entries: ScheduledTaskEntries = entries;
         let mut cancelled = 0;
         for entry in entries {
             cancelled += usize::from(entry.into_value().cancel());
@@ -123,8 +132,9 @@ impl SchedulerCore {
 
     /// Returns whether shutdown has started.
     pub(crate) fn is_not_running(&self) -> bool {
-        self.state
-            .with_read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
+        self.state.with_read(|state| {
+            state.lifecycle != ExecutorServiceLifecycle::Running
+        })
     }
 
     /// Returns the current lifecycle.
@@ -149,14 +159,19 @@ impl SchedulerCore {
     }
 
     /// Waits for worker termination for at most `timeout`.
-    pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
-        let deadline = match self.state.timer().now().checked_add(timeout) {
+    pub(crate) fn wait_for_termination_timeout(
+        &self,
+        timeout: Duration,
+    ) -> bool {
+        let deadline = match self.state.timer().deadline_after(timeout) {
             Ok(deadline) => deadline,
             Err(TimeError::InstantOverflow) => {
                 self.wait_for_termination();
                 return true;
             }
-            Err(error) => panic!("scheduler deadline construction failed: {error}"),
+            Err(error) => {
+                panic!("scheduler deadline construction failed: {error}")
+            }
         };
         match self
             .state

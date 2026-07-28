@@ -8,15 +8,24 @@
 use std::{
     sync::Arc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
-use qubit_function::{Callable, Runnable};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
 use crate::{
     TaskHandle,
     service::{
-        ExecutorService, ExecutorServiceBuilderError, ExecutorServiceLifecycle, StopReport,
+        ExecutorService,
+        ExecutorServiceBuilderError,
+        ExecutorServiceLifecycle,
+        StopReport,
         SubmissionError,
     },
     task::spi::TaskEndpointPair,
@@ -24,8 +33,10 @@ use crate::{
 
 use super::{
     completable_scheduled_task::CompletableScheduledTask,
-    scheduled_executor_service::ScheduledExecutorService, scheduled_task_entry::ScheduledTaskEntry,
-    scheduled_task_handle::ScheduledTaskHandle, scheduled_worker::ScheduledWorker,
+    scheduled_executor_service::ScheduledExecutorService,
+    scheduled_task_entry::ScheduledTaskEntry,
+    scheduled_task_handle::ScheduledTaskHandle,
+    scheduled_worker::ScheduledWorker,
     scheduler_core::SchedulerCore,
 };
 
@@ -86,7 +97,9 @@ impl SingleThreadScheduledExecutorService {
         if let Some(stack_size) = stack_size {
             builder = builder.stack_size(stack_size);
         }
-        if let Err(source) = builder.spawn(move || ScheduledWorker::run(worker_inner)) {
+        if let Err(source) =
+            builder.spawn(move || ScheduledWorker::run(worker_inner))
+        {
             return Err(ExecutorServiceBuilderError::SpawnWorker {
                 index: Some(0),
                 source,
@@ -218,7 +231,10 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution on the scheduler thread.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

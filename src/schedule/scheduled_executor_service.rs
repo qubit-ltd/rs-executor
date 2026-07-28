@@ -6,11 +6,20 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use qubit_function::{Callable, Runnable};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
-use crate::service::{ExecutorService, SubmissionError};
+use crate::service::{
+    ExecutorService,
+    SubmissionError,
+};
 
 /// Managed executor service with delayed and instant-based submission support.
 ///

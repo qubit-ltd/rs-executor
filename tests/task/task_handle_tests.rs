@@ -9,16 +9,29 @@
 
 use std::{
     io,
-    sync::{Arc, mpsc},
+    sync::{
+        Arc,
+        mpsc,
+    },
     thread,
     time::Duration,
 };
 
 use qubit_executor::{
-    CancelResult, TaskExecutionError, TaskStatus, TryGet,
-    executor::{Executor, ThreadPerTaskExecutor},
+    CancelResult,
+    TaskExecutionError,
+    TaskStatus,
+    TryGet,
+    executor::{
+        Executor,
+        ThreadPerTaskExecutor,
+    },
     service::SubmissionError,
-    task::spi::{TaskEndpointPair, TaskResultHandle, TrackedTaskHandle},
+    task::spi::{
+        TaskEndpointPair,
+        TaskResultHandle,
+        TrackedTaskHandle,
+    },
 };
 
 #[tokio::test]
@@ -83,7 +96,8 @@ fn test_task_handle_cancel_after_start_returns_false() {
 
 #[test]
 fn test_task_slot_run_publishes_lazy_result() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     assert!(completion.run(|| Ok(42)));
 
@@ -108,7 +122,8 @@ fn test_task_endpoint_pair_default_creates_usable_pair() {
 
 #[test]
 fn test_task_slot_run_skips_cancelled_task() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(!completion.run(|| {
@@ -130,7 +145,8 @@ fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
     };
     pending_completion.run(|| Ok(42));
     assert_eq!(
-        TaskResultHandle::get(pending_handle).expect("trait get should read result"),
+        TaskResultHandle::get(pending_handle)
+            .expect("trait get should read result"),
         42,
     );
 
@@ -146,7 +162,8 @@ fn test_task_result_handle_trait_methods_cover_task_handle_paths() {
 
 #[test]
 fn test_tracked_task_trait_methods_cover_status_and_cancellation_paths() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     assert_eq!(TrackedTaskHandle::status(&handle), TaskStatus::Pending);
     assert_eq!(TrackedTaskHandle::cancel(&handle), CancelResult::Cancelled);
@@ -160,7 +177,8 @@ fn test_tracked_task_trait_methods_cover_status_and_cancellation_paths() {
 
 #[test]
 fn test_tracked_task_try_get_returns_pending_and_ready_results() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     let handle = match handle.try_get() {
         TryGet::Pending(handle) => handle,
@@ -187,7 +205,8 @@ fn test_tracked_task_status_reports_failed_and_panicked_results() {
 
     let (panicked_handle, panicked_completion) =
         TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
-    panicked_completion.run(|| -> Result<usize, io::Error> { panic!("panicked") });
+    panicked_completion
+        .run(|| -> Result<usize, io::Error> { panic!("panicked") });
     assert_eq!(panicked_handle.status(), TaskStatus::Panicked);
     assert!(panicked_handle.is_done());
 
@@ -207,7 +226,8 @@ fn test_tracked_task_status_reports_failed_and_panicked_results() {
 
 #[test]
 fn test_tracked_task_cancel_reports_finished_for_completed_task() {
-    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) =
+        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     completion.run(|| Ok(42));
 
     assert_eq!(handle.cancel(), CancelResult::AlreadyFinished);

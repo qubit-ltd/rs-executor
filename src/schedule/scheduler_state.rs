@@ -10,7 +10,10 @@ use std::time::Instant;
 
 use qubit_collections::map::OrderedIndexMap;
 
-use crate::{hook::TaskId, service::ExecutorServiceLifecycle};
+use crate::{
+    hook::TaskId,
+    service::ExecutorServiceLifecycle,
+};
 
 use super::scheduled_task_entry::ScheduledTaskEntry;
 
@@ -19,7 +22,8 @@ pub(crate) struct SchedulerState {
     /// Current service lifecycle.
     pub(crate) lifecycle: ExecutorServiceLifecycle,
     /// Tasks addressable by id and ordered stably by deadline.
-    pub(crate) tasks: OrderedIndexMap<TaskId, Instant, Box<dyn ScheduledTaskEntry>>,
+    pub(crate) tasks:
+        OrderedIndexMap<TaskId, Instant, Box<dyn ScheduledTaskEntry>>,
     /// Whether the worker has exited.
     pub(crate) terminated: bool,
     /// Whether the worker owns an entry outside the monitor.

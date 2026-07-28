@@ -7,24 +7,44 @@
 // =============================================================================
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
-use parking_lot::{Condvar, Mutex};
-use qubit_function::{Callable, Runnable};
+use parking_lot::{
+    Condvar,
+    Mutex,
+};
+use qubit_function::{
+    Callable,
+    Runnable,
+};
 
 use crate::executor::thread_spawn_config::ThreadSpawnConfig;
 use crate::{
-    TaskHandle, TrackedTask,
-    hook::{TaskHook, notify_rejected, notify_rejected_optional},
+    TaskHandle,
+    TrackedTask,
+    hook::{
+        TaskHook,
+        notify_rejected,
+        notify_rejected_optional,
+    },
     task::{
-        spi::{TaskEndpointPair, TaskSlot},
+        spi::{
+            TaskEndpointPair,
+            TaskSlot,
+        },
         task_admission_gate::TaskAdmissionGate,
     },
 };
 
 use super::{
-    ExecutorService, ExecutorServiceLifecycle, StopReport, SubmissionError,
+    ExecutorService,
+    ExecutorServiceLifecycle,
+    StopReport,
+    SubmissionError,
     ThreadPerTaskExecutorServiceBuilder,
 };
 type Worker = Box<dyn FnOnce() + Send + 'static>;
@@ -203,7 +223,9 @@ impl ThreadPerTaskExecutorServiceState {
     /// Marks the service terminated when it is non-running and idle.
     #[inline]
     fn terminate_if_ready(state: &mut ServiceState, termination: &Condvar) {
-        if state.lifecycle != ExecutorServiceLifecycle::Running && state.active_tasks == 0 {
+        if state.lifecycle != ExecutorServiceLifecycle::Running
+            && state.active_tasks == 0
+        {
             state.lifecycle = ExecutorServiceLifecycle::Terminated;
             termination.notify_all();
         }
@@ -291,7 +313,10 @@ impl ThreadPerTaskExecutorService {
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread. Accepted task accounting is handled
     /// by the active-task guard captured by `worker`.
-    fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
+    fn spawn_worker_after_accept(
+        &self,
+        worker: Worker,
+    ) -> Result<(), SubmissionError> {
         ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 
@@ -348,11 +373,13 @@ impl ThreadPerTaskExecutorService {
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();
-        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
-            worker_gate.wait();
-            let _guard = guard;
-            run_slot(slot);
-        })) {
+        if let Err(error) =
+            self.spawn_worker_after_accept(Box::new(move || {
+                worker_gate.wait();
+                let _guard = guard;
+                run_slot(slot);
+            }))
+        {
             notify_rejected_optional(hook.as_ref(), &error);
             return Err(error);
         }
@@ -419,7 +446,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
     /// requested before the task is accepted.
-    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(
+        &self,
+        task: C,
+    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

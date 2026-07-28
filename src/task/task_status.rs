@@ -9,7 +9,10 @@
 // qubit-style: allow inline-tests
 use core::mem::transmute;
 
-use super::{TaskExecutionError, TaskResult};
+use super::{
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Number of [`TaskStatus`] variants; compact codes are `0..TASK_STATUS_COUNT`.
 pub(crate) const TASK_STATUS_COUNT: usize = 7;
@@ -49,7 +52,11 @@ impl TaskStatus {
     pub const fn is_done(self) -> bool {
         matches!(
             self,
-            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
+            Self::Succeeded
+                | Self::Failed
+                | Self::Panicked
+                | Self::Cancelled
+                | Self::Dropped
         )
     }
 
@@ -118,7 +125,10 @@ impl TaskStatus {
 
 #[cfg(test)]
 mod compact_encoding_tests {
-    use super::{TASK_STATUS_COUNT, TaskStatus};
+    use super::{
+        TASK_STATUS_COUNT,
+        TaskStatus,
+    };
 
     #[test]
     fn task_status_as_usize_matches_stable_discriminants() {

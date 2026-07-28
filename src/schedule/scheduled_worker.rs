@@ -6,9 +6,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
-use super::{scheduled_task_entry::StartedScheduledTask, scheduler_core::SchedulerCore};
+use super::{
+    scheduled_task_entry::StartedScheduledTask,
+    scheduler_core::SchedulerCore,
+};
 
 /// Worker loop entry point for single-thread scheduled executor services.
 pub(crate) struct ScheduledWorker;

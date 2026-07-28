@@ -9,12 +9,18 @@
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
 use oneshot::AsyncReceiver;
 
-use super::{TaskExecutionError, TaskResult};
+use super::{
+    TaskExecutionError,
+    TaskResult,
+};
 
 /// Future returned when awaiting a task handle by value.
 pub struct TaskHandleFuture<R, E> {

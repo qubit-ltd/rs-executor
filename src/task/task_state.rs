@@ -12,9 +12,16 @@ use parking_lot::Mutex;
 use qubit_atomic::Atomic;
 
 use super::{
-    TaskExecutionError, TaskResult, atomic_task_status::AtomicTaskStatus, task_status::TaskStatus,
+    TaskExecutionError,
+    TaskResult,
+    atomic_task_status::AtomicTaskStatus,
+    task_status::TaskStatus,
 };
-use crate::hook::{TaskId, notify_finished, notify_started};
+use crate::hook::{
+    TaskId,
+    notify_finished,
+    notify_started,
+};
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskState<R, E> {
@@ -155,7 +162,11 @@ impl<R, E> TaskState<R, E> {
     ///
     /// `true` if this call published the terminal result, or `false` if the
     /// task was not running or another terminal path already won.
-    pub(crate) fn try_complete(&self, result: TaskResult<R, E>, notify_hook: bool) -> bool {
+    pub(crate) fn try_complete(
+        &self,
+        result: TaskResult<R, E>,
+        notify_hook: bool,
+    ) -> bool {
         let status = TaskStatus::from_result(&result);
         if !self.status.try_complete(status) {
             return false;
