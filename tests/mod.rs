@@ -7,6 +7,7 @@
 // =============================================================================
 mod executor;
 mod hook;
+mod monitor_timeout_tests;
 mod schedule;
 mod service;
 mod task;
