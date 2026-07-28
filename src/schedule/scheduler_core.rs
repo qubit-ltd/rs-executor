@@ -13,7 +13,10 @@ use std::time::{
 
 use qubit_clock::TimeError;
 use qubit_collections::map::ordered_index_map::OwnedEntry;
-use qubit_lock::ParkingLotMonitor;
+use qubit_lock::{
+    ParkingLotMonitor,
+    WaitTimeoutResult,
+};
 
 use crate::{
     hook::TaskId,
@@ -21,7 +24,6 @@ use crate::{
         ExecutorServiceLifecycle,
         StopReport,
     },
-    wait_until_ready_with_total_timeout,
 };
 
 use super::{
@@ -161,12 +163,13 @@ impl SchedulerCore {
         &self,
         timeout: Duration,
     ) -> bool {
-        match wait_until_ready_with_total_timeout(
-            &self.state,
-            timeout,
-            |state| state.terminated,
-        ) {
-            Ok(ready) => ready,
+        match self
+            .state
+            .wait_until_ready_with_total_timeout(timeout, |state| {
+                state.terminated
+            }) {
+            Ok(WaitTimeoutResult::Ready(())) => true,
+            Ok(WaitTimeoutResult::TimedOut) => false,
             Err(TimeError::InstantOverflow) => {
                 self.wait_for_termination();
                 true
