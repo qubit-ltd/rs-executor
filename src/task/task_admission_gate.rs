@@ -56,7 +56,7 @@ impl TaskAdmissionGate {
     #[inline]
     pub(crate) fn wait(&self) {
         if let Self::Blocked(ready) = self {
-            ready.wait_until(|ready| *ready, |_ready| {});
+            ready.wait_until_ready(|ready| *ready);
         }
     }
 

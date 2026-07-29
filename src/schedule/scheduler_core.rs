@@ -11,7 +11,6 @@ use std::time::{
     Instant,
 };
 
-use qubit_clock::TimeError;
 use qubit_collections::map::ordered_index_map::OwnedEntry;
 use qubit_lock::{
     ParkingLotMonitor,
@@ -155,7 +154,7 @@ impl SchedulerCore {
 
     /// Waits for worker termination.
     pub(crate) fn wait_for_termination(&self) {
-        self.state.wait_until(|state| state.terminated, |_| ());
+        self.state.wait_until_ready(|state| state.terminated);
     }
 
     /// Waits for worker termination for at most `timeout`.
@@ -170,10 +169,6 @@ impl SchedulerCore {
             }) {
             Ok(WaitTimeoutResult::Ready(())) => true,
             Ok(WaitTimeoutResult::TimedOut) => false,
-            Err(TimeError::InstantOverflow) => {
-                self.wait_for_termination();
-                true
-            }
             Err(error) => panic!("scheduler termination wait failed: {error}"),
         }
     }

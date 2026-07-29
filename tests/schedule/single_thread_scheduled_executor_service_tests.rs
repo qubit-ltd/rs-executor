@@ -104,6 +104,22 @@ fn test_single_thread_scheduled_executor_service_schedule_callable_returns_resul
 }
 
 #[test]
+fn test_single_thread_scheduled_executor_service_wait_termination_timeout_rejects_overflow()
+ {
+    let service =
+        SingleThreadScheduledExecutorService::new("test-termination-overflow")
+            .expect("scheduled service should start");
+    service.shutdown();
+    service.wait_termination();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        service.wait_termination_timeout(Duration::MAX)
+    }));
+
+    assert!(result.is_err());
+}
+
+#[test]
 fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
     let service =
         SingleThreadScheduledExecutorService::new("test-scheduled-at")
