@@ -7,23 +7,15 @@
 // =============================================================================
 //! Tests for [`DirectExecutor`](qubit_executor::executor::DirectExecutor).
 
-use std::{
-    io,
-    sync::{
-        Arc,
-        atomic::Ordering,
-    },
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use qubit_atomic::Atomic;
-use qubit_executor::executor::{
-    DirectExecutor,
-    Executor,
-};
-use qubit_function::{
-    BoxCallable,
-    BoxRunnable,
-};
+use qubit_executor::executor::DirectExecutor;
+use qubit_executor::executor::Executor;
+use qubit_function::BoxCallable;
+use qubit_function::BoxRunnable;
 
 #[test]
 fn test_direct_executor_execute_runs_inline() {

@@ -5,19 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::panic::{
-    AssertUnwindSafe,
-    catch_unwind,
-};
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
 
 use qubit_function::Callable;
 
-use super::{
-    TaskExecutionError,
-    TaskResult,
-    running_task_slot::RunningTaskSlot,
-    task_slot::TaskSlot,
-};
+use super::TaskExecutionError;
+use super::TaskResult;
+use super::running_task_slot::RunningTaskSlot;
+use super::task_slot::TaskSlot;
 
 /// Runner that executes a callable task with standard task-handle semantics.
 ///

@@ -7,10 +7,8 @@
 // =============================================================================
 use parking_lot::Mutex;
 
-use super::{
-    running_task_slot::RunningTaskSlot,
-    task_slot::TaskSlot,
-};
+use super::running_task_slot::RunningTaskSlot;
+use super::task_slot::TaskSlot;
 
 /// Shared ownership cell for one runner-side task slot.
 ///

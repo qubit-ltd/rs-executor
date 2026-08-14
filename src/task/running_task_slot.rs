@@ -10,11 +10,9 @@ use std::sync::Arc;
 
 use qubit_function::Callable;
 
-use super::{
-    TaskResult,
-    task_runner::TaskRunner,
-    task_state::TaskState,
-};
+use super::TaskResult;
+use super::task_runner::TaskRunner;
+use super::task_state::TaskState;
 
 /// Runner-side slot for a task that has crossed into the running state.
 ///

@@ -5,23 +5,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use oneshot::{
-    Receiver,
-    TryRecvError,
-};
-use std::{
-    future::IntoFuture,
-    sync::Arc,
-};
+use std::future::IntoFuture;
+use std::sync::Arc;
 
-use super::{
-    TaskExecutionError,
-    TaskResult,
-    task_handle_future::TaskHandleFuture,
-    task_result_handle::TaskResultHandle,
-    task_state::TaskState,
-    try_get::TryGet,
-};
+use oneshot::Receiver;
+use oneshot::TryRecvError;
+
+use super::TaskExecutionError;
+use super::TaskResult;
+use super::task_handle_future::TaskHandleFuture;
+use super::task_result_handle::TaskResultHandle;
+use super::task_state::TaskState;
+use super::try_get::TryGet;
 use crate::hook::TaskId;
 
 /// Lightweight result handle for a submitted callable task.

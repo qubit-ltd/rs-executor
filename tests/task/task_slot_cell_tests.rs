@@ -7,14 +7,10 @@
 // =============================================================================
 use std::io;
 
-use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskSlotCell,
-    },
-};
+use qubit_executor::CancelResult;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::task::spi::TaskEndpointPair;
+use qubit_executor::task::spi::TaskSlotCell;
 
 /// Verifies that a failed start returns ownership to the shared slot cell.
 #[test]

@@ -8,16 +8,11 @@
 // =============================================================================
 use qubit_function::Callable;
 
-use crate::task::spi::{
-    RunningTaskSlot,
-    TaskRunner,
-    TaskSlot,
-};
-
-use super::scheduled_task_entry::{
-    ScheduledTaskEntry,
-    StartedScheduledTask,
-};
+use super::scheduled_task_entry::ScheduledTaskEntry;
+use super::scheduled_task_entry::StartedScheduledTask;
+use crate::task::spi::RunningTaskSlot;
+use crate::task::spi::TaskRunner;
+use crate::task::spi::TaskSlot;
 
 /// Callable task paired with a standard task completion endpoint.
 pub(crate) struct CompletableScheduledTask<R, E> {

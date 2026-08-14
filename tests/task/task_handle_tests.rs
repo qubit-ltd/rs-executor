@@ -7,32 +7,22 @@
 // =============================================================================
 //! Tests for task handle and completion behavior.
 
-use std::{
-    io,
-    sync::{
-        Arc,
-        mpsc,
-    },
-    thread,
-    time::Duration,
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
-use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    TaskStatus,
-    TryGet,
-    executor::{
-        Executor,
-        ThreadPerTaskExecutor,
-    },
-    service::SubmissionError,
-    task::spi::{
-        TaskEndpointPair,
-        TaskResultHandle,
-        TrackedTaskHandle,
-    },
-};
+use qubit_executor::CancelResult;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::TryGet;
+use qubit_executor::executor::Executor;
+use qubit_executor::executor::ThreadPerTaskExecutor;
+use qubit_executor::service::SubmissionError;
+use qubit_executor::task::spi::TaskEndpointPair;
+use qubit_executor::task::spi::TaskResultHandle;
+use qubit_executor::task::spi::TrackedTaskHandle;
 
 #[tokio::test]
 async fn test_task_handle_await_returns_value() {

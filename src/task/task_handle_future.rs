@@ -6,21 +6,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{
-        Context,
-        Poll,
-    },
-};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
 use oneshot::AsyncReceiver;
 
-use super::{
-    TaskExecutionError,
-    TaskResult,
-};
+use super::TaskExecutionError;
+use super::TaskResult;
 
 /// Future returned when awaiting a task handle by value.
 pub struct TaskHandleFuture<R, E> {

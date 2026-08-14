@@ -16,36 +16,26 @@ pub mod schedule;
 pub mod service;
 pub mod task;
 
-pub use crate::executor::{
-    DelayExecutor,
-    DirectExecutor,
-    Executor,
-    ScheduleExecutor,
-    ThreadPerTaskExecutor,
-    ThreadPerTaskExecutorBuilder,
-};
-pub use crate::schedule::{
-    ScheduledExecutorService,
-    ScheduledTaskHandle,
-    SingleThreadScheduledExecutorService,
-};
-pub use crate::service::{
-    ExecutorService,
-    ExecutorServiceBuilderError,
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
-    ThreadPerTaskExecutorService,
-    ThreadPerTaskExecutorServiceBuilder,
-};
-pub use crate::task::{
-    CancelResult,
-    TaskExecutionError,
-    TaskResult,
-    TaskStatus,
-};
-pub use crate::task::{
-    TaskHandle,
-    TrackedTask,
-    TryGet,
-};
+pub use crate::executor::DelayExecutor;
+pub use crate::executor::DirectExecutor;
+pub use crate::executor::Executor;
+pub use crate::executor::ScheduleExecutor;
+pub use crate::executor::ThreadPerTaskExecutor;
+pub use crate::executor::ThreadPerTaskExecutorBuilder;
+pub use crate::schedule::ScheduledExecutorService;
+pub use crate::schedule::ScheduledTaskHandle;
+pub use crate::schedule::SingleThreadScheduledExecutorService;
+pub use crate::service::ExecutorService;
+pub use crate::service::ExecutorServiceBuilderError;
+pub use crate::service::ExecutorServiceLifecycle;
+pub use crate::service::StopReport;
+pub use crate::service::SubmissionError;
+pub use crate::service::ThreadPerTaskExecutorService;
+pub use crate::service::ThreadPerTaskExecutorServiceBuilder;
+pub use crate::task::CancelResult;
+pub use crate::task::TaskExecutionError;
+pub use crate::task::TaskHandle;
+pub use crate::task::TaskResult;
+pub use crate::task::TaskStatus;
+pub use crate::task::TrackedTask;
+pub use crate::task::TryGet;

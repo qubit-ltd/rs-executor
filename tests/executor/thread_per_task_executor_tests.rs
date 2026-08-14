@@ -7,38 +7,24 @@
 // =============================================================================
 //! Tests for [`ThreadPerTaskExecutor`](qubit_executor::executor::ThreadPerTaskExecutor).
 
-use std::{
-    io,
-    sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        atomic::Ordering,
-    },
-    time::Duration,
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::Condvar;
+use std::sync::Mutex;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
-use qubit_atomic::{
-    Atomic,
-    atomic::primitive::AtomicUsize,
-};
-use qubit_executor::{
-    TaskExecutionError,
-    TaskStatus,
-    executor::{
-        Executor,
-        ThreadPerTaskExecutor,
-    },
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        TaskId,
-    },
-    service::{
-        ExecutorServiceBuilderError,
-        SubmissionError,
-    },
-};
+use qubit_atomic::Atomic;
+use qubit_atomic::atomic::primitive::AtomicUsize;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::executor::Executor;
+use qubit_executor::executor::ThreadPerTaskExecutor;
+use qubit_executor::hook::NoopTaskHook;
+use qubit_executor::hook::TaskHook;
+use qubit_executor::hook::TaskId;
+use qubit_executor::service::ExecutorServiceBuilderError;
+use qubit_executor::service::SubmissionError;
 
 static SHARED_RUNNER_TASK_CALLS: AtomicUsize = AtomicUsize::new(0);
 

@@ -6,10 +6,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{
-    TaskResult,
-    try_get::TryGet,
-};
+use super::TaskResult;
+use super::try_get::TryGet;
 
 /// Common interface for handles that expose a submitted task's final result.
 pub trait TaskResultHandle<R, E>: Send {

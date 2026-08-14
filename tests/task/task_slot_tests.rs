@@ -7,12 +7,10 @@
 // =============================================================================
 use std::io;
 
-use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    TaskStatus,
-    task::spi::TaskEndpointPair,
-};
+use qubit_executor::CancelResult;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::task::spi::TaskEndpointPair;
 
 /// Test task completion start, completion, and cancellation races through
 /// public endpoints.

@@ -6,14 +6,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use crate::{
-    TaskStatus,
-    hook::{
-        TaskHook,
-        TaskId,
-    },
-    service::SubmissionError,
-};
+use crate::TaskStatus;
+use crate::hook::TaskHook;
+use crate::hook::TaskId;
+use crate::service::SubmissionError;
 
 /// Task hook that writes lifecycle events through the `log` facade.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -7,27 +7,19 @@
 // =============================================================================
 //! Tests for [`DelayExecutor`](qubit_executor::executor::DelayExecutor).
 
-use std::{
-    io,
-    sync::Arc,
-    sync::mpsc,
-    thread,
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
 
-use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    executor::{
-        DelayExecutor,
-        Executor,
-    },
-    hook::NoopTaskHook,
-    service::SubmissionError,
-};
+use qubit_executor::CancelResult;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::executor::DelayExecutor;
+use qubit_executor::executor::Executor;
+use qubit_executor::hook::NoopTaskHook;
+use qubit_executor::service::SubmissionError;
 
 fn delayed_value_task() -> Result<usize, io::Error> {
     Ok(42)

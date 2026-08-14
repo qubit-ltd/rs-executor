@@ -7,21 +7,14 @@
 // =============================================================================
 use std::time::Duration;
 
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::Callable;
+use qubit_function::Runnable;
 
-use crate::task::spi::{
-    TaskResultHandle,
-    TrackedTaskHandle,
-};
-
-use super::{
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
-};
+use super::ExecutorServiceLifecycle;
+use super::StopReport;
+use super::SubmissionError;
+use crate::task::spi::TaskResultHandle;
+use crate::task::spi::TrackedTaskHandle;
 
 /// Managed task service with submission and lifecycle control.
 ///

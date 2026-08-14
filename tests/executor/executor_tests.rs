@@ -5,19 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    io,
-    sync::{
-        Arc,
-        atomic::Ordering,
-    },
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use qubit_atomic::Atomic;
-use qubit_executor::executor::{
-    DirectExecutor,
-    Executor,
-};
+use qubit_executor::executor::DirectExecutor;
+use qubit_executor::executor::Executor;
 
 /// Test the default runnable execution method on the executor trait.
 #[test]

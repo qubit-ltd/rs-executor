@@ -7,34 +7,24 @@
 // =============================================================================
 //! Tests for [`ThreadPerTaskExecutorService`](qubit_executor::service::ThreadPerTaskExecutorService).
 
-use std::{
-    io,
-    sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        atomic::Ordering,
-    },
-    time::Duration,
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::Condvar;
+use std::sync::Mutex;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use qubit_atomic::Atomic;
-use qubit_executor::{
-    ExecutorServiceLifecycle,
-    TaskExecutionError,
-    TaskStatus,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        TaskId,
-    },
-    service::{
-        ExecutorService,
-        ExecutorServiceBuilderError,
-        SubmissionError,
-        ThreadPerTaskExecutorService,
-    },
-};
+use qubit_executor::ExecutorServiceLifecycle;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::hook::NoopTaskHook;
+use qubit_executor::hook::TaskHook;
+use qubit_executor::hook::TaskId;
+use qubit_executor::service::ExecutorService;
+use qubit_executor::service::ExecutorServiceBuilderError;
+use qubit_executor::service::SubmissionError;
+use qubit_executor::service::ThreadPerTaskExecutorService;
 
 #[derive(Default)]
 struct CountingHook {

@@ -7,22 +7,14 @@
 // =============================================================================
 //! Tests for [`SingleThreadScheduledExecutorService`](qubit_executor::SingleThreadScheduledExecutorService).
 
-use std::{
-    future::IntoFuture,
-    sync::{
-        Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
-        mpsc,
-    },
-    thread,
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::future::IntoFuture;
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
 
 /// Counts when a scheduled closure's captured resource is released.
 struct DropProbe(Arc<AtomicUsize>);
@@ -34,22 +26,18 @@ impl Drop for DropProbe {
     }
 }
 
-use qubit_executor::{
-    CancelResult,
-    ExecutorService,
-    ExecutorServiceBuilderError,
-    ExecutorServiceLifecycle,
-    ScheduledExecutorService,
-    SingleThreadScheduledExecutorService,
-    SubmissionError,
-    TaskExecutionError,
-    TaskStatus,
-    TryGet,
-    task::spi::{
-        TaskResultHandle,
-        TrackedTaskHandle,
-    },
-};
+use qubit_executor::CancelResult;
+use qubit_executor::ExecutorService;
+use qubit_executor::ExecutorServiceBuilderError;
+use qubit_executor::ExecutorServiceLifecycle;
+use qubit_executor::ScheduledExecutorService;
+use qubit_executor::SingleThreadScheduledExecutorService;
+use qubit_executor::SubmissionError;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::TryGet;
+use qubit_executor::task::spi::TaskResultHandle;
+use qubit_executor::task::spi::TrackedTaskHandle;
 
 #[test]
 fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first()

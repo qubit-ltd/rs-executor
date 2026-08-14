@@ -10,12 +10,9 @@ use std::time::Instant;
 
 use qubit_collections::map::OrderedIndexMap;
 
-use crate::{
-    hook::TaskId,
-    service::ExecutorServiceLifecycle,
-};
-
 use super::scheduled_task_entry::ScheduledTaskEntry;
+use crate::hook::TaskId;
+use crate::service::ExecutorServiceLifecycle;
 
 /// Mutable state protected by the scheduler monitor.
 pub(crate) struct SchedulerState {

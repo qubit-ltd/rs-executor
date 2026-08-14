@@ -9,10 +9,8 @@
 
 use std::io;
 
-use qubit_executor::task::spi::{
-    TaskEndpointPair,
-    TaskRunner,
-};
+use qubit_executor::task::spi::TaskEndpointPair;
+use qubit_executor::task::spi::TaskRunner;
 
 #[test]
 fn test_runner_executes_through_completion() {

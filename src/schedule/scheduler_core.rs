@@ -6,29 +6,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::time::Duration;
+use std::time::Instant;
 
 use qubit_collections::map::ordered_index_map::OwnedEntry;
-use qubit_lock::{
-    ParkingLotMonitor,
-    WaitTimeoutResult,
-};
+use qubit_lock::ParkingLotMonitor;
+use qubit_lock::WaitTimeoutResult;
 
-use crate::{
-    hook::TaskId,
-    service::{
-        ExecutorServiceLifecycle,
-        StopReport,
-    },
-};
-
-use super::{
-    scheduled_task_entry::ScheduledTaskEntry,
-    scheduler_state::SchedulerState,
-};
+use super::scheduled_task_entry::ScheduledTaskEntry;
+use super::scheduler_state::SchedulerState;
+use crate::hook::TaskId;
+use crate::service::ExecutorServiceLifecycle;
+use crate::service::StopReport;
 
 type ScheduledTaskEntries =
     Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>;

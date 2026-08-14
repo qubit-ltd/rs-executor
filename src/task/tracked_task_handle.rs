@@ -6,11 +6,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{
-    cancel_result::CancelResult,
-    task_result_handle::TaskResultHandle,
-    task_status::TaskStatus,
-};
+use super::cancel_result::CancelResult;
+use super::task_result_handle::TaskResultHandle;
+use super::task_status::TaskStatus;
 
 /// Extension interface for handles that expose active task tracking.
 pub trait TrackedTaskHandle<R, E>: TaskResultHandle<R, E> {

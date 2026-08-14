@@ -8,12 +8,9 @@
 // =============================================================================
 use std::sync::Arc;
 
-use crate::{
-    hook::TaskHook,
-    service::ExecutorServiceBuilderError,
-};
-
 use super::ThreadPerTaskExecutor;
+use crate::hook::TaskHook;
+use crate::service::ExecutorServiceBuilderError;
 
 /// Builder for [`ThreadPerTaskExecutor`].
 #[derive(Clone)]

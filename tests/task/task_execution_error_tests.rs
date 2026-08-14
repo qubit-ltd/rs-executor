@@ -7,10 +7,8 @@
 // =============================================================================
 //! Tests for TaskExecutionError helpers and Display.
 
-use std::{
-    error::Error,
-    io,
-};
+use std::error::Error;
+use std::io;
 
 use qubit_executor::TaskExecutionError;
 

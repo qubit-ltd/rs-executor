@@ -5,25 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    io,
-    sync::{
-        Arc,
-        Mutex,
-    },
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::Mutex;
 
-use qubit_executor::{
-    CancelResult,
-    TaskExecutionError,
-    TaskStatus,
-    hook::{
-        NoopTaskHook,
-        TaskHook,
-        TaskId,
-    },
-    task::spi::TaskEndpointPair,
-};
+use qubit_executor::CancelResult;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
+use qubit_executor::hook::NoopTaskHook;
+use qubit_executor::hook::TaskHook;
+use qubit_executor::hook::TaskId;
+use qubit_executor::task::spi::TaskEndpointPair;
 
 #[derive(Default)]
 struct RecordingHook {

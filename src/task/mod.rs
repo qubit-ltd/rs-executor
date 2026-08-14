@@ -28,10 +28,8 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
-pub use task_execution_error::{
-    TaskExecutionError,
-    TaskResult,
-};
+pub use task_execution_error::TaskExecutionError;
+pub use task_execution_error::TaskResult;
 pub use task_handle::TaskHandle;
 pub use task_handle_future::TaskHandleFuture;
 pub use task_status::TaskStatus;

@@ -7,22 +7,14 @@
 // =============================================================================
 //! Tests for [`ScheduleExecutor`](qubit_executor::executor::ScheduleExecutor).
 
-use std::{
-    io,
-    sync::{
-        Arc,
-        mpsc,
-    },
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::io;
+use std::sync::Arc;
+use std::sync::mpsc;
+use std::time::Duration;
+use std::time::Instant;
 
-use qubit_executor::executor::{
-    Executor,
-    ScheduleExecutor,
-};
+use qubit_executor::executor::Executor;
+use qubit_executor::executor::ScheduleExecutor;
 use qubit_executor::hook::NoopTaskHook;
 use qubit_executor::service::SubmissionError;
 

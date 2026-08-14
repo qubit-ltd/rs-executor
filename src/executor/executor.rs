@@ -5,15 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::Callable;
+use qubit_function::Runnable;
 
-use crate::{
-    TrackedTask,
-    service::SubmissionError,
-};
+use crate::TrackedTask;
+use crate::service::SubmissionError;
 
 /// Executes fallible tasks according to an implementation-defined strategy.
 ///

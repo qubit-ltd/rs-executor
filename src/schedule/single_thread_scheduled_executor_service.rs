@@ -5,40 +5,27 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    sync::Arc,
-    thread,
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
 
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use qubit_function::Callable;
+use qubit_function::Runnable;
 
-use crate::{
-    TaskHandle,
-    service::{
-        ExecutorService,
-        ExecutorServiceBuilderError,
-        ExecutorServiceLifecycle,
-        StopReport,
-        SubmissionError,
-    },
-    task::spi::TaskEndpointPair,
-};
-
-use super::{
-    completable_scheduled_task::CompletableScheduledTask,
-    scheduled_executor_service::ScheduledExecutorService,
-    scheduled_task_entry::ScheduledTaskEntry,
-    scheduled_task_handle::ScheduledTaskHandle,
-    scheduled_worker::ScheduledWorker,
-    scheduler_core::SchedulerCore,
-};
+use super::completable_scheduled_task::CompletableScheduledTask;
+use super::scheduled_executor_service::ScheduledExecutorService;
+use super::scheduled_task_entry::ScheduledTaskEntry;
+use super::scheduled_task_handle::ScheduledTaskHandle;
+use super::scheduled_worker::ScheduledWorker;
+use super::scheduler_core::SchedulerCore;
+use crate::TaskHandle;
+use crate::service::ExecutorService;
+use crate::service::ExecutorServiceBuilderError;
+use crate::service::ExecutorServiceLifecycle;
+use crate::service::StopReport;
+use crate::service::SubmissionError;
+use crate::task::spi::TaskEndpointPair;
 
 /// Single-threaded scheduled executor service.
 ///

@@ -6,26 +6,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    future::IntoFuture,
-    sync::Arc,
-};
+use std::future::IntoFuture;
+use std::sync::Arc;
 
-use crate::{
-    CancelResult,
-    TaskResult,
-    TaskStatus,
-    TrackedTask,
-    TryGet,
-    hook::TaskId,
-    task::{
-        TaskHandleFuture,
-        spi::{
-            TaskResultHandle,
-            TrackedTaskHandle,
-        },
-    },
-};
+use crate::CancelResult;
+use crate::TaskResult;
+use crate::TaskStatus;
+use crate::TrackedTask;
+use crate::TryGet;
+use crate::hook::TaskId;
+use crate::task::TaskHandleFuture;
+use crate::task::spi::TaskResultHandle;
+use crate::task::spi::TrackedTaskHandle;
 
 /// Tracked handle for a task accepted by a scheduled executor service.
 ///

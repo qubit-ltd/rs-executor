@@ -5,34 +5,22 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    io,
-    panic,
-    sync::{
-        Arc,
-        Mutex,
-        Once,
-    },
-};
+use std::io;
+use std::panic;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::Once;
 
-use log::{
-    LevelFilter,
-    Metadata,
-    Record,
-};
-use qubit_executor::{
-    TaskStatus,
-    executor::{
-        DirectExecutor,
-        Executor,
-    },
-    hook::{
-        LoggingTaskHook,
-        TaskHook,
-        TaskId,
-    },
-    service::SubmissionError,
-};
+use log::LevelFilter;
+use log::Metadata;
+use log::Record;
+use qubit_executor::TaskStatus;
+use qubit_executor::executor::DirectExecutor;
+use qubit_executor::executor::Executor;
+use qubit_executor::hook::LoggingTaskHook;
+use qubit_executor::hook::TaskHook;
+use qubit_executor::hook::TaskId;
+use qubit_executor::service::SubmissionError;
 
 struct TestLogger;
 

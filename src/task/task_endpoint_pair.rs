@@ -10,16 +10,13 @@ use std::sync::Arc;
 use oneshot::Receiver;
 use oneshot::channel;
 
-use crate::hook::{
-    TaskHook,
-    next_task_id,
-};
-
 use super::task_execution_error::TaskResult;
 use super::task_handle::TaskHandle;
 use super::task_slot::TaskSlot;
 use super::task_state::TaskState;
 use super::tracked_task::TrackedTask;
+use crate::hook::TaskHook;
+use crate::hook::next_task_id;
 
 /// One-shot pair of endpoints for a task submission.
 ///

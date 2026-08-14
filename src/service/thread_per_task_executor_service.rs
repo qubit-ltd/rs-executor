@@ -5,48 +5,29 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    sync::Arc,
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::sync::Arc;
+use std::time::Duration;
+use std::time::Instant;
 
-use parking_lot::{
-    Condvar,
-    Mutex,
-};
-use qubit_function::{
-    Callable,
-    Runnable,
-};
+use parking_lot::Condvar;
+use parking_lot::Mutex;
+use qubit_function::Callable;
+use qubit_function::Runnable;
 
+use super::ExecutorService;
+use super::ExecutorServiceLifecycle;
+use super::StopReport;
+use super::SubmissionError;
+use super::ThreadPerTaskExecutorServiceBuilder;
+use crate::TaskHandle;
+use crate::TrackedTask;
 use crate::executor::thread_spawn_config::ThreadSpawnConfig;
-use crate::{
-    TaskHandle,
-    TrackedTask,
-    hook::{
-        TaskHook,
-        notify_rejected,
-        notify_rejected_optional,
-    },
-    task::{
-        spi::{
-            TaskEndpointPair,
-            TaskSlot,
-        },
-        task_admission_gate::TaskAdmissionGate,
-    },
-};
-
-use super::{
-    ExecutorService,
-    ExecutorServiceLifecycle,
-    StopReport,
-    SubmissionError,
-    ThreadPerTaskExecutorServiceBuilder,
-};
+use crate::hook::TaskHook;
+use crate::hook::notify_rejected;
+use crate::hook::notify_rejected_optional;
+use crate::task::spi::TaskEndpointPair;
+use crate::task::spi::TaskSlot;
+use crate::task::task_admission_gate::TaskAdmissionGate;
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Handle variants that can cross the accepted task boundary.

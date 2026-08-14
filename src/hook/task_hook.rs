@@ -6,20 +6,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    panic::{
-        AssertUnwindSafe,
-        catch_unwind,
-    },
-    sync::Arc,
-};
-
-use crate::{
-    TaskStatus,
-    service::SubmissionError,
-};
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
+use std::sync::Arc;
 
 use super::TaskId;
+use crate::TaskStatus;
+use crate::service::SubmissionError;
 
 /// Observes task lifecycle events emitted by executors and executor services.
 ///

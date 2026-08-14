@@ -5,11 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    error::Error,
-    io,
-    sync::Arc,
-};
+use std::error::Error;
+use std::io;
+use std::sync::Arc;
 
 use qubit_executor::service::SubmissionError;
 

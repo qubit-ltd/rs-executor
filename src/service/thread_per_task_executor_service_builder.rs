@@ -6,12 +6,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{
-    ExecutorServiceBuilderError,
-    ThreadPerTaskExecutorService,
-};
-use crate::hook::TaskHook;
 use std::sync::Arc;
+
+use super::ExecutorServiceBuilderError;
+use super::ThreadPerTaskExecutorService;
+use crate::hook::TaskHook;
 
 /// Builder for [`ThreadPerTaskExecutorService`].
 #[derive(Clone)]

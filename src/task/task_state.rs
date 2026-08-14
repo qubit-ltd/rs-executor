@@ -11,17 +11,13 @@ use oneshot::Sender;
 use parking_lot::Mutex;
 use qubit_atomic::Atomic;
 
-use super::{
-    TaskExecutionError,
-    TaskResult,
-    atomic_task_status::AtomicTaskStatus,
-    task_status::TaskStatus,
-};
-use crate::hook::{
-    TaskId,
-    notify_finished,
-    notify_started,
-};
+use super::TaskExecutionError;
+use super::TaskResult;
+use super::atomic_task_status::AtomicTaskStatus;
+use super::task_status::TaskStatus;
+use crate::hook::TaskId;
+use crate::hook::notify_finished;
+use crate::hook::notify_started;
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskState<R, E> {

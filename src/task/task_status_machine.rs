@@ -13,10 +13,8 @@ use std::sync::LazyLock;
 use qubit_fast_cas::FastCasPolicy;
 use qubit_state_machine::FastStateMachine;
 
-use super::task_status::{
-    TASK_STATUS_COUNT,
-    TaskStatus,
-};
+use super::task_status::TASK_STATUS_COUNT;
+use super::task_status::TaskStatus;
 use super::task_status_event::TaskStatusEvent;
 
 /// Number of event codes represented by [`TaskStatusEvent`].
@@ -69,11 +67,9 @@ pub(super) fn build_task_status_machine() -> FastStateMachine {
 mod tests {
     use qubit_fast_cas::FastCasState;
 
-    use super::{
-        super::task_status::TaskStatus,
-        super::task_status_event::TaskStatusEvent,
-        build_task_status_machine,
-    };
+    use super::super::task_status::TaskStatus;
+    use super::super::task_status_event::TaskStatusEvent;
+    use super::build_task_status_machine;
 
     #[test]
     fn build_task_status_machine_allows_expected_lifecycle_transitions() {
