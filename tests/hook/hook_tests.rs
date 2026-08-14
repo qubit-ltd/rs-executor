@@ -12,11 +12,15 @@ use std::sync::Mutex;
 use std::sync::Once;
 
 use log::LevelFilter;
+use log::Log;
 use log::Metadata;
 use log::Record;
+use log::set_logger;
+use log::set_max_level;
 use qubit_executor::TaskStatus;
 use qubit_executor::executor::DirectExecutor;
 use qubit_executor::executor::Executor;
+use qubit_executor::executor::ThreadPerTaskExecutor;
 use qubit_executor::hook::LoggingTaskHook;
 use qubit_executor::hook::TaskHook;
 use qubit_executor::hook::TaskId;
@@ -24,7 +28,7 @@ use qubit_executor::service::SubmissionError;
 
 struct TestLogger;
 
-impl log::Log for TestLogger {
+impl Log for TestLogger {
     fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
         true
     }
@@ -39,8 +43,8 @@ static INIT_LOGGER: Once = Once::new();
 
 fn init_logger() {
     INIT_LOGGER.call_once(|| {
-        log::set_logger(&LOGGER).expect("test logger should install once");
-        log::set_max_level(LevelFilter::Trace);
+        set_logger(&LOGGER).expect("test logger should install once");
+        set_max_level(LevelFilter::Trace);
     });
 }
 
@@ -153,7 +157,7 @@ fn test_logging_task_hook_is_constructible() {
 
 #[test]
 fn test_task_hook_rejected_panics_do_not_break_rejection() {
-    let executor = qubit_executor::executor::ThreadPerTaskExecutor::builder()
+    let executor = ThreadPerTaskExecutor::builder()
         .hook(Arc::new(PanickingHook))
         .stack_size(usize::MAX)
         .build()
