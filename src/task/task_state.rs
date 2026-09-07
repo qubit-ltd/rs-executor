@@ -51,7 +51,7 @@ impl<R, E> TaskState<R, E> {
     ) -> Self {
         Self {
             task_id,
-            status: AtomicTaskStatus::new(TaskStatus::Pending),
+            status: AtomicTaskStatus::new(),
             accepted: Atomic::new(false),
             sender: Mutex::new(Some(sender)),
             hook,
@@ -94,6 +94,12 @@ impl<R, E> TaskState<R, E> {
     #[inline]
     pub(crate) fn status(&self) -> TaskStatus {
         self.status.load()
+    }
+
+    /// Returns whether this task has reached a terminal status.
+    #[inline]
+    pub(crate) fn is_done(&self) -> bool {
+        self.status.is_terminal()
     }
 
     /// Attempts to move the task from pending to running.

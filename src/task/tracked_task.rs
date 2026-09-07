@@ -144,7 +144,7 @@ where
     /// Returns whether the tracked state is terminal.
     #[inline]
     fn is_done(&self) -> bool {
-        self.status().is_done()
+        self.handle.state.is_done()
     }
 
     /// Blocks until the underlying result handle yields a result.

@@ -29,9 +29,9 @@ impl AtomicTaskStatus {
     ///
     /// A task status cell initialized to `status`.
     #[inline]
-    pub(crate) fn new(status: TaskStatus) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            value: FastCasState::new(status.as_usize() as u64),
+            value: TASK_STATUS_MACHINE.create_state(),
         }
     }
 
@@ -43,6 +43,13 @@ impl AtomicTaskStatus {
     #[inline]
     pub(crate) fn load(&self) -> TaskStatus {
         TaskStatus::from_usize(self.value.load() as usize)
+    }
+
+    /// Returns whether the current status is terminal according to the shared
+    /// machine.
+    #[inline]
+    pub(crate) fn is_terminal(&self) -> bool {
+        TASK_STATUS_MACHINE.is_terminal_state(self.value.load())
     }
 
     /// Attempts to move a pending task into running state.

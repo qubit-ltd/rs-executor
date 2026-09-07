@@ -101,7 +101,7 @@ impl<R, E> TaskHandle<R, E> {
     /// this status observation.
     #[inline]
     pub fn is_done(&self) -> bool {
-        self.state.status().is_done()
+        self.state.is_done()
     }
 }
 

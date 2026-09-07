@@ -40,26 +40,13 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    /// Returns whether this status is terminal.
-    ///
-    /// # Returns
-    ///
-    /// `true` after success, failure, panic, cancellation, or dropped
-    /// completion.
-    #[inline]
-    pub const fn is_done(self) -> bool {
-        matches!(
-            self,
-            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
-        )
-    }
-
     /// Converts this status to its compact state-machine representation.
     ///
     /// # Returns
     ///
     /// A stable integer code used by task completion state.
     #[inline]
+    #[cfg(test)]
     pub(crate) const fn as_usize(self) -> usize {
         self as usize
     }

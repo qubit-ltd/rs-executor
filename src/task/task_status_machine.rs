@@ -41,7 +41,7 @@ pub(super) fn build_task_status_machine() -> FastStateMachine {
         .state_count(TASK_STATUS_COUNT as u64)
         .event_count(TASK_STATUS_EVENT_COUNT as u64)
         .initial_state(pending)
-        .final_states(&[succeeded, failed, panicked, cancelled, dropped])
+        .terminal_states(&[succeeded, failed, panicked, cancelled, dropped])
         .cas_policy(FastCasPolicy::spin(16))
         .transition(pending, TaskStatusEvent::Start.as_u64(), running)
         .transition(pending, TaskStatusEvent::CancelPending.as_u64(), cancelled)
