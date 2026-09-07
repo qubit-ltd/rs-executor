@@ -16,16 +16,11 @@ use qubit_executor::task::spi::TaskEndpointPair;
 /// public endpoints.
 #[test]
 fn test_task_slot_start_run_and_cancel_paths() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     assert!(completion.run(|| Ok(42)));
-    assert_eq!(
-        handle.get().expect("completed task should return value"),
-        42
-    );
+    assert_eq!(handle.get().expect("completed task should return value"), 42);
 
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
     assert!(!completion.run(|| Ok(42)));
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
@@ -35,8 +30,7 @@ fn test_task_slot_start_run_and_cancel_paths() {
 /// the task.
 #[test]
 fn test_task_slot_try_start_returns_running_slot() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     completion.accept();
     let running = match completion.try_start() {
@@ -47,19 +41,13 @@ fn test_task_slot_try_start_returns_running_slot() {
     assert_eq!(handle.status(), TaskStatus::Running);
     assert_eq!(handle.cancel(), CancelResult::AlreadyRunning);
     assert!(running.run(|| Ok(42)));
-    assert_eq!(
-        handle
-            .get()
-            .expect("running slot should publish callable result"),
-        42,
-    );
+    assert_eq!(handle.get().expect("running slot should publish callable result"), 42,);
 }
 
 /// Test explicitly starting a cancelled slot fails without running user code.
 #[test]
 fn test_task_slot_try_start_returns_slot_when_cancelled() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     completion.accept();
     assert_eq!(handle.cancel(), CancelResult::Cancelled);
@@ -76,8 +64,7 @@ fn test_task_slot_try_start_returns_slot_when_cancelled() {
 /// Test dropping a started running slot reports an abandoned runner endpoint.
 #[test]
 fn test_running_task_slot_drop_reports_dropped() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
 
     completion.accept();
     let running = match completion.try_start() {

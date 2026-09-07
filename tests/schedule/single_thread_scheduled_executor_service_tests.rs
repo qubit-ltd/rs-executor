@@ -40,11 +40,9 @@ use qubit_executor::task::spi::TaskResultHandle;
 use qubit_executor::task::spi::TrackedTaskHandle;
 
 #[test]
-fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first()
-{
+fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-earliest")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-earliest").expect("scheduled service should start");
     let (sent_tx, sent_rx) = mpsc::channel::<&'static str>();
 
     for _ in 0..8 {
@@ -74,16 +72,12 @@ fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first()
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_schedule_callable_returns_result()
- {
+fn test_single_thread_scheduled_executor_service_schedule_callable_returns_result() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-callable")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-callable").expect("scheduled service should start");
 
     let handle = service
-        .schedule_callable(Duration::from_millis(10), || {
-            Ok::<usize, ()>(40 + 2)
-        })
+        .schedule_callable(Duration::from_millis(10), || Ok::<usize, ()>(40 + 2))
         .expect("callable should schedule");
 
     assert_eq!(handle.get().expect("callable should succeed"), 42);
@@ -92,11 +86,9 @@ fn test_single_thread_scheduled_executor_service_schedule_callable_returns_resul
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_wait_termination_timeout_rejects_overflow()
- {
+fn test_single_thread_scheduled_executor_service_wait_termination_timeout_rejects_overflow() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-termination-overflow")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-termination-overflow").expect("scheduled service should start");
     service.shutdown();
     service.wait_termination();
 
@@ -110,8 +102,7 @@ fn test_single_thread_scheduled_executor_service_wait_termination_timeout_reject
 #[test]
 fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-at")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-at").expect("scheduled service should start");
     let (sent_tx, sent_rx) = mpsc::channel::<()>();
 
     let handle = service
@@ -130,11 +121,9 @@ fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_submit_callable_runs_immediately()
- {
+fn test_single_thread_scheduled_executor_service_submit_callable_runs_immediately() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-submit")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-submit").expect("scheduled service should start");
 
     let handle = service
         .submit_callable(|| Ok::<usize, ()>(6 * 7))
@@ -147,10 +136,8 @@ fn test_single_thread_scheduled_executor_service_submit_callable_runs_immediatel
 
 #[test]
 fn test_single_thread_scheduled_executor_service_submit_runs_runnable() {
-    let service = SingleThreadScheduledExecutorService::new(
-        "test-scheduled-submit-runnable",
-    )
-    .expect("scheduled service should start");
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-submit-runnable")
+        .expect("scheduled service should start");
     let (sent_tx, sent_rx) = mpsc::channel::<()>();
 
     service
@@ -168,12 +155,9 @@ fn test_single_thread_scheduled_executor_service_submit_runs_runnable() {
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_submit_tracked_callable_reports_status()
- {
-    let service = SingleThreadScheduledExecutorService::new(
-        "test-scheduled-submit-tracked",
-    )
-    .expect("scheduled service should start");
+fn test_single_thread_scheduled_executor_service_submit_tracked_callable_reports_status() {
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-submit-tracked")
+        .expect("scheduled service should start");
 
     let handle = service
         .submit_tracked_callable(|| Ok::<usize, ()>(42))
@@ -185,11 +169,9 @@ fn test_single_thread_scheduled_executor_service_submit_tracked_callable_reports
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks()
- {
+fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-counts")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-counts").expect("scheduled service should start");
     let (started_tx, started_rx) = mpsc::channel::<()>();
     let (release_tx, release_rx) = mpsc::channel::<()>();
 
@@ -207,9 +189,7 @@ fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks
     assert_eq!(service.queued_count(), 0);
     assert_eq!(service.running_count(), 1);
 
-    release_tx
-        .send(())
-        .expect("task should receive release signal");
+    release_tx.send(()).expect("task should receive release signal");
     assert_eq!(handle.get().expect("task should complete"), 42);
     service.shutdown();
     service.wait_termination();
@@ -217,10 +197,8 @@ fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks
 
 #[test]
 fn test_single_thread_scheduled_executor_service_handle_observation_paths() {
-    let service = SingleThreadScheduledExecutorService::new(
-        "test-scheduled-handle-observation",
-    )
-    .expect("scheduled service should start");
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-handle-observation")
+        .expect("scheduled service should start");
 
     let handle = service
         .schedule_callable(Duration::from_secs(30), || Ok::<usize, ()>(42))
@@ -248,10 +226,8 @@ fn test_single_thread_scheduled_executor_service_handle_observation_paths() {
 
 #[test]
 fn test_single_thread_scheduled_executor_service_handle_try_get_ready_path() {
-    let service = SingleThreadScheduledExecutorService::new(
-        "test-scheduled-handle-ready",
-    )
-    .expect("scheduled service should start");
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-handle-ready")
+        .expect("scheduled service should start");
     let handle = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("task should schedule");
@@ -271,12 +247,9 @@ fn test_single_thread_scheduled_executor_service_handle_try_get_ready_path() {
 }
 
 #[tokio::test]
-async fn test_single_thread_scheduled_executor_service_handle_await_returns_result()
- {
-    let service = SingleThreadScheduledExecutorService::new(
-        "test-scheduled-handle-await",
-    )
-    .expect("scheduled service should start");
+async fn test_single_thread_scheduled_executor_service_handle_await_returns_result() {
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-handle-await")
+        .expect("scheduled service should start");
     let handle = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("task should schedule");
@@ -289,8 +262,7 @@ async fn test_single_thread_scheduled_executor_service_handle_await_returns_resu
 #[test]
 fn test_single_thread_scheduled_executor_service_cancel_skips_pending_task() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-cancel")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-cancel").expect("scheduled service should start");
     let (sent_tx, sent_rx) = mpsc::channel::<()>();
 
     let handle = service
@@ -315,11 +287,9 @@ fn test_single_thread_scheduled_executor_service_cancel_skips_pending_task() {
 /// Verifies cancellation removes a pending entry and releases its closure
 /// promptly.
 #[test]
-fn test_single_thread_scheduled_executor_service_cancel_releases_queued_entry()
-{
+fn test_single_thread_scheduled_executor_service_cancel_releases_queued_entry() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-release")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-release").expect("scheduled service should start");
     let drops = Arc::new(AtomicUsize::new(0));
     let mut probe = Some(DropProbe(Arc::clone(&drops)));
 
@@ -340,8 +310,7 @@ fn test_single_thread_scheduled_executor_service_cancel_releases_queued_entry()
 #[test]
 fn test_single_thread_scheduled_executor_service_stop_cancels_pending_task() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-stop")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-stop").expect("scheduled service should start");
     let handle = service
         .schedule(Duration::from_secs(10), || Ok::<(), ()>(()))
         .expect("delayed task should schedule");
@@ -357,8 +326,7 @@ fn test_single_thread_scheduled_executor_service_stop_cancels_pending_task() {
 #[test]
 fn test_single_thread_scheduled_executor_service_rejects_after_shutdown() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-reject")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-reject").expect("scheduled service should start");
 
     service.shutdown();
     assert!(service.is_not_running());
@@ -371,18 +339,14 @@ fn test_single_thread_scheduled_executor_service_rejects_after_shutdown() {
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_reports_shutting_down_with_running_work()
- {
+fn test_single_thread_scheduled_executor_service_reports_shutting_down_with_running_work() {
     let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-lifecycle")
-            .expect("scheduled service should start");
+        SingleThreadScheduledExecutorService::new("test-scheduled-lifecycle").expect("scheduled service should start");
     let (started_tx, started_rx) = mpsc::channel::<()>();
     let (release_tx, release_rx) = mpsc::channel::<()>();
     service
         .schedule(Duration::ZERO, move || {
-            started_tx
-                .send(())
-                .expect("test should receive task start signal");
+            started_tx.send(()).expect("test should receive task start signal");
             release_rx.recv().expect("test should release task");
             Ok::<(), ()>(())
         })
@@ -396,22 +360,15 @@ fn test_single_thread_scheduled_executor_service_reports_shutting_down_with_runn
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::ShuttingDown);
     assert!(service.is_shutting_down());
 
-    release_tx
-        .send(())
-        .expect("task should receive release signal");
+    release_tx.send(()).expect("task should receive release signal");
     service.wait_termination();
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
 }
 
 #[test]
 fn test_single_thread_scheduled_executor_service_reports_spawn_failure() {
-    let result = SingleThreadScheduledExecutorService::with_stack_size(
-        "test-scheduled-spawn-failure",
-        Some(usize::MAX),
-    );
+    let result =
+        SingleThreadScheduledExecutorService::with_stack_size("test-scheduled-spawn-failure", Some(usize::MAX));
 
-    assert!(matches!(
-        result,
-        Err(ExecutorServiceBuilderError::SpawnWorker { .. })
-    ));
+    assert!(matches!(result, Err(ExecutorServiceBuilderError::SpawnWorker { .. })));
 }

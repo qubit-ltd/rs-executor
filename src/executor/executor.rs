@@ -39,10 +39,7 @@ pub trait Executor: Send + Sync {
     ///
     /// Returns [`SubmissionError`] if this executor cannot accept the runnable.
     #[inline]
-    fn execute<T, E>(
-        &self,
-        task: T,
-    ) -> Result<TrackedTask<(), E>, SubmissionError>
+    fn execute<T, E>(&self, task: T) -> Result<TrackedTask<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -64,10 +61,7 @@ pub trait Executor: Send + Sync {
     /// # Errors
     ///
     /// Returns [`SubmissionError`] if this executor cannot accept the callable.
-    fn call<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

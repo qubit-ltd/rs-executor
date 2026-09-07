@@ -40,7 +40,6 @@ fn test_submission_error_variants_display_and_compare() {
         "first",
     );
 
-    let created =
-        SubmissionError::worker_spawn_failed(io::Error::other("created"));
+    let created = SubmissionError::worker_spawn_failed(io::Error::other("created"));
     assert!(matches!(created, SubmissionError::WorkerSpawnFailed { .. }));
 }

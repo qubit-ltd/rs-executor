@@ -43,14 +43,8 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// # Returns
     ///
     /// A scheduled task handle.
-    pub(crate) const fn new(
-        inner: TrackedTask<R, E>,
-        on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>,
-    ) -> Self {
-        Self {
-            inner,
-            on_cancelled,
-        }
+    pub(crate) const fn new(inner: TrackedTask<R, E>, on_cancelled: Arc<dyn Fn() + Send + Sync + 'static>) -> Self {
+        Self { inner, on_cancelled }
     }
 
     /// Waits for the task to finish and returns its final result.
@@ -160,16 +154,10 @@ where
     /// Attempts to retrieve the underlying result without blocking.
     #[inline]
     fn try_get(self) -> TryGet<Self, R, E> {
-        let Self {
-            inner,
-            on_cancelled,
-        } = self;
+        let Self { inner, on_cancelled } = self;
         match inner.try_get() {
             TryGet::Ready(result) => TryGet::Ready(result),
-            TryGet::Pending(inner) => TryGet::Pending(Self {
-                inner,
-                on_cancelled,
-            }),
+            TryGet::Pending(inner) => TryGet::Pending(Self { inner, on_cancelled }),
         }
     }
 }

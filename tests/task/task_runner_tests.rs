@@ -14,8 +14,7 @@ use qubit_executor::task::spi::TaskRunner;
 
 #[test]
 fn test_runner_executes_through_completion() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
 
     TaskRunner::new(|| Ok::<usize, io::Error>(42)).run(completion);
 
@@ -24,8 +23,7 @@ fn test_runner_executes_through_completion() {
 
 #[test]
 fn test_runner_executes_through_running_slot() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
     let running = match completion.try_start() {
         Ok(running) => running,
         Err(_) => panic!("pending completion should start"),

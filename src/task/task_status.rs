@@ -50,11 +50,7 @@ impl TaskStatus {
     pub const fn is_done(self) -> bool {
         matches!(
             self,
-            Self::Succeeded
-                | Self::Failed
-                | Self::Panicked
-                | Self::Cancelled
-                | Self::Dropped
+            Self::Succeeded | Self::Failed | Self::Panicked | Self::Cancelled | Self::Dropped
         )
     }
 

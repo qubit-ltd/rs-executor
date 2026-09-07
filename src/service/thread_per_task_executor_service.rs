@@ -204,9 +204,7 @@ impl ThreadPerTaskExecutorServiceState {
     /// Marks the service terminated when it is non-running and idle.
     #[inline]
     fn terminate_if_ready(state: &mut ServiceState, termination: &Condvar) {
-        if state.lifecycle != ExecutorServiceLifecycle::Running
-            && state.active_tasks == 0
-        {
+        if state.lifecycle != ExecutorServiceLifecycle::Running && state.active_tasks == 0 {
             state.lifecycle = ExecutorServiceLifecycle::Terminated;
             termination.notify_all();
         }
@@ -294,10 +292,7 @@ impl ThreadPerTaskExecutorService {
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread. Accepted task accounting is handled
     /// by the active-task guard captured by `worker`.
-    fn spawn_worker_after_accept(
-        &self,
-        worker: Worker,
-    ) -> Result<(), SubmissionError> {
+    fn spawn_worker_after_accept(&self, worker: Worker) -> Result<(), SubmissionError> {
         ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 
@@ -331,11 +326,7 @@ impl ThreadPerTaskExecutorService {
     /// Returns [`SubmissionError::Shutdown`] if the service is not running, or
     /// [`SubmissionError::WorkerSpawnFailed`] if the worker thread cannot be
     /// created.
-    fn submit_with_slot<R, E, H, S, F>(
-        &self,
-        split_pair: S,
-        run_slot: F,
-    ) -> Result<H, SubmissionError>
+    fn submit_with_slot<R, E, H, S, F>(&self, split_pair: S, run_slot: F) -> Result<H, SubmissionError>
     where
         R: Send + 'static,
         E: Send + 'static,
@@ -354,13 +345,11 @@ impl ThreadPerTaskExecutorService {
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();
-        if let Err(error) =
-            self.spawn_worker_after_accept(Box::new(move || {
-                worker_gate.wait();
-                let _guard = guard;
-                run_slot(slot);
-            }))
-        {
+        if let Err(error) = self.spawn_worker_after_accept(Box::new(move || {
+            worker_gate.wait();
+            let _guard = guard;
+            run_slot(slot);
+        })) {
             notify_rejected_optional(hook.as_ref(), &error);
             return Err(error);
         }
@@ -427,10 +416,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
     /// requested before the task is accepted.
-    fn submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -445,10 +431,7 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     }
 
     /// Accepts a callable and starts it with a tracked handle.
-    fn submit_tracked_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

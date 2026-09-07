@@ -100,18 +100,13 @@ impl ScheduleExecutor {
 impl Executor for ScheduleExecutor {
     /// Starts a helper thread that waits until the scheduled instant and then
     /// runs the callable.
-    fn call<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone())
-                .into_tracked_parts();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
@@ -125,9 +120,7 @@ impl Executor for ScheduleExecutor {
                 }
                 slot.run(task);
             })
-            .inspect_err(|error| {
-                notify_rejected_optional(hook.as_ref(), error)
-            })?;
+            .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
         gate.open();
         Ok(handle)

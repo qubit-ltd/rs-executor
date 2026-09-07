@@ -15,8 +15,7 @@ use qubit_executor::task::spi::TaskEndpointPair;
 /// completion.
 #[test]
 fn test_task_handle_state_transitions_are_observable() {
-    let (handle, completion) =
-        TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
     assert!(!handle.is_done());
 
     assert_eq!(handle.cancel(), CancelResult::Cancelled);

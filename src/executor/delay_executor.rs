@@ -144,18 +144,13 @@ impl Executor for DelayExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
     /// cannot be created.
-    fn call<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone())
-                .into_tracked_parts();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let delay = self.delay;
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();

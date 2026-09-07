@@ -110,10 +110,7 @@ impl ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the operating system
     /// refuses to create the worker thread.
-    fn spawn_worker(
-        &self,
-        worker: impl FnOnce() + Send + 'static,
-    ) -> Result<(), SubmissionError> {
+    fn spawn_worker(&self, worker: impl FnOnce() + Send + 'static) -> Result<(), SubmissionError> {
         ThreadSpawnConfig::new(self.stack_size).spawn(worker)
     }
 }
@@ -147,18 +144,13 @@ impl Executor for ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the worker thread
     /// cannot be created.
-    fn call<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<TrackedTask<R, E>, SubmissionError>
+    fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
     {
-        let (handle, slot) =
-            TaskEndpointPair::with_optional_hook(self.hook.clone())
-                .into_tracked_parts();
+        let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();

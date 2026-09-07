@@ -43,9 +43,7 @@ impl<R, E> TaskSlot<R, E> {
     /// consuming runner-side API transfers it to another endpoint.
     #[inline]
     fn state(&self) -> &TaskState<R, E> {
-        self.state
-            .as_deref()
-            .expect("task slot state should be present")
+        self.state.as_deref().expect("task slot state should be present")
     }
 
     /// Marks this runner endpoint as accepted and arms lifecycle hook
@@ -82,9 +80,7 @@ impl<R, E> TaskSlot<R, E> {
     /// if another path had already started or completed the task.
     #[inline]
     pub fn cancel_unstarted(mut self) -> bool {
-        self.state
-            .take()
-            .is_some_and(|state| state.try_cancel_pending())
+        self.state.take().is_some_and(|state| state.try_cancel_pending())
     }
 
     /// Attempts to move this slot from pending into running state.
@@ -102,10 +98,7 @@ impl<R, E> TaskSlot<R, E> {
         if !self.start() {
             return Err(self);
         }
-        let state = self
-            .state
-            .take()
-            .expect("started task slot state should be present");
+        let state = self.state.take().expect("started task slot state should be present");
         Ok(RunningTaskSlot::new(state))
     }
 

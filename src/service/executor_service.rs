@@ -139,10 +139,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
-    fn submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -164,10 +161,7 @@ pub trait ExecutorService: Send + Sync {
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
     #[inline]
-    fn submit_tracked<T, E>(
-        &self,
-        task: T,
-    ) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
+    fn submit_tracked<T, E>(&self, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
         E: Send + 'static,
@@ -192,10 +186,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it.
-    fn submit_tracked_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

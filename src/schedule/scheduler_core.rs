@@ -19,8 +19,7 @@ use crate::hook::TaskId;
 use crate::service::ExecutorServiceLifecycle;
 use crate::service::StopReport;
 
-type ScheduledTaskEntries =
-    Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>;
+type ScheduledTaskEntries = Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>;
 
 /// Shared coordinator for a single scheduled worker.
 pub(crate) struct SchedulerCore {
@@ -43,8 +42,7 @@ impl SchedulerCore {
 
     /// Returns the active worker count.
     pub(crate) fn running_count(&self) -> usize {
-        self.state
-            .with_read(|state| usize::from(state.worker_active))
+        self.state.with_read(|state| usize::from(state.worker_active))
     }
 
     /// Inserts and accepts an entry while the service is running.
@@ -72,9 +70,7 @@ impl SchedulerCore {
 
     /// Removes a queued entry after its handle publishes cancellation.
     pub(crate) fn cancel_queued_task(&self, task_id: TaskId) {
-        let removed = self
-            .state
-            .with_write_notify_all(|state| state.tasks.remove(&task_id));
+        let removed = self.state.with_write_notify_all(|state| state.tasks.remove(&task_id));
         drop(removed);
     }
 
@@ -120,9 +116,8 @@ impl SchedulerCore {
 
     /// Returns whether shutdown has started.
     pub(crate) fn is_not_running(&self) -> bool {
-        self.state.with_read(|state| {
-            state.lifecycle != ExecutorServiceLifecycle::Running
-        })
+        self.state
+            .with_read(|state| state.lifecycle != ExecutorServiceLifecycle::Running)
     }
 
     /// Returns the current lifecycle.
@@ -147,15 +142,11 @@ impl SchedulerCore {
     }
 
     /// Waits for worker termination for at most `timeout`.
-    pub(crate) fn wait_for_termination_timeout(
-        &self,
-        timeout: Duration,
-    ) -> bool {
+    pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
         match self
             .state
-            .wait_until_ready_with_total_timeout(timeout, |state| {
-                state.terminated
-            }) {
+            .wait_until_ready_with_total_timeout(timeout, |state| state.terminated)
+        {
             Ok(WaitTimeoutResult::Ready(())) => true,
             Ok(WaitTimeoutResult::TimedOut) => false,
             Err(error) => panic!("scheduler termination wait failed: {error}"),

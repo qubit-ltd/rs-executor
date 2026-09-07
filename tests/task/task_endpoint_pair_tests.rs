@@ -24,10 +24,7 @@ struct RecordingHook {
 
 impl RecordingHook {
     fn events(&self) -> Vec<String> {
-        self.events
-            .lock()
-            .expect("events lock should not be poisoned")
-            .clone()
+        self.events.lock().expect("events lock should not be poisoned").clone()
     }
 }
 
@@ -69,8 +66,7 @@ fn test_task_endpoint_pair_default_splits_to_working_endpoints() {
 
 #[test]
 fn test_task_endpoint_pair_with_hook_splits_to_working_endpoints() {
-    let pair =
-        TaskEndpointPair::<usize, io::Error>::with_hook(Arc::new(NoopTaskHook));
+    let pair = TaskEndpointPair::<usize, io::Error>::with_hook(Arc::new(NoopTaskHook));
     let (handle, completion) = pair.into_parts();
 
     completion.accept();
@@ -96,10 +92,7 @@ fn test_task_endpoint_pair_cancel_pending_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     assert_eq!(
         hook.events(),
-        vec![
-            format!("accepted:{task_id}"),
-            format!("finished:{task_id}:Cancelled"),
-        ],
+        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Cancelled"),],
     );
 }
 
@@ -119,10 +112,7 @@ fn test_task_endpoint_pair_cancel_unstarted_slot_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
     assert_eq!(
         hook.events(),
-        vec![
-            format!("accepted:{task_id}"),
-            format!("finished:{task_id}:Cancelled"),
-        ],
+        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Cancelled"),],
     );
 }
 
@@ -159,9 +149,6 @@ fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
     assert!(matches!(handle.get(), Err(TaskExecutionError::Dropped)));
     assert_eq!(
         hook.events(),
-        vec![
-            format!("accepted:{task_id}"),
-            format!("finished:{task_id}:Dropped"),
-        ],
+        vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Dropped"),],
     );
 }

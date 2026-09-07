@@ -58,10 +58,7 @@ impl TaskStatusEvent {
             TaskStatus::Succeeded => Some(Self::CompleteSucceeded),
             TaskStatus::Failed => Some(Self::CompleteFailed),
             TaskStatus::Panicked => Some(Self::CompletePanicked),
-            TaskStatus::Pending
-            | TaskStatus::Running
-            | TaskStatus::Cancelled
-            | TaskStatus::Dropped => None,
+            TaskStatus::Pending | TaskStatus::Running | TaskStatus::Cancelled | TaskStatus::Dropped => None,
         }
     }
 }

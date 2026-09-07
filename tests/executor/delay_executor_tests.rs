@@ -34,9 +34,7 @@ fn test_delay_executor_delays_task_start() {
     assert_eq!(executor.delay(), Duration::from_millis(80));
     let handle = executor
         .execute(move || {
-            started_tx
-                .send(Instant::now())
-                .expect("test should receive start time");
+            started_tx.send(Instant::now()).expect("test should receive start time");
             Ok::<(), io::Error>(())
         })
         .expect("worker thread should spawn");
@@ -54,8 +52,7 @@ fn test_delay_executor_delays_task_start() {
 
 #[test]
 fn test_delay_executor_returns_callable_value() {
-    let executor =
-        DelayExecutor::new(Duration::ZERO).with_hook(Arc::new(NoopTaskHook));
+    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::new(NoopTaskHook));
 
     let handle = executor
         .call(delayed_value_task as fn() -> Result<usize, io::Error>)
@@ -83,11 +80,7 @@ fn test_delay_executor_reports_worker_spawn_failure() {
         .with_hook(Arc::new(NoopTaskHook))
         .with_stack_size(usize::MAX);
 
-    let result =
-        executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
+    let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. }),
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. }),));
 }

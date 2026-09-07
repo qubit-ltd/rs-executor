@@ -74,23 +74,15 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
     /// thread cannot be created.
-    pub fn with_stack_size(
-        thread_name: &str,
-        stack_size: Option<usize>,
-    ) -> Result<Self, ExecutorServiceBuilderError> {
+    pub fn with_stack_size(thread_name: &str, stack_size: Option<usize>) -> Result<Self, ExecutorServiceBuilderError> {
         let inner = Arc::new(SchedulerCore::new());
         let worker_inner = Arc::clone(&inner);
         let mut builder = thread::Builder::new().name(thread_name.to_string());
         if let Some(stack_size) = stack_size {
             builder = builder.stack_size(stack_size);
         }
-        if let Err(source) =
-            builder.spawn(move || ScheduledWorker::run(worker_inner))
-        {
-            return Err(ExecutorServiceBuilderError::SpawnWorker {
-                index: Some(0),
-                source,
-            });
+        if let Err(source) = builder.spawn(move || ScheduledWorker::run(worker_inner)) {
+            return Err(ExecutorServiceBuilderError::SpawnWorker { index: Some(0), source });
         }
         Ok(Self { inner })
     }
@@ -122,10 +114,7 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Callback that removes a queued task and wakes the scheduler when its
     /// handle cancels before start.
-    fn cancellation_callback(
-        &self,
-        task_id: crate::hook::TaskId,
-    ) -> Arc<dyn Fn() + Send + Sync + 'static> {
+    fn cancellation_callback(&self, task_id: crate::hook::TaskId) -> Arc<dyn Fn() + Send + Sync + 'static> {
         let inner = Arc::downgrade(&self.inner);
         Arc::new(move || {
             if let Some(inner) = inner.upgrade() {
@@ -167,11 +156,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
-    fn schedule_result_handle<C, R, E>(
-        &self,
-        deadline: Instant,
-        task: C,
-    ) -> Result<TaskHandle<R, E>, SubmissionError>
+    fn schedule_result_handle<C, R, E>(&self, deadline: Instant, task: C) -> Result<TaskHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -218,10 +203,7 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution on the scheduler thread.
-    fn submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, SubmissionError>
+    fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
@@ -231,10 +213,7 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution with a scheduled task handle.
-    fn submit_tracked_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
+    fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,

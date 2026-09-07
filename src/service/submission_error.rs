@@ -27,9 +27,7 @@ pub enum SubmissionError {
 
     /// The service accepted the task conceptually but could not create the
     /// worker thread required to execute it.
-    #[error(
-        "task rejected because the executor service failed to spawn a worker: {source}"
-    )]
+    #[error("task rejected because the executor service failed to spawn a worker: {source}")]
     WorkerSpawnFailed {
         /// I/O error reported while spawning the worker.
         source: Arc<io::Error>,
@@ -54,10 +52,7 @@ impl PartialEq for SubmissionError {
             (self, other),
             (Self::Shutdown, Self::Shutdown)
                 | (Self::Saturated, Self::Saturated)
-                | (
-                    Self::WorkerSpawnFailed { .. },
-                    Self::WorkerSpawnFailed { .. }
-                )
+                | (Self::WorkerSpawnFailed { .. }, Self::WorkerSpawnFailed { .. })
         )
     }
 }
