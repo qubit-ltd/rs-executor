@@ -191,3 +191,72 @@ impl<R, E> TaskState<R, E> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::sync::Arc;
+    use std::sync::Barrier;
+    use std::thread;
+
+    use oneshot::channel;
+
+    use super::super::TaskExecutionError;
+    use super::super::TaskHandle;
+    use super::super::TryGet;
+    use super::TaskState;
+    use crate::hook::next_task_id;
+
+    #[test]
+    fn test_terminal_state_can_precede_result_publication() {
+        let (sender, receiver) = channel();
+        let state = Arc::new(TaskState::<usize, io::Error>::new(next_task_id(), sender, None));
+        assert!(state.try_start(false));
+        let handle = TaskHandle::new(Arc::clone(&state), receiver);
+        thread::scope(|scope| {
+            let sender_guard = state.sender.lock();
+            let writer_state = Arc::clone(&state);
+            let writer = scope.spawn(move || writer_state.try_complete(Ok(42), false));
+            while !state.is_done() {
+                thread::yield_now();
+            }
+            let handle = match handle.try_get() {
+                TryGet::Pending(handle) => handle,
+                TryGet::Ready(_) => panic!("sender lock must hold back publication"),
+            };
+            drop(sender_guard);
+            assert!(writer.join().expect("publisher thread"));
+            assert_eq!(handle.get().expect("published result"), 42);
+        });
+    }
+
+    #[test]
+    fn test_terminal_transition_has_one_winner() {
+        let (sender, receiver) = channel();
+        let state = Arc::new(TaskState::<usize, io::Error>::new(next_task_id(), sender, None));
+        assert!(state.try_start(false));
+        let gate = Arc::new(Barrier::new(3));
+        let completed = thread::scope(|scope| {
+            let complete_state = Arc::clone(&state);
+            let complete_gate = Arc::clone(&gate);
+            let complete = scope.spawn(move || {
+                complete_gate.wait();
+                complete_state.try_complete(Ok(42), false)
+            });
+            let drop_state = Arc::clone(&state);
+            let drop_gate = Arc::clone(&gate);
+            let dropped = scope.spawn(move || {
+                drop_gate.wait();
+                drop_state.try_drop_unfinished(false)
+            });
+            gate.wait();
+            (
+                complete.join().expect("completion thread"),
+                dropped.join().expect("drop thread"),
+            )
+        });
+        assert_eq!(completed.0 as u8 + completed.1 as u8, 1);
+        let result = receiver.recv().expect("winner publishes one result");
+        assert!(matches!(result, Ok(42) | Err(TaskExecutionError::Dropped)));
+    }
+}
