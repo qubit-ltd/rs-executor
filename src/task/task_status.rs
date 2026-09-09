@@ -7,17 +7,14 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow inline-tests
-use core::mem::transmute;
+use qubit_state_machine::DenseCode;
 
 use super::TaskExecutionError;
 use super::TaskResult;
 
-/// Number of [`TaskStatus`] variants; compact codes are `0..TASK_STATUS_COUNT`.
-pub(crate) const TASK_STATUS_COUNT: usize = 7;
-
 /// Observable lifecycle status for a submitted task.
 ///
-/// `#[repr(usize)]` assigns stable discriminants `0..TASK_STATUS_COUNT` for
+/// `#[repr(usize)]` assigns stable discriminants `0..7` for
 /// internal compact state-machine encoding.
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,49 +37,6 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    /// Converts this status to its compact state-machine representation.
-    ///
-    /// # Returns
-    ///
-    /// A stable integer code used by task completion state.
-    #[inline]
-    #[cfg(test)]
-    pub(crate) const fn as_usize(self) -> usize {
-        self as usize
-    }
-
-    /// Converts this status to the fast state-machine representation.
-    ///
-    /// # Returns
-    ///
-    /// A stable `u64` code accepted by
-    /// [`qubit_state_machine::FastStateMachine`].
-    #[inline]
-    pub(crate) const fn as_u64(self) -> u64 {
-        self as u64
-    }
-
-    /// Converts a compact state-machine representation into a task status.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Integer value previously produced by [`Self::as_usize`].
-    ///
-    /// # Returns
-    ///
-    /// The represented task status.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `value` is not a valid task status code.
-    #[inline]
-    pub(crate) const fn from_usize(value: usize) -> Self {
-        if value >= TASK_STATUS_COUNT {
-            panic!("invalid task status code");
-        }
-        unsafe { transmute::<usize, Self>(value) }
-    }
-
     /// Returns the terminal status represented by a task result.
     ///
     /// # Parameters
@@ -104,36 +58,32 @@ impl TaskStatus {
     }
 }
 
+impl DenseCode for TaskStatus {
+    const VALUES: &'static [Self] = &[
+        Self::Pending,
+        Self::Running,
+        Self::Succeeded,
+        Self::Failed,
+        Self::Panicked,
+        Self::Cancelled,
+        Self::Dropped,
+    ];
+    /// Returns the stable compact task-state code.
+    #[inline]
+    fn code(self) -> u64 {
+        self as u64
+    }
+}
+
 #[cfg(test)]
 mod compact_encoding_tests {
-    use super::TASK_STATUS_COUNT;
+    use qubit_state_machine::DenseCode;
+
     use super::TaskStatus;
 
     #[test]
-    fn task_status_as_usize_matches_stable_discriminants() {
-        assert_eq!(TaskStatus::Pending.as_usize(), 0);
-        assert_eq!(TaskStatus::Running.as_usize(), 1);
-        assert_eq!(TaskStatus::Succeeded.as_usize(), 2);
-        assert_eq!(TaskStatus::Failed.as_usize(), 3);
-        assert_eq!(TaskStatus::Panicked.as_usize(), 4);
-        assert_eq!(TaskStatus::Cancelled.as_usize(), 5);
-        assert_eq!(TaskStatus::Dropped.as_usize(), 6);
-    }
-
-    #[test]
-    fn task_status_as_u64_matches_stable_discriminants() {
-        assert_eq!(TaskStatus::Pending.as_u64(), 0);
-        assert_eq!(TaskStatus::Running.as_u64(), 1);
-        assert_eq!(TaskStatus::Succeeded.as_u64(), 2);
-        assert_eq!(TaskStatus::Failed.as_u64(), 3);
-        assert_eq!(TaskStatus::Panicked.as_u64(), 4);
-        assert_eq!(TaskStatus::Cancelled.as_u64(), 5);
-        assert_eq!(TaskStatus::Dropped.as_u64(), 6);
-    }
-
-    #[test]
-    fn task_status_from_usize_restores_each_variant() {
-        let variants = [
+    fn test_task_status_codebook_preserves_discriminants() {
+        let expected = [
             TaskStatus::Pending,
             TaskStatus::Running,
             TaskStatus::Succeeded,
@@ -142,40 +92,9 @@ mod compact_encoding_tests {
             TaskStatus::Cancelled,
             TaskStatus::Dropped,
         ];
-        for status in variants {
-            assert_eq!(TaskStatus::from_usize(status.as_usize()), status);
+        assert_eq!(TaskStatus::VALUES, expected);
+        for (index, &value) in TaskStatus::VALUES.iter().enumerate() {
+            assert_eq!(value.code(), index as u64);
         }
-    }
-
-    #[test]
-    fn task_status_round_trip_all_codes_in_range() {
-        for code in 0..TASK_STATUS_COUNT {
-            let status = TaskStatus::from_usize(code);
-            assert_eq!(status.as_usize(), code);
-            assert_eq!(TaskStatus::from_usize(code), status);
-        }
-    }
-
-    #[test]
-    #[should_panic(expected = "invalid task status code")]
-    fn task_status_from_usize_panics_at_upper_boundary() {
-        TaskStatus::from_usize(TASK_STATUS_COUNT);
-    }
-
-    #[test]
-    #[should_panic(expected = "invalid task status code")]
-    fn task_status_from_usize_panics_on_invalid_large_code() {
-        TaskStatus::from_usize(usize::MAX);
-    }
-
-    /// [`TASK_STATUS_COUNT`] must stay aligned with `#[repr(usize)]`
-    /// discriminants.
-    #[test]
-    fn task_status_variant_count_matches_constant() {
-        assert_eq!(
-            TaskStatus::Dropped as usize + 1,
-            TASK_STATUS_COUNT,
-            "last discriminant + 1 must equal TASK_STATUS_COUNT"
-        );
     }
 }

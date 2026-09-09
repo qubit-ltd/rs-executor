@@ -8,10 +8,12 @@
 // =============================================================================
 // qubit-style: allow inline-tests
 
+use qubit_state_machine::DenseCode;
+
 use super::task_status::TaskStatus;
 
 /// Event codes accepted by the task status state machine (`#[repr(usize)]`
-/// discriminants `0..8`).
+/// discriminants `0..6`).
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(super) enum TaskStatusEvent {
@@ -30,17 +32,6 @@ pub(super) enum TaskStatusEvent {
 }
 
 impl TaskStatusEvent {
-    /// Returns the fast state-machine event code.
-    ///
-    /// # Returns
-    ///
-    /// A stable `u64` code accepted by
-    /// [`qubit_state_machine::FastStateMachine`].
-    #[inline]
-    pub(super) const fn as_u64(self) -> u64 {
-        self as u64
-    }
-
     /// Returns the completion event matching a normal running-task terminal
     /// status.
     ///
@@ -63,24 +54,31 @@ impl TaskStatusEvent {
     }
 }
 
+impl DenseCode for TaskStatusEvent {
+    const VALUES: &'static [Self] = &[
+        Self::Start,
+        Self::CancelPending,
+        Self::CompleteSucceeded,
+        Self::CompleteFailed,
+        Self::CompletePanicked,
+        Self::DropUnfinished,
+    ];
+    /// Returns the stable compact task-event code.
+    #[inline]
+    fn code(self) -> u64 {
+        self as u64
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::super::task_status_machine::TASK_STATUS_EVENT_COUNT;
+    use qubit_state_machine::DenseCode;
+
     use super::TaskStatusEvent;
 
     #[test]
-    fn task_status_event_as_u64_matches_stable_discriminants() {
-        assert_eq!(TaskStatusEvent::Start.as_u64(), 0);
-        assert_eq!(TaskStatusEvent::CancelPending.as_u64(), 1);
-        assert_eq!(TaskStatusEvent::CompleteSucceeded.as_u64(), 2);
-        assert_eq!(TaskStatusEvent::CompleteFailed.as_u64(), 3);
-        assert_eq!(TaskStatusEvent::CompletePanicked.as_u64(), 4);
-        assert_eq!(TaskStatusEvent::DropUnfinished.as_u64(), 5);
-    }
-
-    #[test]
-    fn task_status_event_codes_are_zero_through_seven_in_declaration_order() {
-        let events = [
+    fn test_task_status_event_codebook_preserves_discriminants() {
+        let expected = [
             TaskStatusEvent::Start,
             TaskStatusEvent::CancelPending,
             TaskStatusEvent::CompleteSucceeded,
@@ -88,17 +86,9 @@ mod tests {
             TaskStatusEvent::CompletePanicked,
             TaskStatusEvent::DropUnfinished,
         ];
-        for (i, event) in events.iter().enumerate() {
-            assert_eq!(event.as_u64(), i as u64, "event index {i}");
+        assert_eq!(TaskStatusEvent::VALUES, expected);
+        for (index, &event) in TaskStatusEvent::VALUES.iter().enumerate() {
+            assert_eq!(event.code(), index as u64);
         }
-    }
-
-    #[test]
-    fn task_status_event_count_matches_variants() {
-        assert_eq!(
-            TaskStatusEvent::DropUnfinished as usize + 1,
-            TASK_STATUS_EVENT_COUNT,
-            "last event discriminant + 1 must equal TASK_STATUS_EVENT_COUNT"
-        );
     }
 }

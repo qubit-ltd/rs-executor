@@ -152,3 +152,58 @@ fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
         vec![format!("accepted:{task_id}"), format!("finished:{task_id}:Dropped"),],
     );
 }
+
+#[test]
+fn test_start_cancel_race_has_one_result_and_one_finished_hook() {
+    use std::sync::Barrier;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    for _ in 0..128 {
+        let hook = Arc::new(RecordingHook::default());
+        let (handle, completion) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
+        completion.accept();
+        let barrier = Arc::new(Barrier::new(2));
+        let body_calls = Arc::new(AtomicUsize::new(0));
+        let worker_barrier = Arc::clone(&barrier);
+        let worker_calls = Arc::clone(&body_calls);
+        let (done_tx, done_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            worker_barrier.wait();
+            let ran = completion.run(|| {
+                worker_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(42)
+            });
+            done_tx.send(ran).expect("race observer remains alive");
+        });
+        barrier.wait();
+        let cancel = handle.cancel();
+        let ran = done_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("runner completes race");
+        worker.join().expect("race worker finishes");
+        if cancel == CancelResult::Cancelled {
+            assert!(!ran);
+            assert_eq!(body_calls.load(Ordering::SeqCst), 0);
+            assert_eq!(handle.status(), TaskStatus::Cancelled);
+            assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+        } else {
+            assert!(matches!(
+                cancel,
+                CancelResult::AlreadyRunning | CancelResult::AlreadyFinished
+            ));
+            assert!(ran);
+            assert_eq!(body_calls.load(Ordering::SeqCst), 1);
+            assert_eq!(handle.status(), TaskStatus::Succeeded);
+            assert_eq!(handle.get().expect("runner publishes success"), 42);
+        }
+        assert_eq!(
+            hook.events()
+                .iter()
+                .filter(|event| event.starts_with("finished:"))
+                .count(),
+            1
+        );
+    }
+}

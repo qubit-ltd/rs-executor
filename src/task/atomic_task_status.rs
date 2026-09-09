@@ -6,7 +6,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_fast_cas::FastCasState;
+use qubit_state_machine::FastStateMachineError;
+use qubit_state_machine::TypedFastState;
+use qubit_state_machine::TypedFastStateMachineError;
 
 use super::task_status::TaskStatus;
 use super::task_status_event::TaskStatusEvent;
@@ -15,19 +17,16 @@ use super::task_status_machine::TASK_STATUS_MACHINE;
 /// Atomic state machine for one tracked task status.
 pub(crate) struct AtomicTaskStatus {
     /// Compact atomic representation of the current task status code.
-    value: FastCasState,
+    value: TypedFastState<TaskStatus>,
 }
 
 impl AtomicTaskStatus {
-    /// Creates an atomic task status initialized with the supplied status.
-    ///
-    /// # Parameters
-    ///
-    /// * `status` - Initial task status.
+    /// Creates an atomic task status initialized to the machine's pending
+    /// state.
     ///
     /// # Returns
     ///
-    /// A task status cell initialized to `status`.
+    /// An independent pending task status cell.
     #[inline]
     pub(crate) fn new() -> Self {
         Self {
@@ -42,7 +41,7 @@ impl AtomicTaskStatus {
     /// The currently observed task status.
     #[inline]
     pub(crate) fn load(&self) -> TaskStatus {
-        TaskStatus::from_usize(self.value.load() as usize)
+        self.value.load()
     }
 
     /// Returns whether the current status is terminal according to the shared
@@ -103,6 +102,14 @@ impl AtomicTaskStatus {
 
     /// Applies one event through the shared task status machine.
     ///
+    /// The acyclic task graph permits at most two committed state changes.
+    /// Strong CAS and a sixteen-attempt budget cannot exhaust on this graph.
+    ///
+    /// # Panics
+    /// Panics on invalid encoding/state or unexpected CAS exhaustion,
+    /// indicating a violation of the private graph invariant rather than a
+    /// lost task race.
+    ///
     /// # Parameters
     ///
     /// * `event` - Event to apply to the current task status.
@@ -112,6 +119,10 @@ impl AtomicTaskStatus {
     /// `true` if the configured transition exists and the CAS update succeeds.
     #[inline]
     fn try_transition(&self, event: TaskStatusEvent) -> bool {
-        TASK_STATUS_MACHINE.try_trigger(&self.value, event.as_u64())
+        match TASK_STATUS_MACHINE.trigger(&self.value, event) {
+            Ok(_) => true,
+            Err(TypedFastStateMachineError::Raw(FastStateMachineError::UnknownTransition { .. })) => false,
+            Err(error) => panic!("task status machine invariant violated: {error}"),
+        }
     }
 }
