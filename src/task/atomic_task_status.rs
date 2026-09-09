@@ -6,9 +6,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_state_machine::FastStateMachineError;
 use qubit_state_machine::TypedFastState;
-use qubit_state_machine::TypedFastStateMachineError;
 
 use super::task_status::TaskStatus;
 use super::task_status_event::TaskStatusEvent;
@@ -121,7 +119,7 @@ impl AtomicTaskStatus {
     fn try_transition(&self, event: TaskStatusEvent) -> bool {
         match TASK_STATUS_MACHINE.trigger(&self.value, event) {
             Ok(_) => true,
-            Err(TypedFastStateMachineError::Raw(FastStateMachineError::UnknownTransition { .. })) => false,
+            Err(error) if error.is_unknown_transition() => false,
             Err(error) => panic!("task status machine invariant violated: {error}"),
         }
     }
