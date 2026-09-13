@@ -36,12 +36,12 @@ oneshot = { version = "0.2", features = ["async", "std"] }
 parking_lot = "0.12"
 thiserror = "2.0"
 
-qubit-atomic = "0.13"
-qubit-collections = { version = "0.2", path = "../rs-collections" }
-qubit-function = "0.16"
+qubit-atomic = "0.17"
+qubit-collections = { version = "0.2" }
+qubit-function = "0.18"
 qubit-lock = { default-features = false, features = ["monitor", "parking-lot"], version = "0.14" }
 qubit-fast-cas = "0.3"
-qubit-state-machine = { version = "0.10", path = "../rs-state-machine", default-features = false, features = ["fast"] }
+qubit-state-machine = { path = "../rs-state-machine", default-features = false, features = ["fast"] }
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
