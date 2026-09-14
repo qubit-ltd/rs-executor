@@ -44,4 +44,4 @@ qubit-fast-cas = "0.3"
 qubit-state-machine = { path = "../rs-state-machine", default-features = false, features = ["fast"] }
 
 [dev-dependencies]
-tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "^1.53", features = ["macros", "rt-multi-thread", "time"] }
