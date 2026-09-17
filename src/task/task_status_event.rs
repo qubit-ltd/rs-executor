@@ -53,6 +53,7 @@ impl TaskStatusEvent {
 }
 
 impl DenseCode for TaskStatusEvent {
+    /// All task events in their compact-code order.
     const VALUES: &'static [Self] = &[
         Self::Start,
         Self::CancelPending,

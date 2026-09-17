@@ -33,6 +33,23 @@ use crate::task::spi::TaskEndpointPair;
 /// heap, waits until the earliest task is due, and then runs that task directly
 /// on the scheduler thread. Scheduled tasks should therefore stay short; submit
 /// heavier work to another executor service from the scheduled task body.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::time::Duration;
+///
+/// use qubit_executor::{ExecutorService, ScheduledExecutorService, SingleThreadScheduledExecutorService};
+///
+/// let service = SingleThreadScheduledExecutorService::new("example-scheduler")
+///     .expect("scheduler thread should start");
+/// let task = service
+///     .schedule_callable(Duration::from_millis(1), || Ok::<_, ()>(42))
+///     .expect("scheduled task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// service.shutdown();
+/// service.wait_termination();
+/// ```
 pub struct SingleThreadScheduledExecutorService {
     /// Shared scheduler state.
     inner: Arc<SchedulerCore>,

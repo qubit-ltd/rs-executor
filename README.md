@@ -7,140 +7,11 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-Executor abstractions and task-result primitives for Rust.
-
-## Overview
-
-Qubit Executor provides the small common execution API used by the Qubit Rust
-concurrency crates. It separates lightweight execution strategies from managed
-executor services, and provides reusable task handles for implementations that
-need to publish task success, task failure, panic, cancellation, or dropped
-completion.
-
-This crate deliberately avoids depending on Tokio, Rayon, or a concrete thread
-pool. Runtime-specific implementations live in smaller companion crates so
-libraries can depend only on the abstraction level they need.
-
-## Features
-
-- Strategy-level `Executor` trait for executing one task and returning a `TrackedTask` handle.
-- `DirectExecutor` for deterministic same-thread execution.
-- `DelayExecutor` for running work on a helper thread after a fixed delay.
-- `ScheduleExecutor` for running work on a helper thread at a monotonic `Instant`.
-- `ThreadPerTaskExecutor` for spawning one OS thread per task without queue management.
-- Managed `ExecutorService` trait with `submit`, `submit_callable`, `shutdown`, `stop`, lifecycle inspection, and blocking termination waiting.
-- `ThreadPerTaskExecutorService` as a basic managed service implementation.
-- `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for cancellable delayed or instant-based task submission without depending on a thread pool crate.
-- `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for sharing task completion semantics across crates.
-- Shared lifecycle, rejection, and stop report types through `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport`.
-
-## Executor vs ExecutorService
-
-`Executor` is a low-level execution strategy. It answers: “how should this one
-task run?” Accepted task results are exposed uniformly through `TrackedTask`,
-even when the concrete executor runs the task inline.
-
-`ExecutorService` is a managed service. It answers: “can this service accept a
-task, track it, shut down, and eventually terminate?” A successful `submit`
-means only that the service accepted the task. It does not mean the task has
-started or completed successfully.
-
-`ScheduledExecutorService` is the timed-submission extension of
-`ExecutorService`. It keeps normal lifecycle semantics while adding
-`schedule`, `schedule_callable`, `schedule_at`, and `schedule_callable_at`.
-The basic `SingleThreadScheduledExecutorService` implementation owns one
-scheduler thread and runs due tasks on that thread, so scheduled task bodies
-should stay small or hand heavier work to another executor service.
-
-## ExecutorService Lifecycle
-
-Every managed service follows the same high-level lifecycle:
-
-| State | Meaning |
-| --- | --- |
-| `Running` | The service accepts new tasks and may have accepted work queued, scheduled, or running. |
-| `ShuttingDown` | `shutdown()` has requested orderly shutdown. New submissions are rejected, while already accepted work is allowed to finish normally. |
-| `Stopping` | `stop()` has requested abrupt stop. New submissions are rejected, and the service attempts to cancel or abort accepted work that can still be stopped. |
-| `Terminated` | Shutdown or stop has been requested, and no accepted work remains active. |
-
-`shutdown()` and `stop()` are both terminal admission decisions: after either
-method is called, the service is no longer running and will not accept new
-tasks again. The difference is how accepted work is treated.
-
-`shutdown()` is graceful. It preserves accepted work and lets queued,
-scheduled, or running tasks complete according to the concrete service's normal
-execution rules.
-
-`stop()` is abrupt and best effort. It requests cancellation of queued,
-scheduled, or unstarted work, and may abort runtime-managed tasks when the
-runtime supports aborting them. It cannot forcibly interrupt arbitrary Rust
-code, blocking calls, or already-running OS threads, so termination may still
-wait for such work to return. The returned `StopReport` describes the queued,
-running, and cancelled work observed while handling the stop request.
-
-`wait_termination()` blocks the current thread until either shutdown or stop has
-been requested and all accepted work has completed, failed, panicked, been
-cancelled, been dropped by its runner endpoint, or been aborted according to
-the concrete service's capabilities.
-Calling it while the service is still `Running` waits until another thread
-requests shutdown or stop; if that never happens, it can block forever. This API
-is deliberately synchronous and blocking, not an async or non-blocking wait.
-
-### Resource cleanup
-
-Do not rely on dropping an `ExecutorService` handle to release service resources
-promptly. A concrete service may request shutdown from `Drop`, but destructor
-code should not be assumed to wait for worker threads, helper threads, runtime
-tasks, queues, or task-owned resources to finish. Blocking in `Drop` would make
-ordinary handle destruction unexpectedly wait for arbitrary user code, blocking
-calls, or OS-thread tasks that cannot be interrupted.
-
-When deterministic cleanup matters, use an explicit lifecycle sequence:
-
-1. Call `shutdown()` to reject new work and drain accepted work, or call `stop()`
-   to request best-effort cancellation or abort of work that can still be
-   stopped.
-2. Call `wait_termination()` and let it return before assuming the service has
-   quiesced.
-3. Drop the service handle and any task handles after the wait returns.
-
-Already-running blocking or OS-thread task bodies can keep file descriptors,
-sockets, locks, reference-counted objects, or other external resources alive
-until those task bodies return. Services that need stronger cleanup guarantees
-should provide an explicit close/join API instead of relying on destructor side
-effects.
-
-## Task Results
-
-`TaskHandle` represents the result of an accepted callable task. It supports
-blocking waits through `get`, async waits by value, non-blocking `try_get`, and
-completion checks through `is_done`.
-
-`TrackedTask` adds status inspection and best-effort cancellation before the
-task starts. Managed services expose tracked handles through
-`submit_tracked` and `submit_tracked_callable`.
-
-Task execution errors are represented by `TaskExecutionError`:
-
-- `Failed(E)` means the task returned its own error value.
-- `Panicked` means the task panicked while running.
-- `Cancelled` means the task was cancelled before producing a value.
-- `Dropped` means the runner-side completion endpoint disappeared without
-  publishing a value, which is distinct from an explicit cancellation request.
-
-## Task Hooks
-
-Executors may be configured with a `TaskHook` to observe lifecycle events. A
-rejected submission emits only `on_rejected` and never receives a task id. An
-accepted task emits `on_accepted` before any `on_started` or `on_finished`
-event for that task. Tasks cancelled before start, or accepted tasks whose
-runner endpoint is abandoned, may emit `on_finished` without `on_started`.
-Executors contain hook panics so hook implementations cannot prevent task
-result publication.
+Qubit Executor provides runtime-neutral Rust abstractions for submitting work, observing task results, and controlling the lifecycle of managed execution services. It is for library authors who need to accept or expose executor behavior without forcing users to depend on Tokio, Rayon, or a particular thread pool.
 
 ## Quick Start
 
-### Direct execution
+Suppose a library must submit a fallible calculation and wait for its result, while the application chooses how the task runs. Select `DirectExecutor` for deterministic same-thread execution:
 
 ```rust
 use std::io;
@@ -149,25 +20,11 @@ use qubit_executor::{DirectExecutor, Executor};
 
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
-let value = handle.get()?;
-assert_eq!(value, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
-
-### One thread per task
-
-```rust
-use std::io;
-
-use qubit_executor::{Executor, ThreadPerTaskExecutor};
-
-let executor = ThreadPerTaskExecutor::new();
-let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-### Managed service
+For accepted work that must be shut down explicitly, use a managed service:
 
 ```rust
 use std::io;
@@ -182,75 +39,70 @@ service.wait_termination();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-### Scheduled service
+`submit_callable` returning `Ok(handle)` means only that the service accepted the task. After `shutdown()` or `stop()`, new submissions are rejected; call `wait_termination()` when the service must quiesce before cleanup.
 
-```rust
-use std::io;
-use std::time::Duration;
+## Why This Project Exists
 
-use qubit_executor::{
-    ExecutorService,
-    ScheduledExecutorService,
-    SingleThreadScheduledExecutorService,
-};
+Execution strategy, task completion, and managed-service lifecycle have different consumers. A reusable library often needs the first two without choosing an application runtime, while an application also needs admission control, shutdown, cancellation, and termination observation. Qubit Executor keeps these boundaries explicit so libraries can depend on stable task semantics and applications can select a concrete implementation.
 
-let service = SingleThreadScheduledExecutorService::new("app-scheduler")?;
-let handle = service.schedule_callable(Duration::from_millis(25), || {
-    Ok::<usize, io::Error>(40 + 2)
-})?;
-assert_eq!(handle.get()?, 42);
-service.shutdown();
-service.wait_termination();
-# Ok::<(), Box<dyn std::error::Error>>(())
+## What It Provides
+
+- `Executor` for one-shot fallible tasks, with `DirectExecutor`, `DelayExecutor`, `ScheduleExecutor`, and `ThreadPerTaskExecutor`.
+- `ExecutorService` for accepted-task tracking, graceful `shutdown()`, best-effort `stop()`, lifecycle inspection, and blocking termination waiting.
+- `ThreadPerTaskExecutorService` plus `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for delayed or `Instant`-based submission.
+- `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for completion, status, cancellation, panic, failure, and dropped-endpoint semantics.
+- `TaskHook`, `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport` for observation and lifecycle reporting.
+
+The crate does not provide a bounded thread pool, an async runtime, or forced interruption of arbitrary Rust code. Use `qubit-thread-pool`, `qubit-tokio-executor`, `qubit-rayon-executor`, or `qubit-execution-services` when an application needs those concrete integrations.
+
+## Installation
+
+Add the published crate to `Cargo.toml`:
+
+```toml
+qubit-executor = "0.8"
 ```
 
-## Crate Boundaries
-
-Use `qubit-executor` when you are defining APIs that should accept or return
-executor abstractions without committing to a runtime. Use a runtime-specific
-crate when you need a concrete implementation:
-
-- `qubit-thread-pool` provides dynamic and fixed OS-thread pools.
-- `qubit-tokio-executor` provides Tokio-backed blocking and async IO services.
-- `qubit-rayon-executor` provides a Rayon-backed CPU-bound service.
-- `qubit-execution-services` aggregates the concrete services for application-level wiring.
+The crate requires Rust 1.94 or newer.
 
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户手册](doc/user_guide.zh_CN.md)
+- [API documentation](https://docs.rs/qubit-executor)
+- [简体中文 README](README.zh_CN.md)
 
 ## Testing
 
-A minimal local run:
-
 ```bash
+# Run tests with the default feature set
 cargo test
-cargo clippy --all-targets --all-features -- -D warnings
-```
 
-To mirror what continuous integration enforces, run the repository scripts from
-the project root: `./align-ci.sh` brings local tooling and configuration in line
-with CI, then `./ci-check.sh` runs the same checks the pipeline uses. For test
-coverage, use `./coverage.sh` to generate or open reports.
+# Run tests with all declared features
+cargo test --all-features
+
+# Project CI checks
+./ci-check.sh
+
+# Check code coverage
+./coverage.sh
+```
 
 ## License
 
-Copyright (c) 2026. Haixing Hu.
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
 
-This project is licensed under the [Apache License, Version 2.0](LICENSE).
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full license text.
 
 ## Contributing
 
-Issues and pull requests are welcome.
-
-- Open an issue for bug reports, design questions, or larger feature proposals when it helps align on direction.
-- Keep pull requests scoped to one behavior change, fix, or documentation update when practical.
-- Before submitting, run `./align-ci.sh` and then `./ci-check.sh` so your branch matches CI rules and passes the same checks as the pipeline.
-- Add or update tests when you change runtime behavior, and update this README or public rustdoc when user-visible API behavior changes.
-
-By contributing, you agree to license your contributions under the [Apache License, Version 2.0](LICENSE), the same license as this project.
+Contributions are welcome. Please follow the Rust API guidelines, keep public
+API documentation and tests current, and run `./align-ci.sh` to format code and
+`./ci-check.sh` to satisfy CI requirements before submitting a pull request.
 
 ## Author
 
-**Haixing Hu** — Qubit Co. Ltd.
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+Repository: [https://github.com/qubit-ltd/rs-executor](https://github.com/qubit-ltd/rs-executor)

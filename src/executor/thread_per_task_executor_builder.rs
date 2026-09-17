@@ -12,6 +12,18 @@ use crate::hook::TaskHook;
 use crate::service::ExecutorServiceBuilderError;
 
 /// Builder for [`ThreadPerTaskExecutor`].
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::ThreadPerTaskExecutor;
+///
+/// let executor = ThreadPerTaskExecutor::builder()
+///     .stack_size(1024 * 1024)
+///     .build()
+///     .expect("positive stack size should build");
+/// let _ = executor;
+/// ```
 #[derive(Clone)]
 pub struct ThreadPerTaskExecutorBuilder {
     /// Optional stack size for each spawned worker thread.

@@ -1,0 +1,2 @@
+# ServiceState is the private mutex payload of its owning service state type.
+multiple-public-types | src/service/internal/thread_per_task_executor_service_state.rs | Keep the lifecycle snapshot beside its only owning synchronization wrapper.

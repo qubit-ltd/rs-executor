@@ -20,6 +20,7 @@ use crate::service::SubmissionError;
 use crate::task::spi::TaskEndpointPair;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 
+/// Type-erased worker executed by a delayed helper thread.
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Executor that starts each task after a fixed delay.
@@ -37,6 +38,20 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// The returned [`TrackedTask`] is created immediately. Dropping the handle
 /// does not cancel the helper thread; use [`TrackedTask::cancel`] before the
 /// helper thread starts the task when pre-start cancellation is needed.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::time::Duration;
+///
+/// use qubit_executor::{DelayExecutor, Executor};
+///
+/// let executor = DelayExecutor::new(Duration::from_millis(1));
+/// let task = executor
+///     .call(|| Ok::<_, ()>(42))
+///     .expect("delayed task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// ```
 #[derive(Clone)]
 pub struct DelayExecutor {
     /// Duration to sleep before each submitted task starts.

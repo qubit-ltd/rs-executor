@@ -19,6 +19,18 @@ use crate::task::spi::TaskEndpointPair;
 ///
 /// This executor is useful for deterministic tests and simple composition
 /// where task execution should happen in the same call stack.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::{DirectExecutor, Executor};
+///
+/// let executor = DirectExecutor::new();
+/// let task = executor
+///     .call(|| Ok::<_, ()>(42))
+///     .expect("direct execution should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// ```
 #[derive(Clone)]
 pub struct DirectExecutor {
     /// Hook notified about accepted task lifecycle events.

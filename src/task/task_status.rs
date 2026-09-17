@@ -14,6 +14,15 @@ use super::TaskResult;
 ///
 /// `#[repr(usize)]` assigns stable discriminants `0..7` for
 /// internal compact state-machine encoding.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::TaskStatus;
+///
+/// assert_eq!(TaskStatus::Pending, TaskStatus::Pending);
+/// assert_ne!(TaskStatus::Running, TaskStatus::Succeeded);
+/// ```
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
@@ -57,6 +66,7 @@ impl TaskStatus {
 }
 
 impl DenseCode for TaskStatus {
+    /// All task statuses in their compact-code order.
     const VALUES: &'static [Self] = &[
         Self::Pending,
         Self::Running,

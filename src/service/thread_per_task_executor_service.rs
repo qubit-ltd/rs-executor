@@ -30,6 +30,7 @@ mod internal;
 use self::internal::ActiveTaskGuard;
 use self::internal::TaskAdmissionHandle;
 use self::internal::ThreadPerTaskExecutorServiceState;
+/// Type-erased worker executed by a service-owned OS thread.
 type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Managed service that runs every accepted task on a dedicated OS thread.
@@ -37,6 +38,20 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// The service has no queue: accepted tasks start immediately on their own
 /// thread. Shutdown prevents later submissions but cannot forcefully stop
 /// running OS threads.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
+///
+/// let service = ThreadPerTaskExecutorService::new();
+/// let task = service
+///     .submit_callable(|| Ok::<_, ()>(42))
+///     .expect("task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// service.shutdown();
+/// service.wait_termination();
+/// ```
 #[derive(Clone)]
 pub struct ThreadPerTaskExecutorService {
     /// Shared service state used by all clones of this service.

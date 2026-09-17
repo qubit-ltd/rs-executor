@@ -1,3 +1,12 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+// qubit-style: allow multiple-public-types
+
 use std::time::Duration;
 use std::time::Instant;
 
@@ -7,13 +16,17 @@ use parking_lot::Mutex;
 use super::super::ExecutorServiceLifecycle;
 use super::super::SubmissionError;
 
+/// Copyable lifecycle snapshot protected by the service state mutex.
 #[derive(Debug, Clone, Copy)]
 struct ServiceState {
+    /// Current service lifecycle.
     lifecycle: ExecutorServiceLifecycle,
+    /// Number of accepted workers that have not exited.
     active_tasks: usize,
 }
 
 impl Default for ServiceState {
+    /// Creates a running state with no accepted workers.
     fn default() -> Self {
         Self {
             lifecycle: ExecutorServiceLifecycle::Running,
@@ -22,18 +35,28 @@ impl Default for ServiceState {
     }
 }
 
+/// Shared lifecycle and active-task accounting for a thread-per-task service.
 #[derive(Default)]
 pub struct ThreadPerTaskExecutorServiceState {
+    /// Lifecycle snapshot and active worker count.
     state: Mutex<ServiceState>,
+    /// Condition variable used by termination waiters.
     termination: Condvar,
 }
 
 impl ThreadPerTaskExecutorServiceState {
+    /// Returns the current service lifecycle.
     #[inline]
     pub fn lifecycle(&self) -> ExecutorServiceLifecycle {
         self.state.lock().lifecycle
     }
 
+    /// Attempts to admit one task while the service is running.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after incrementing the active-task count, or
+    /// [`SubmissionError::Shutdown`] when admission is closed.
     #[inline]
     pub fn accept_task(&self) -> Result<(), SubmissionError> {
         let mut state = self.state.lock();
@@ -44,6 +67,7 @@ impl ThreadPerTaskExecutorServiceState {
         Ok(())
     }
 
+    /// Decrements the active-task count and terminates the service if ready.
     #[inline]
     pub(crate) fn finish_task(&self) {
         let mut state = self.state.lock();
@@ -51,6 +75,7 @@ impl ThreadPerTaskExecutorServiceState {
         Self::terminate_if_ready(&mut state, &self.termination);
     }
 
+    /// Blocks until the service reaches the terminated lifecycle.
     pub fn wait_for_termination(&self) {
         let mut state = self.state.lock();
         while state.lifecycle != ExecutorServiceLifecycle::Terminated {
@@ -58,6 +83,16 @@ impl ThreadPerTaskExecutorServiceState {
         }
     }
 
+    /// Waits for termination for at most `timeout`.
+    ///
+    /// # Parameters
+    ///
+    /// * `timeout` - Maximum monotonic wait duration.
+    ///
+    /// # Returns
+    ///
+    /// `true` if termination was observed before the deadline; otherwise
+    /// `false`.
     pub fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
         let started = Instant::now();
         let mut state = self.state.lock();
@@ -74,6 +109,7 @@ impl ThreadPerTaskExecutorServiceState {
         }
     }
 
+    /// Requests graceful shutdown and terminates immediately if idle.
     #[inline]
     pub fn shutdown(&self) {
         let mut state = self.state.lock();
@@ -83,6 +119,11 @@ impl ThreadPerTaskExecutorServiceState {
         Self::terminate_if_ready(&mut state, &self.termination);
     }
 
+    /// Requests immediate stop and returns the active-task count observed.
+    ///
+    /// # Returns
+    ///
+    /// The number of accepted workers still active when stop was requested.
     #[inline]
     pub fn stop(&self) -> usize {
         let mut state = self.state.lock();
@@ -94,6 +135,7 @@ impl ThreadPerTaskExecutorServiceState {
         running
     }
 
+    /// Marks the service terminated when no active work remains.
     #[inline]
     fn terminate_if_ready(state: &mut ServiceState, termination: &Condvar) {
         if state.lifecycle != ExecutorServiceLifecycle::Running && state.active_tasks == 0 {

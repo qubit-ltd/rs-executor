@@ -26,6 +26,20 @@ use crate::task::task_admission_gate::TaskAdmissionGate;
 /// a helper OS thread, waits on that helper thread until the configured
 /// [`Instant`], and then runs the task on the helper thread. If the configured
 /// instant is not in the future, the helper thread runs the task immediately.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::time::Instant;
+///
+/// use qubit_executor::{Executor, ScheduleExecutor};
+///
+/// let executor = ScheduleExecutor::at(Instant::now());
+/// let task = executor
+///     .call(|| Ok::<_, ()>(42))
+///     .expect("scheduled task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// ```
 #[derive(Clone)]
 pub struct ScheduleExecutor {
     /// Monotonic instant at which each submitted task starts.

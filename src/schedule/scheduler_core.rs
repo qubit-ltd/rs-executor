@@ -18,6 +18,7 @@ use crate::hook::TaskId;
 use crate::service::ExecutorServiceLifecycle;
 use crate::service::StopReport;
 
+/// Detached scheduled entries drained during an immediate stop.
 type ScheduledTaskEntries = Vec<OwnedEntry<TaskId, Instant, Box<dyn ScheduledTaskEntry>>>;
 
 /// Shared coordinator for a single scheduled worker.
@@ -170,6 +171,7 @@ impl SchedulerCore {
 }
 
 impl Default for SchedulerCore {
+    /// Creates an empty scheduler coordinator.
     fn default() -> Self {
         Self::new()
     }
