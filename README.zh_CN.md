@@ -124,6 +124,11 @@ service.wait_termination();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+## TaskHook
+
+可选的 `TaskHook` 用于观察任务接收、拒绝和完成事件。钩子在执行线程中调用，
+应保持快速、无阻塞，并避免再次提交依赖当前任务的工作。
+
 ### 定时托管服务
 
 ```rust
@@ -155,6 +160,11 @@ service.wait_termination();
 - `qubit-rayon-executor` 提供基于 Rayon 的 CPU 密集型服务。
 - `qubit-execution-services` 为应用层装配聚合后的具体服务。
 
+## 用户手册
+
+- [English user guide](doc/user_guide.md)
+- [简体中文用户手册](doc/user_guide.zh_CN.md)
+
 ## 测试
 
 快速在本地跑一遍：
@@ -166,6 +176,12 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 若要与持续集成（CI）保持一致，请在仓库根目录依次执行：`./align-ci.sh` 将本地工具链与配置对齐到 CI 规则，再执行 `./ci-check.sh` 复现流水线中的检查。需要查看或生成测试覆盖率时，使用 `./coverage.sh`。
 
+## 许可证与版权
+
+Copyright (c) 2026. Haixing Hu.
+
+本项目采用 [Apache License 2.0](LICENSE) 授权。
+
 ## 参与贡献
 
 欢迎通过 Issue 与 Pull Request 参与本仓库。建议：
@@ -173,22 +189,9 @@ cargo clippy --all-targets --all-features -- -D warnings
 - 报告缺陷、讨论设计或较大能力扩展时，可先开 Issue 对齐方向再投入实现。
 - 单次 PR 尽量聚焦单一主题，便于代码审查与合并历史。
 - 提交 PR 前请先运行 `./align-ci.sh`，再运行 `./ci-check.sh`，确保本地与 CI 使用同一套规则且能通过流水线等价检查。
-- 若修改运行期行为，请补充或更新相应测试；若影响对外 API 或用户可见行为，请同步更新本文档或相关 rustdoc。
-
-向本仓库贡献内容即表示您同意以 [Apache License, Version 2.0](LICENSE)（与本项目相同）授权您的贡献。
-
-## 许可证与版权
-
-Copyright (c) 2026. Haixing Hu.
-
-本软件依据 [Apache License, Version 2.0](LICENSE) 授权；完整许可文本见仓库根目录的 `LICENSE` 文件。
+- 若修改运行期行为，请补充或更新测试；若影响对外 API 或用户可见行为，请同步更新文档或 rustdoc。
+- 向本仓库贡献内容即表示您同意以 [Apache License 2.0](LICENSE) 授权您的贡献。
 
 ## 作者与维护
 
 **Haixing Hu** — Qubit Co. Ltd.
-
-| | |
-| --- | --- |
-| **源码仓库** | [github.com/qubit-ltd/rs-executor](https://github.com/qubit-ltd/rs-executor) |
-| **API 文档** | [docs.rs/qubit-executor](https://docs.rs/qubit-executor) |
-| **Crate 发布** | [crates.io/crates/qubit-executor](https://crates.io/crates/qubit-executor) |

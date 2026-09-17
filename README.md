@@ -215,6 +215,11 @@ crate when you need a concrete implementation:
 - `qubit-rayon-executor` provides a Rayon-backed CPU-bound service.
 - `qubit-execution-services` aggregates the concrete services for application-level wiring.
 
+## Learn More
+
+- [English user guide](doc/user_guide.md)
+- [简体中文用户手册](doc/user_guide.zh_CN.md)
+
 ## Testing
 
 A minimal local run:
@@ -229,6 +234,12 @@ the project root: `./align-ci.sh` brings local tooling and configuration in line
 with CI, then `./ci-check.sh` runs the same checks the pipeline uses. For test
 coverage, use `./coverage.sh` to generate or open reports.
 
+## License
+
+Copyright (c) 2026. Haixing Hu.
+
+This project is licensed under the [Apache License, Version 2.0](LICENSE).
+
 ## Contributing
 
 Issues and pull requests are welcome.
@@ -240,18 +251,6 @@ Issues and pull requests are welcome.
 
 By contributing, you agree to license your contributions under the [Apache License, Version 2.0](LICENSE), the same license as this project.
 
-## License
-
-Copyright (c) 2026. Haixing Hu.
-
-This project is licensed under the [Apache License, Version 2.0](LICENSE). See the `LICENSE` file in the repository for the full text.
-
 ## Author
 
 **Haixing Hu** — Qubit Co. Ltd.
-
-| | |
-| --- | --- |
-| **Repository** | [github.com/qubit-ltd/rs-executor](https://github.com/qubit-ltd/rs-executor) |
-| **Documentation** | [docs.rs/qubit-executor](https://docs.rs/qubit-executor) |
-| **Crate** | [crates.io/crates/qubit-executor](https://crates.io/crates/qubit-executor) |
