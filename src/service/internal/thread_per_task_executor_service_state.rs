@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -29,24 +28,6 @@ pub struct ThreadPerTaskExecutorServiceState {
     termination: Condvar,
 }
 
-pub struct ActiveTaskGuard {
-    state: Arc<ThreadPerTaskExecutorServiceState>,
-}
-
-impl ActiveTaskGuard {
-    #[inline]
-    pub fn new(state: Arc<ThreadPerTaskExecutorServiceState>) -> Self {
-        Self { state }
-    }
-}
-
-impl Drop for ActiveTaskGuard {
-    #[inline]
-    fn drop(&mut self) {
-        self.state.finish_task();
-    }
-}
-
 impl ThreadPerTaskExecutorServiceState {
     #[inline]
     pub fn lifecycle(&self) -> ExecutorServiceLifecycle {
@@ -64,7 +45,7 @@ impl ThreadPerTaskExecutorServiceState {
     }
 
     #[inline]
-    fn finish_task(&self) {
+    pub(crate) fn finish_task(&self) {
         let mut state = self.state.lock();
         state.active_tasks -= 1;
         Self::terminate_if_ready(&mut state, &self.termination);
