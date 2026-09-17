@@ -275,6 +275,13 @@ fn test_thread_per_task_executor_service_wait_termination_timeout_observes_shutd
 }
 
 #[test]
+fn test_thread_per_task_executor_service_wait_termination_timeout_handles_max_duration() {
+    let service = ThreadPerTaskExecutorService::new();
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::MAX));
+}
+
+#[test]
 fn test_thread_per_task_executor_service_lifecycle_defaults_to_running() {
     let service = ThreadPerTaskExecutorService::new();
 

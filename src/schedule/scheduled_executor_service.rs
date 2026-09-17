@@ -70,7 +70,10 @@ pub trait ScheduledExecutorService: ExecutorService {
         R: Send + 'static,
         E: Send + 'static,
     {
-        self.schedule_callable_at(Instant::now() + delay, task)
+        let deadline = Instant::now()
+            .checked_add(delay)
+            .ok_or(crate::service::SubmissionError::InvalidDeadline)?;
+        self.schedule_callable_at(deadline, task)
     }
 
     /// Schedules a runnable task to start at a monotonic instant.

@@ -22,6 +22,11 @@ fn test_submission_error_variants_display_and_compare() {
         SubmissionError::Saturated.to_string(),
         "task rejected because the executor service is saturated",
     );
+    assert_eq!(
+        SubmissionError::InvalidDeadline.to_string(),
+        "task rejected because the requested deadline is out of range",
+    );
+    assert_eq!(SubmissionError::InvalidDeadline, SubmissionError::InvalidDeadline);
 
     let first = SubmissionError::WorkerSpawnFailed {
         source: Arc::new(io::Error::other("first")),

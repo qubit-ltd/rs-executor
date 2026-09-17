@@ -25,6 +25,10 @@ pub enum SubmissionError {
     #[error("task rejected because the executor service is saturated")]
     Saturated,
 
+    /// The requested deadline cannot be represented by the platform clock.
+    #[error("task rejected because the requested deadline is out of range")]
+    InvalidDeadline,
+
     /// The service accepted the task conceptually but could not create the
     /// worker thread required to execute it.
     #[error("task rejected because the executor service failed to spawn a worker: {source}")]
@@ -52,6 +56,7 @@ impl PartialEq for SubmissionError {
             (self, other),
             (Self::Shutdown, Self::Shutdown)
                 | (Self::Saturated, Self::Saturated)
+                | (Self::InvalidDeadline, Self::InvalidDeadline)
                 | (Self::WorkerSpawnFailed { .. }, Self::WorkerSpawnFailed { .. })
         )
     }

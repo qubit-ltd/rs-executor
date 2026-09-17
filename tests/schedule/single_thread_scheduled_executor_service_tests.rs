@@ -86,17 +86,24 @@ fn test_single_thread_scheduled_executor_service_schedule_callable_returns_resul
 }
 
 #[test]
-fn test_single_thread_scheduled_executor_service_wait_termination_timeout_rejects_overflow() {
+fn test_single_thread_scheduled_executor_service_rejects_unrepresentable_delay() {
+    let service = SingleThreadScheduledExecutorService::new("test-scheduled-invalid-deadline")
+        .expect("scheduled service should start");
+    let result = service.schedule_callable(Duration::MAX, || Ok::<(), ()>(()));
+    assert!(matches!(result, Err(SubmissionError::InvalidDeadline)));
+    assert_eq!(service.queued_count(), 0);
+    service.shutdown();
+    service.wait_termination();
+}
+
+#[test]
+fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handles_max_duration() {
     let service =
         SingleThreadScheduledExecutorService::new("test-termination-overflow").expect("scheduled service should start");
     service.shutdown();
     service.wait_termination();
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        service.wait_termination_timeout(Duration::MAX)
-    }));
-
-    assert!(result.is_err());
+    assert!(service.wait_termination_timeout(Duration::MAX));
 }
 
 #[test]

@@ -82,6 +82,10 @@ impl ExecutorServiceBuilderError {
                 index: None,
                 source: io::Error::other("executor service saturated during prestart"),
             },
+            SubmissionError::InvalidDeadline => Self::SpawnWorker {
+                index: None,
+                source: io::Error::new(io::ErrorKind::InvalidInput, "executor service deadline is out of range"),
+            },
         }
     }
 }
