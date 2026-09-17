@@ -84,10 +84,10 @@ impl SchedulerCore {
 
     /// Requests immediate shutdown and cancels detached queued entries.
     pub(crate) fn stop(&self) -> StopReport {
-        let (entries, queued, running): (ScheduledTaskEntries, usize, usize) =
+        let (entries, queued, running, owns_drain): (ScheduledTaskEntries, usize, usize, bool) =
             self.state.with_write_notify_all(|state| {
                 if state.lifecycle == ExecutorServiceLifecycle::Terminated {
-                    return (Vec::new(), 0, 0);
+                    return (Vec::new(), 0, 0, false);
                 }
                 state.lifecycle = ExecutorServiceLifecycle::Stopping;
                 let queued = state.tasks.len();
@@ -96,8 +96,11 @@ impl SchedulerCore {
                 while let Some(entry) = state.tasks.pop_first() {
                     entries.push(entry);
                 }
-                state.stop_draining = !entries.is_empty();
-                (entries, queued, running)
+                let owns_drain = !entries.is_empty();
+                if owns_drain {
+                    state.stop_draining = true;
+                }
+                (entries, queued, running, owns_drain)
             });
         let entries: ScheduledTaskEntries = entries;
         let mut cancelled = 0;
@@ -105,7 +108,9 @@ impl SchedulerCore {
             cancelled += usize::from(entry.into_value().cancel());
         }
         self.state.with_write_notify_all(|state| {
-            state.stop_draining = false;
+            if owns_drain {
+                state.stop_draining = false;
+            }
             if state.can_terminate() {
                 state.terminated = true;
             }
@@ -142,13 +147,24 @@ impl SchedulerCore {
 
     /// Waits for worker termination for at most `timeout`.
     pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
-        match self
-            .state
-            .wait_until_ready_with_total_timeout(timeout, |state| state.terminated)
-        {
-            Ok(WaitTimeoutResult::Ready(())) => true,
-            Ok(WaitTimeoutResult::TimedOut) => false,
-            Err(error) => panic!("scheduler termination wait failed: {error}"),
+        let started = Instant::now();
+        loop {
+            if self.is_terminated() {
+                return true;
+            }
+            let remaining = timeout.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return false;
+            }
+            let slice = remaining.min(Duration::from_secs(3600));
+            match self
+                .state
+                .wait_until_ready_with_total_timeout(slice, |state| state.terminated)
+            {
+                Ok(WaitTimeoutResult::Ready(())) => return true,
+                Ok(WaitTimeoutResult::TimedOut) => {}
+                Err(error) => panic!("scheduler termination wait failed: {error}"),
+            }
         }
     }
 }
@@ -156,5 +172,73 @@ impl SchedulerCore {
 impl Default for SchedulerCore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::super::scheduled_task_entry::ScheduledTaskEntry;
+    use super::super::scheduled_task_entry::StartedScheduledTask;
+    use super::SchedulerCore;
+    use crate::hook::TaskId;
+
+    struct BlockingCancelEntry {
+        entered: Option<mpsc::Sender<()>>,
+        release: Option<mpsc::Receiver<()>>,
+    }
+
+    impl ScheduledTaskEntry for BlockingCancelEntry {
+        fn accept(&self) {}
+
+        fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
+            None
+        }
+
+        fn cancel(mut self: Box<Self>) -> bool {
+            self.entered
+                .take()
+                .expect("cancel entry signal")
+                .send(())
+                .expect("stop test receiver");
+            self.release
+                .take()
+                .expect("cancel release receiver")
+                .recv()
+                .expect("stop test release");
+            true
+        }
+    }
+
+    #[test]
+    fn test_concurrent_stop_waits_for_first_drain() {
+        let core = std::sync::Arc::new(SchedulerCore::new());
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        core.schedule(
+            TaskId::new(1),
+            std::time::Instant::now() + Duration::from_secs(60),
+            Box::new(BlockingCancelEntry {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+            }),
+        )
+        .expect("entry should schedule");
+
+        let stop_core = std::sync::Arc::clone(&core);
+        let first_stop = thread::spawn(move || stop_core.stop());
+        entered_rx.recv().expect("first stop should enter cancellation");
+        let second = core.stop();
+        let terminated_early = core.is_terminated();
+        release_tx.send(()).expect("first stop should be released");
+        let first = first_stop.join().expect("first stop thread");
+
+        assert!(!terminated_early);
+        assert!(core.is_terminated());
+        assert_eq!(first.cancelled, 1);
+        assert_eq!(second.queued, 0);
     }
 }
