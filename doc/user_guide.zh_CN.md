@@ -30,6 +30,7 @@
 需要确定性行为时，使用 `DirectExecutor`：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{DirectExecutor, Executor};
@@ -37,12 +38,14 @@ use qubit_executor::{DirectExecutor, Executor};
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 如果应用需要在独立 OS 线程中执行，只需替换实现，任务形状无需变化：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{Executor, ThreadPerTaskExecutor};
@@ -50,7 +53,8 @@ use qubit_executor::{Executor, ThreadPerTaskExecutor};
 let executor = ThreadPerTaskExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 可观察结果是 `42`。若提交阶段失败，外层 `Result` 会包含 `SubmissionError`；若任务已经接受但随后失败、panic 或被取消，则应从任务 handle 读取对应错误。
@@ -70,6 +74,7 @@ qubit-executor = "0.8"
 基础的托管执行可以使用 `ThreadPerTaskExecutorService`：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
@@ -80,7 +85,8 @@ assert_eq!(handle.get()?, 42);
 
 service.shutdown();
 assert!(service.wait_termination_timeout(std::time::Duration::from_secs(1)));
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 已接受任务需要排空时调用 `shutdown()`；需要尽力取消排队或尚未开始的任务时调用 `stop()`。返回的 `StopReport` 提供 `queued`、`running` 和 `cancelled` 数量。`stop()` 不能强制中断已经运行的任意 Rust 代码、阻塞调用或 OS 线程任务。若调用方必须等到服务没有活动任务，再使用 `wait_termination()`。
@@ -92,6 +98,7 @@ assert!(service.wait_termination_timeout(std::time::Duration::from_secs(1)));
 `SingleThreadScheduledExecutorService` 拥有一个调度线程，支持传入 `Duration` 延迟或 `Instant` 截止时刻：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 use std::time::Duration;
 
@@ -106,7 +113,8 @@ let handle = service.schedule_callable(Duration::from_millis(25), || {
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 该实现会在唯一的调度线程上运行到期任务，因此定时任务应保持短小；较重的工作应视情况转交给其他服务。

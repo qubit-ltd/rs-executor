@@ -14,6 +14,7 @@ Qubit Executor 为 Rust 提供与运行时无关的任务提交、结果观察�
 假设一个库需要提交可失败的计算并等待结果，同时把具体的执行方式交给应用选择。需要确定性的同线程执行时选择 `DirectExecutor`：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{DirectExecutor, Executor};
@@ -21,12 +22,14 @@ use qubit_executor::{DirectExecutor, Executor};
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 如果已接受的任务需要显式收尾，则使用托管服务：
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
@@ -36,7 +39,8 @@ let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 `submit_callable` 返回 `Ok(handle)` 只表示服务已经接受任务，不能说明任务已经开始或执行成功。调用 `shutdown()` 或 `stop()` 后，新的提交会被拒绝；如果清理前必须确认服务已经静止，应调用 `wait_termination()`。

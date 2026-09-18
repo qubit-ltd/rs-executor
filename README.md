@@ -14,6 +14,7 @@ Qubit Executor provides runtime-neutral Rust abstractions for submitting work, o
 Suppose a library must submit a fallible calculation and wait for its result, while the application chooses how the task runs. Select `DirectExecutor` for deterministic same-thread execution:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{DirectExecutor, Executor};
@@ -21,12 +22,14 @@ use qubit_executor::{DirectExecutor, Executor};
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 For accepted work that must be shut down explicitly, use a managed service:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
@@ -36,7 +39,8 @@ let handle = service.submit_callable(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 `submit_callable` returning `Ok(handle)` means only that the service accepted the task. After `shutdown()` or `stop()`, new submissions are rejected; call `wait_termination()` when the service must quiesce before cleanup.

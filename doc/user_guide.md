@@ -30,6 +30,7 @@ A library wants to run a fallible calculation and return its result, while an ap
 For deterministic behavior, use `DirectExecutor`:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{DirectExecutor, Executor};
@@ -37,12 +38,14 @@ use qubit_executor::{DirectExecutor, Executor};
 let executor = DirectExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 When the application needs the task to run on a separate OS thread, replace the implementation without changing the task shape:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{Executor, ThreadPerTaskExecutor};
@@ -50,7 +53,8 @@ use qubit_executor::{Executor, ThreadPerTaskExecutor};
 let executor = ThreadPerTaskExecutor::new();
 let handle = executor.call(|| Ok::<usize, io::Error>(40 + 2))?;
 assert_eq!(handle.get()?, 42);
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 The observable result is `42`. If submission itself fails, the outer `Result` contains `SubmissionError`; if the task is accepted but fails, panics, or is cancelled, the error is returned by the task handle.
@@ -70,6 +74,7 @@ The package declares Rust 1.94 as its minimum Rust version. Import the `Executor
 Use `ThreadPerTaskExecutorService` when a basic managed service is sufficient:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 
 use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
@@ -80,7 +85,8 @@ assert_eq!(handle.get()?, 42);
 
 service.shutdown();
 assert!(service.wait_termination_timeout(std::time::Duration::from_secs(1)));
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 Call `shutdown()` when accepted work should drain. Call `stop()` when queued or unstarted work should be cancelled where possible. The returned `StopReport` exposes `queued`, `running`, and `cancelled` counts. Stopping is best effort and cannot forcibly interrupt already-running arbitrary Rust code, blocking calls, or OS-thread work. Use `wait_termination()` when the caller must wait until no accepted work remains active.
@@ -92,6 +98,7 @@ Call `shutdown()` when accepted work should drain. Call `stop()` when queued or 
 `SingleThreadScheduledExecutorService` owns one scheduler thread and accepts a `Duration` delay or an `Instant` deadline:
 
 ```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 use std::io;
 use std::time::Duration;
 
@@ -106,7 +113,8 @@ let handle = service.schedule_callable(Duration::from_millis(25), || {
 assert_eq!(handle.get()?, 42);
 service.shutdown();
 service.wait_termination();
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok(())
+}
 ```
 
 Keep scheduled task bodies short. This implementation runs due tasks on its single scheduler thread; hand heavier work to another service when appropriate.
