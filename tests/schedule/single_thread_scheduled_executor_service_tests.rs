@@ -92,6 +92,10 @@ fn test_single_thread_scheduled_executor_service_rejects_unrepresentable_delay()
     let result = service.schedule_callable(Duration::MAX, || Ok::<(), ()>(()));
     assert!(matches!(result, Err(SubmissionError::InvalidDeadline)));
     assert_eq!(service.queued_count(), 0);
+    let handle = service
+        .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
+        .expect("service should remain usable after rejecting a deadline");
+    assert_eq!(handle.get().expect("follow-up task should succeed"), 42);
     service.shutdown();
     service.wait_termination();
 }
@@ -104,6 +108,21 @@ fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handle
     service.wait_termination();
 
     assert!(service.wait_termination_timeout(Duration::MAX));
+}
+
+#[test]
+fn test_scheduled_service_max_timeout_waits_for_shutdown() {
+    let service = Arc::new(
+        SingleThreadScheduledExecutorService::new("test-max-timeout-running").expect("scheduled service should start"),
+    );
+    let shutdown_service = service.clone();
+    let shutdown_thread = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(20));
+        shutdown_service.shutdown();
+    });
+
+    assert!(service.wait_termination_timeout(Duration::MAX));
+    shutdown_thread.join().expect("shutdown thread should not panic");
 }
 
 #[test]

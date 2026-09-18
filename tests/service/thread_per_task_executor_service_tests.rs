@@ -282,6 +282,19 @@ fn test_thread_per_task_executor_service_wait_termination_timeout_handles_max_du
 }
 
 #[test]
+fn test_thread_per_task_service_max_timeout_waits_for_shutdown() {
+    let service = ThreadPerTaskExecutorService::new();
+    let shutdown_service = service.clone();
+    let shutdown_thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        shutdown_service.shutdown();
+    });
+
+    assert!(service.wait_termination_timeout(Duration::MAX));
+    shutdown_thread.join().expect("shutdown thread should not panic");
+}
+
+#[test]
 fn test_thread_per_task_executor_service_lifecycle_defaults_to_running() {
     let service = ThreadPerTaskExecutorService::new();
 
