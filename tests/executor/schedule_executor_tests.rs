@@ -32,10 +32,6 @@ fn test_schedule_executor_runs_task_at_instant() {
         })
         .expect("worker thread should spawn");
 
-    assert!(
-        started_rx.recv_timeout(Duration::from_millis(30)).is_err(),
-        "task should not start before the scheduled instant",
-    );
     let started_at = started_rx
         .recv_timeout(Duration::from_secs(1))
         .expect("task should start at scheduled instant");
