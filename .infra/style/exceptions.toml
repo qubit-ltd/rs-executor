@@ -1,1 +1,6 @@
 format = 1
+
+[[exceptions]]
+rule = "public-type-layout"
+path = "src/service/internal/thread_per_task_executor_service_state.rs"
+reason = "Keep the lifecycle snapshot beside its only owning synchronization wrapper."
