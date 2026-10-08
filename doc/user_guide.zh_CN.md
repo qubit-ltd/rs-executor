@@ -4,7 +4,7 @@
 
 ## 手册目标与读者
 
-本手册面向使用 `qubit-executor` 0.8 的 Rust 库作者和应用开发者，说明如何在一次性 `Executor` 与需要生命周期管理的 `ExecutorService` 之间做选择，如何读取任务结果、安排定时任务，以及如何在不假设丢弃 handle 会等待工作线程的前提下完成服务收尾。
+本手册面向使用 `qubit-executor` 0.9 的 Rust 库作者和应用开发者，说明如何在一次性 `Executor` 与需要生命周期管理的 `ExecutorService` 之间做选择，如何读取任务结果、安排定时任务，以及如何在不假设丢弃 handle 会等待工作线程的前提下完成服务收尾。
 
 这个 crate 提供的是执行抽象，不负责选择异步运行时、不提供有界线程池，也不能强制中断任意 Rust 代码。
 
@@ -64,7 +64,7 @@ Ok(())
 在 `Cargo.toml` 中加入：
 
 ```toml
-qubit-executor = "0.8"
+qubit-executor = "0.9"
 ```
 
 该 package 声明的最低 Rust 版本是 1.94。调用 `call` 或 `execute` 前需要导入 `Executor` trait；使用服务 trait 提供的方法前需要导入 `ExecutorService`。

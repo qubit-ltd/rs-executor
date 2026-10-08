@@ -64,7 +64,7 @@ Ok(())
 在 `Cargo.toml` 中加入已发布的 crate：
 
 ```toml
-qubit-executor = "0.8"
+qubit-executor = "0.9"
 ```
 
 本 crate 要求 Rust 1.94 或更高版本。

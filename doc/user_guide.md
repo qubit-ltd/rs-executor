@@ -4,7 +4,7 @@
 
 ## Purpose and Audience
 
-This guide targets Rust library and application authors using `qubit-executor` 0.8. It explains how to choose between a one-shot `Executor` and a lifecycle-managed `ExecutorService`, observe task results, schedule work, and shut services down without assuming that dropping a handle waits for worker resources.
+This guide targets Rust library and application authors using `qubit-executor` 0.9. It explains how to choose between a one-shot `Executor` and a lifecycle-managed `ExecutorService`, observe task results, schedule work, and shut services down without assuming that dropping a handle waits for worker resources.
 
 The crate is an execution abstraction. It does not select an async runtime, provide a bounded thread pool, or forcibly interrupt arbitrary Rust code.
 
@@ -64,7 +64,7 @@ The observable result is `42`. If submission itself fails, the outer `Result` co
 Add the crate to `Cargo.toml`:
 
 ```toml
-qubit-executor = "0.8"
+qubit-executor = "0.9"
 ```
 
 The package declares Rust 1.94 as its minimum Rust version. Import the `Executor` trait before calling `call` or `execute`, and import `ExecutorService` before using service methods supplied by the trait.

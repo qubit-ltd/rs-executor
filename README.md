@@ -64,7 +64,7 @@ The crate does not provide a bounded thread pool, an async runtime, or forced in
 Add the published crate to `Cargo.toml`:
 
 ```toml
-qubit-executor = "0.8"
+qubit-executor = "0.9"
 ```
 
 The crate requires Rust 1.94 or newer.
