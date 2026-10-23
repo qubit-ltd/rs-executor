@@ -29,5 +29,5 @@ fn test_executor_execute_default_delegates_to_call() {
         .get()
         .expect("direct executor should run the runnable");
 
-    assert_eq!(calls.load(), 1);
+    assert_eq!(calls.load(), 1, "execute should invoke the runnable exactly once");
 }

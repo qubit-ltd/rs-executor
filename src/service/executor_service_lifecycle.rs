@@ -27,6 +27,15 @@
 /// while abrupt stop is a best-effort cancellation or abort request. Already
 /// running blocking code or OS threads may not be forcibly stopped; concrete
 /// services document those runtime-specific limits.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::ExecutorServiceLifecycle;
+///
+/// let lifecycle = ExecutorServiceLifecycle::Running;
+/// assert_eq!(lifecycle, ExecutorServiceLifecycle::Running);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExecutorServiceLifecycle {
     /// The service accepts new tasks and may have accepted work in progress.

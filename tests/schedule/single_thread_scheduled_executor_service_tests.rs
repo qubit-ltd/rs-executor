@@ -16,16 +16,6 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
-/// Counts when a scheduled closure's captured resource is released.
-struct DropProbe(Arc<AtomicUsize>);
-
-impl Drop for DropProbe {
-    /// Records destruction of the captured resource.
-    fn drop(&mut self) {
-        self.0.fetch_add(1, Ordering::AcqRel);
-    }
-}
-
 use qubit_executor::CancelResult;
 use qubit_executor::ExecutorService;
 use qubit_executor::ExecutorServiceBuilderError;
@@ -38,6 +28,16 @@ use qubit_executor::TaskStatus;
 use qubit_executor::TryGet;
 use qubit_executor::task::spi::TaskResultHandle;
 use qubit_executor::task::spi::TrackedTaskHandle;
+
+/// Counts when a scheduled closure's captured resource is released.
+struct DropProbe(Arc<AtomicUsize>);
+
+impl Drop for DropProbe {
+    /// Records destruction of the captured resource.
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::AcqRel);
+    }
+}
 
 #[test]
 fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() {

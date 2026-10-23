@@ -29,6 +29,7 @@ pub(crate) struct SchedulerState {
 
 impl SchedulerState {
     /// Creates an empty running scheduler state.
+    #[must_use]
     pub(crate) fn new() -> Self {
         Self {
             lifecycle: ExecutorServiceLifecycle::Running,
@@ -40,6 +41,8 @@ impl SchedulerState {
     }
 
     /// Returns whether no entry or worker activity remains.
+    #[must_use]
+    #[inline]
     pub(crate) fn can_terminate(&self) -> bool {
         self.lifecycle != ExecutorServiceLifecycle::Running
             && self.tasks.is_empty()

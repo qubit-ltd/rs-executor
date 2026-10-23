@@ -32,6 +32,7 @@ use crate::task::spi::TaskEndpointPair;
 /// assert_eq!(task.get().expect("task should succeed"), 42);
 /// ```
 #[derive(Clone)]
+#[must_use]
 pub struct DirectExecutor {
     /// Hook notified about accepted task lifecycle events.
     hook: Option<Arc<dyn TaskHook>>,

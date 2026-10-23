@@ -18,6 +18,7 @@ use qubit_lock::ParkingLotMonitor;
 /// starting task execution until the submitting thread has crossed the accepted
 /// lifecycle boundary. The open variant is used on the no-hook fast path and
 /// performs no allocation or synchronization.
+#[must_use = "the admission gate must coordinate worker startup"]
 #[derive(Clone)]
 pub(crate) enum TaskAdmissionGate {
     /// No-op gate used when no hook ordering needs to be enforced.

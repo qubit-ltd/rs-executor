@@ -29,6 +29,17 @@ use super::task_state::TaskState;
 /// accepted work before it starts, such as during
 /// [`crate::ExecutorService::stop`], should call [`Self::cancel_unstarted`] so
 /// callers observe [`crate::TaskExecutionError::Cancelled`] instead.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskEndpointPair;
+///
+/// let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+/// slot.accept();
+/// assert!(slot.run(|| Ok(42)));
+/// assert_eq!(handle.get().expect("task should complete"), 42);
+/// ```
 pub struct TaskSlot<R, E> {
     /// Shared state updated by this completion endpoint.
     pub(crate) state: Option<Arc<TaskState<R, E>>>,

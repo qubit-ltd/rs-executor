@@ -20,6 +20,18 @@ use crate::service::SubmissionError;
 /// strategy. Accepted task results are always exposed through a
 /// [`TrackedTask`]. The outer `Result` returned by [`Self::call`] and
 /// [`Self::execute`] reports submission failure only.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::{DirectExecutor, Executor};
+///
+/// let executor = DirectExecutor::new();
+/// let task = executor
+///     .call(|| Ok::<_, ()>(42))
+///     .expect("direct execution should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// ```
 pub trait Executor: Send + Sync {
     /// Submits a runnable task and returns a tracked task handle.
     ///

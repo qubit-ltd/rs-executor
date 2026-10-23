@@ -6,6 +6,16 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 /// Result of an attempt to cancel a tracked task.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::CancelResult;
+///
+/// let result = CancelResult::Cancelled;
+/// assert_eq!(result, CancelResult::Cancelled);
+/// ```
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CancelResult {
     /// The task was cancelled before it started.

@@ -8,7 +8,15 @@
 use std::error::Error;
 use std::fmt;
 
-/// Result type used by managed task handles.
+/// Result returned by managed task handles after an accepted task completes.
+///
+/// The `Ok` variant contains the task's value. The `Err` variant describes a
+/// task failure, panic, cancellation, or abandoned completion endpoint.
+///
+/// # Type Parameters
+///
+/// * `R` - The value produced by a successfully completed task.
+/// * `E` - The error type returned by the task itself.
 pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 
 /// Error observed when retrieving the result of an accepted task.
@@ -17,9 +25,20 @@ pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 /// Rejection happens before a service accepts a task; `TaskExecutionError`
 /// describes what happened after the task was accepted.
 ///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::TaskExecutionError;
+///
+/// let error: TaskExecutionError<&str> = TaskExecutionError::Failed("unavailable");
+/// assert!(error.is_failed());
+/// assert_eq!(error.to_string(), "task failed: unavailable");
+/// ```
+///
 /// # Type Parameters
 ///
 /// * `E` - The error type returned by the task itself.
+#[must_use]
 #[derive(Debug)]
 pub enum TaskExecutionError<E> {
     /// The task ran and returned `Err(E)`.

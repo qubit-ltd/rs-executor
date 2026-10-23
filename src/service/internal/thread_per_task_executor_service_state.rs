@@ -45,6 +45,7 @@ pub struct ThreadPerTaskExecutorServiceState {
 
 impl ThreadPerTaskExecutorServiceState {
     /// Returns the current service lifecycle.
+    #[must_use]
     #[inline]
     pub fn lifecycle(&self) -> ExecutorServiceLifecycle {
         self.state.lock().lifecycle
@@ -54,8 +55,11 @@ impl ThreadPerTaskExecutorServiceState {
     ///
     /// # Returns
     ///
-    /// `Ok(())` after incrementing the active-task count, or
-    /// [`SubmissionError::Shutdown`] when admission is closed.
+    /// `Ok(())` after incrementing the active-task count.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] when admission is closed.
     #[inline]
     pub fn accept_task(&self) -> Result<(), SubmissionError> {
         let mut state = self.state.lock();
@@ -64,14 +68,6 @@ impl ThreadPerTaskExecutorServiceState {
         }
         state.active_tasks += 1;
         Ok(())
-    }
-
-    /// Decrements the active-task count and terminates the service if ready.
-    #[inline]
-    pub(crate) fn finish_task(&self) {
-        let mut state = self.state.lock();
-        state.active_tasks -= 1;
-        Self::terminate_if_ready(&mut state, &self.termination);
     }
 
     /// Blocks until the service reaches the terminated lifecycle.
@@ -132,6 +128,14 @@ impl ThreadPerTaskExecutorServiceState {
         let running = state.active_tasks;
         Self::terminate_if_ready(&mut state, &self.termination);
         running
+    }
+
+    /// Decrements the active-task count and terminates the service if ready.
+    #[inline]
+    pub(crate) fn finish_task(&self) {
+        let mut state = self.state.lock();
+        state.active_tasks -= 1;
+        Self::terminate_if_ready(&mut state, &self.termination);
     }
 
     /// Marks the service terminated when no active work remains.

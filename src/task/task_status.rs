@@ -82,27 +82,3 @@ impl DenseCode for TaskStatus {
         self as u64
     }
 }
-
-#[cfg(test)]
-mod compact_encoding_tests {
-    use qubit_state_machine::DenseCode;
-
-    use super::TaskStatus;
-
-    #[test]
-    fn test_task_status_codebook_preserves_discriminants() {
-        let expected = [
-            TaskStatus::Pending,
-            TaskStatus::Running,
-            TaskStatus::Succeeded,
-            TaskStatus::Failed,
-            TaskStatus::Panicked,
-            TaskStatus::Cancelled,
-            TaskStatus::Dropped,
-        ];
-        assert_eq!(TaskStatus::VALUES, expected);
-        for (index, &value) in TaskStatus::VALUES.iter().enumerate() {
-            assert_eq!(value.code(), index as u64);
-        }
-    }
-}

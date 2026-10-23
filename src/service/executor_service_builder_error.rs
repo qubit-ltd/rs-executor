@@ -15,6 +15,16 @@ use super::SubmissionError;
 ///
 /// This error is shared by executor-service implementations whose construction
 /// may validate worker, queue, timeout, stack, or thread-spawn configuration.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::ExecutorServiceBuilderError;
+///
+/// let error = ExecutorServiceBuilderError::ZeroPoolSize;
+/// assert_eq!(error.to_string(), "executor service pool size must be greater than zero");
+/// ```
+#[must_use]
 #[derive(Debug, Error)]
 pub enum ExecutorServiceBuilderError {
     /// The configured fixed worker count is zero.

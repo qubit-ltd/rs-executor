@@ -13,3 +13,4 @@ mod task_runner_tests;
 mod task_slot_cell_tests;
 mod task_slot_tests;
 mod task_state_tests;
+mod task_status_tests;

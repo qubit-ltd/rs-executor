@@ -25,6 +25,28 @@ use crate::service::SubmissionError;
 ///
 /// Executors contain hook panics so hook implementations cannot break task
 /// execution or result publication.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::sync::atomic::AtomicUsize;
+/// use std::sync::atomic::Ordering;
+///
+/// use qubit_executor::TaskHook;
+/// use qubit_executor::TaskId;
+///
+/// struct RecordingHook(AtomicUsize);
+///
+/// impl TaskHook for RecordingHook {
+///     fn on_accepted(&self, _task_id: TaskId) {
+///         self.0.fetch_add(1, Ordering::Relaxed);
+///     }
+/// }
+///
+/// let hook = RecordingHook(AtomicUsize::new(0));
+/// hook.on_accepted(TaskId::new(1));
+/// assert_eq!(hook.0.load(Ordering::Relaxed), 1);
+/// ```
 pub trait TaskHook: Send + Sync + 'static {
     /// Called after a task is accepted.
     ///
@@ -69,7 +91,9 @@ pub trait TaskHook: Send + Sync + 'static {
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {}
 }
 
-/// Calls a task hook and contains hook panics.
+/// Invokes a callback without allowing its panic to unwind into task execution.
+///
+/// A panic is caught and logged; its payload is discarded.
 ///
 /// # Parameters
 ///
@@ -80,7 +104,8 @@ fn contain_hook_panic(callback: impl FnOnce()) {
     }
 }
 
-/// Notifies a hook that a task was accepted.
+/// Notifies a hook that a task was accepted, containing and logging any panic
+/// from the callback.
 ///
 /// # Parameters
 ///
@@ -91,7 +116,8 @@ pub(crate) fn notify_accepted(hook: &dyn TaskHook, task_id: TaskId) {
     contain_hook_panic(|| hook.on_accepted(task_id));
 }
 
-/// Notifies a hook that a task was rejected.
+/// Notifies a hook that a task was rejected, containing and logging any panic
+/// from the callback.
 ///
 /// # Parameters
 ///
@@ -102,7 +128,8 @@ pub(crate) fn notify_rejected(hook: &dyn TaskHook, error: &SubmissionError) {
     contain_hook_panic(|| hook.on_rejected(error));
 }
 
-/// Notifies an optional hook that a task was rejected.
+/// Notifies an optional hook that a task was rejected, containing and logging
+/// any panic from the callback. Does nothing when no hook is configured.
 ///
 /// # Parameters
 ///
@@ -115,7 +142,8 @@ pub(crate) fn notify_rejected_optional(hook: Option<&Arc<dyn TaskHook>>, error: 
     }
 }
 
-/// Notifies a hook that a task started.
+/// Notifies a hook that a task started, containing and logging any panic from
+/// the callback.
 ///
 /// # Parameters
 ///
@@ -126,7 +154,8 @@ pub(crate) fn notify_started(hook: &dyn TaskHook, task_id: TaskId) {
     contain_hook_panic(|| hook.on_started(task_id));
 }
 
-/// Notifies a hook that a task finished.
+/// Notifies a hook that a task finished, containing and logging any panic from
+/// the callback.
 ///
 /// # Parameters
 ///

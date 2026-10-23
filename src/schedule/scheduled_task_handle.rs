@@ -24,6 +24,28 @@ use crate::task::spi::TrackedTaskHandle;
 /// [`TrackedTask`] while also waking the scheduler when pre-start cancellation
 /// wins. This prevents a cancelled timer entry from keeping the single
 /// scheduler thread asleep until the original deadline.
+///
+/// # Type Parameters
+///
+/// * `R` - Type of the task's successful result.
+/// * `E` - Type of the task's callable error.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::time::Duration;
+///
+/// use qubit_executor::{ScheduledExecutorService, SingleThreadScheduledExecutorService};
+///
+/// let service = SingleThreadScheduledExecutorService::new("example-scheduler")
+///     .expect("scheduler thread should start");
+/// let task = service
+///     .schedule_callable(Duration::from_millis(1), || Ok::<_, ()>(42))
+///     .expect("scheduled task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// service.shutdown();
+/// service.wait_termination();
+/// ```
 pub struct ScheduledTaskHandle<R, E> {
     /// Standard tracked task handle.
     inner: TrackedTask<R, E>,

@@ -7,7 +7,12 @@
 // =============================================================================
 use std::io;
 use std::sync::Arc;
+use std::sync::Barrier;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
+use std::time::Duration;
 
 use qubit_executor::CancelResult;
 use qubit_executor::TaskExecutionError;
@@ -154,12 +159,7 @@ fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
 }
 
 #[test]
-fn test_start_cancel_race_has_one_result_and_one_finished_hook() {
-    use std::sync::Barrier;
-    use std::sync::atomic::AtomicUsize;
-    use std::sync::atomic::Ordering;
-    use std::sync::mpsc;
-    use std::time::Duration;
+fn test_task_endpoint_pair_start_cancel_race_has_one_result_and_one_finished_hook() {
     for _ in 0..128 {
         let hook = Arc::new(RecordingHook::default());
         let (handle, completion) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();

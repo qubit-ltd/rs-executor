@@ -17,5 +17,5 @@ fn test_stop_report_new_default_and_equality() {
     assert_eq!(report.queued, 1);
     assert_eq!(report.running, 2);
     assert_eq!(report.cancelled, 3);
-    assert_eq!(report, report);
+    assert_eq!(report, StopReport::new(1, 2, 3));
 }

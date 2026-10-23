@@ -85,6 +85,16 @@ impl ThreadPerTaskExecutorService {
         Self::default()
     }
 
+    /// Creates a builder for configuring this service.
+    ///
+    /// # Returns
+    ///
+    /// A builder initialized with default worker thread options.
+    #[inline]
+    pub fn builder() -> ThreadPerTaskExecutorServiceBuilder {
+        ThreadPerTaskExecutorServiceBuilder::new()
+    }
+
     /// Creates a service with the supplied worker stack size configuration.
     ///
     /// # Parameters
@@ -101,16 +111,6 @@ impl ThreadPerTaskExecutorService {
             stack_size,
             hook: None,
         }
-    }
-
-    /// Creates a builder for configuring this service.
-    ///
-    /// # Returns
-    ///
-    /// A builder initialized with default worker thread options.
-    #[inline]
-    pub fn builder() -> ThreadPerTaskExecutorServiceBuilder {
-        ThreadPerTaskExecutorServiceBuilder::new()
     }
 
     /// Spawns one accepted worker thread.

@@ -10,6 +10,17 @@
 /// The report is intentionally count-based. In a generic Rust executor service,
 /// pending tasks may have different result and error types, so returning a
 /// strongly typed list of unstarted tasks is not generally meaningful.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::service::StopReport;
+///
+/// let report = StopReport::new(1, 2, 1);
+/// assert_eq!(report.queued, 1);
+/// assert_eq!(report.running, 2);
+/// assert_eq!(report.cancelled, 1);
+/// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct StopReport {
     /// Number of tasks that were still queued when stop was requested.
@@ -34,6 +45,7 @@ impl StopReport {
     /// # Returns
     ///
     /// A report containing the supplied counters.
+    #[must_use]
     #[inline]
     pub const fn new(queued: usize, running: usize, cancelled: usize) -> Self {
         Self {

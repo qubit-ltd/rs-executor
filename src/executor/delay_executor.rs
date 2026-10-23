@@ -52,6 +52,7 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 ///     .expect("delayed task should be accepted");
 /// assert_eq!(task.get().expect("task should succeed"), 42);
 /// ```
+#[must_use]
 #[derive(Clone)]
 pub struct DelayExecutor {
     /// Duration to sleep before each submitted task starts.

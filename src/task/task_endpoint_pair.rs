@@ -32,6 +32,21 @@ use crate::hook::next_task_id;
 /// accepted a task, it should call [`TaskSlot::cancel_unstarted`] rather than
 /// dropping the slot when it intentionally removes unstarted work, so result
 /// handles observe cancellation instead of an abandoned runner endpoint.
+///
+/// # Type Parameters
+///
+/// * `R` - The task's successful result type.
+/// * `E` - The task's own error type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskEndpointPair;
+///
+/// let (handle, slot) = TaskEndpointPair::<(), ()>::new().into_parts();
+/// drop(slot);
+/// assert!(handle.get().is_err());
+/// ```
 pub struct TaskEndpointPair<R, E> {
     /// Receiver consumed by the caller-facing handle.
     receiver: Receiver<TaskResult<R, E>>,

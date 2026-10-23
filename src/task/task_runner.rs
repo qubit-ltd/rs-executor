@@ -20,6 +20,20 @@ use super::task_slot::TaskSlot;
 /// `TaskRunner` owns the accepted callable, converts task failures and panics
 /// into [`TaskExecutionError`], and can publish the final result through a
 /// [`TaskSlot`] endpoint.
+///
+/// # Type Parameters
+///
+/// * `C` - Callable task that produces the task result.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskRunner;
+///
+/// let result = TaskRunner::new(|| Ok::<usize, std::convert::Infallible>(42))
+///     .call::<usize, std::convert::Infallible>();
+/// assert!(matches!(result, Ok(42)));
+/// ```
 pub struct TaskRunner<C> {
     /// Callable task owned by this runner.
     task: C,
@@ -35,6 +49,10 @@ impl<C> TaskRunner<C> {
     /// # Returns
     ///
     /// A runner that owns the callable task.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable task type.
     #[inline]
     pub const fn new(task: C) -> Self {
         Self { task }
@@ -47,6 +65,16 @@ impl<C> TaskRunner<C> {
     ///
     /// `Ok(R)` if the task succeeds. If the task returns `Err(E)` or panics,
     /// the corresponding [`TaskExecutionError`] is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaskExecutionError::Failed`] when the task returns an error,
+    /// or [`TaskExecutionError::Panicked`] when the task panics.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Value produced by a successful task.
+    /// * `E` - Error returned by the task.
     pub fn call<R, E>(self) -> TaskResult<R, E>
     where
         C: Callable<R, E>,
@@ -70,6 +98,11 @@ impl<C> TaskRunner<C> {
     /// `true` if the task started and its result was published, or `false` if
     /// the completion endpoint had already been completed before the runner
     /// started.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Value produced by a successful task.
+    /// * `E` - Error returned by the task.
     #[inline]
     pub fn run<R, E>(self, slot: TaskSlot<R, E>) -> bool
     where
@@ -89,6 +122,11 @@ impl<C> TaskRunner<C> {
     ///
     /// `true` if the task result was published, or `false` if completion was
     /// no longer possible.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Value produced by a successful task.
+    /// * `E` - Error returned by the task.
     #[inline]
     pub fn run_started<R, E>(self, slot: RunningTaskSlot<R, E>) -> bool
     where
@@ -102,6 +140,12 @@ impl<C> TaskRunner<C> {
     /// This is intended for detached runnable submissions whose caller only
     /// observes acceptance. The callable is still wrapped in panic conversion,
     /// but success, task failure, and panic results are intentionally dropped.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Value produced by a successful task and discarded after
+    ///   execution.
+    /// * `E` - Error returned by the task and discarded after execution.
     pub fn run_detached<R, E>(self)
     where
         C: Callable<R, E>,

@@ -15,6 +15,19 @@ use thiserror::Error;
 /// This error is about task acceptance only. It does not describe task
 /// execution success or failure; accepted tasks report their final result
 /// through the handle returned by the service.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::SubmissionError;
+///
+/// let error = SubmissionError::Shutdown;
+/// assert_eq!(
+///     error.to_string(),
+///     "task rejected because the executor service is shut down"
+/// );
+/// ```
+#[must_use]
 #[derive(Debug, Clone, Error)]
 pub enum SubmissionError {
     /// The service has been shut down and no longer accepts new tasks.

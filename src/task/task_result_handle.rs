@@ -9,6 +9,11 @@ use super::TaskResult;
 use super::try_get::TryGet;
 
 /// Common interface for handles that expose a submitted task's final result.
+///
+/// # Type Parameters
+///
+/// * `R` - The value produced when the task succeeds.
+/// * `E` - The error returned when the task itself fails.
 pub trait TaskResultHandle<R, E>: Send {
     /// Returns whether the task has installed a terminal state.
     ///
@@ -16,6 +21,7 @@ pub trait TaskResultHandle<R, E>: Send {
     ///
     /// `true` after the task has reached a terminal lifecycle state. Result
     /// publication to the handle may still be racing with this observation.
+    #[must_use]
     fn is_done(&self) -> bool;
 
     /// Blocks until the task produces its final result.
@@ -34,6 +40,7 @@ pub trait TaskResultHandle<R, E>: Send {
     ///
     /// [`TryGet::Ready`] when a result is available, otherwise
     /// [`TryGet::Pending`] containing the original handle.
+    #[must_use]
     fn try_get(self) -> TryGet<Self, R, E>
     where
         Self: Sized;

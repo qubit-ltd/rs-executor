@@ -69,6 +69,7 @@ fn next_ready_task(core: &SchedulerCore) -> Option<StartedScheduledTask> {
 }
 
 /// Records that the worker released its active entry.
+#[inline]
 fn finish_task(core: &SchedulerCore) {
     core.state.with_write_notify_all(|state| {
         state.worker_active = false;

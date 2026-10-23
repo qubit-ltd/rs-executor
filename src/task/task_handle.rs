@@ -24,6 +24,21 @@ use crate::hook::TaskId;
 /// `TaskHandle` owns the receiving endpoint for exactly one task result. It can
 /// block through [`Self::get`], poll non-blockingly through [`Self::try_get`],
 /// or be awaited by value.
+///
+/// # Type Parameters
+///
+/// * `R` - Value produced when the task succeeds.
+/// * `E` - Error value produced when the task returns an error.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskEndpointPair;
+///
+/// let (handle, completion) = TaskEndpointPair::<usize, ()>::new().into_parts();
+/// assert!(completion.run(|| Ok(42)));
+/// assert_eq!(handle.get().expect("task should succeed"), 42);
+/// ```
 pub struct TaskHandle<R, E> {
     /// Shared task state used for status and cancellation.
     pub(crate) state: Arc<TaskState<R, E>>,
@@ -32,15 +47,17 @@ pub struct TaskHandle<R, E> {
 }
 
 impl<R, E> TaskHandle<R, E> {
-    /// Creates a task handle from a one-shot result receiver.
+    /// Creates a task handle from shared task state and a one-shot result
+    /// receiver.
     ///
     /// # Parameters
     ///
+    /// * `state` - Shared status and cancellation state for the task.
     /// * `receiver` - Receiver that yields the final task result.
     ///
     /// # Returns
     ///
-    /// A task result handle.
+    /// A handle for observing the task status and retrieving its result.
     #[inline]
     pub(crate) const fn new(state: Arc<TaskState<R, E>>, receiver: Receiver<TaskResult<R, E>>) -> Self {
         Self { state, receiver }
@@ -51,15 +68,23 @@ impl<R, E> TaskHandle<R, E> {
     /// # Returns
     ///
     /// The task id stored in the shared task state.
+    #[must_use]
     #[inline]
     pub fn task_id(&self) -> TaskId {
         self.state.task_id
     }
 
-    /// Marks the task accepted and emits the accepted hook once.
+    /// Returns whether the task has installed a terminal state.
+    ///
+    /// # Returns
+    ///
+    /// `true` after the task succeeds, fails, panics, is cancelled, or loses
+    /// its completion endpoint. The final result send may still be racing with
+    /// this status observation.
+    #[must_use]
     #[inline]
-    pub(crate) fn accept(&self) {
-        let _accepted_now = self.state.accept();
+    pub fn is_done(&self) -> bool {
+        self.state.is_done()
     }
 
     /// Waits for the task to finish and returns its final result.
@@ -82,6 +107,7 @@ impl<R, E> TaskHandle<R, E> {
     ///
     /// [`TryGet::Ready`] with the final result when available, otherwise
     /// [`TryGet::Pending`] containing this handle.
+    #[must_use]
     #[inline]
     pub fn try_get(self) -> TryGet<Self, R, E> {
         let Self { state, receiver } = self;
@@ -92,16 +118,10 @@ impl<R, E> TaskHandle<R, E> {
         }
     }
 
-    /// Returns whether the task has installed a terminal state.
-    ///
-    /// # Returns
-    ///
-    /// `true` after the task succeeds, fails, panics, is cancelled, or loses
-    /// its completion endpoint. The final result send may still be racing with
-    /// this status observation.
+    /// Marks the task accepted and emits the accepted hook once.
     #[inline]
-    pub fn is_done(&self) -> bool {
-        self.state.is_done()
+    pub(crate) fn accept(&self) {
+        let _accepted_now = self.state.accept();
     }
 }
 

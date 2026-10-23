@@ -21,6 +21,24 @@ use super::task_state::TaskState;
 /// under their own queue locks before removing the task from their pending
 /// structures. Dropping a running slot before completion reports
 /// [`crate::TaskExecutionError::Dropped`].
+///
+/// # Type Parameters
+///
+/// * `R` - The value produced when the task succeeds.
+/// * `E` - The error value produced when the task fails.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskEndpointPair;
+///
+/// let (_handle, slot) =
+///     TaskEndpointPair::<usize, std::io::Error>::new().into_parts();
+/// let Ok(running) = slot.try_start() else {
+///     unreachable!("a new task is pending");
+/// };
+/// assert!(running.complete(Ok(42)));
+/// ```
 pub struct RunningTaskSlot<R, E> {
     /// Shared state updated by this running endpoint.
     state: Option<Arc<TaskState<R, E>>>,
@@ -39,19 +57,6 @@ impl<R, E> RunningTaskSlot<R, E> {
     #[inline]
     pub(crate) fn new(state: Arc<TaskState<R, E>>) -> Self {
         Self { state: Some(state) }
-    }
-
-    /// Returns the shared state owned by this running slot.
-    ///
-    /// # Returns
-    ///
-    /// A reference to the task state. The state is present until this running
-    /// endpoint publishes a terminal completion result.
-    #[inline]
-    fn state(&self) -> &TaskState<R, E> {
-        self.state
-            .as_deref()
-            .expect("running task slot state should be present")
     }
 
     /// Completes the running task with its final result.
@@ -100,6 +105,20 @@ impl<R, E> RunningTaskSlot<R, E> {
         C: Callable<R, E>,
     {
         self.complete(TaskRunner::new(task).call())
+    }
+
+    /// Returns the shared state owned by this running slot.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the task state. The state is present until this running
+    /// endpoint publishes a terminal completion result.
+    #[must_use]
+    #[inline]
+    fn state(&self) -> &TaskState<R, E> {
+        self.state
+            .as_deref()
+            .expect("running task slot state should be present")
     }
 }
 

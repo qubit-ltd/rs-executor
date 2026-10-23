@@ -5,11 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 use std::sync::Arc;
 
 use super::thread_per_task_executor_service_state::ThreadPerTaskExecutorServiceState;
 
 /// Decrements service active-task accounting when a worker exits.
+#[must_use = "the guard must be kept alive until the worker exits"]
 pub struct ActiveTaskGuard {
     /// Shared service state whose active-task count this guard owns.
     state: Arc<ThreadPerTaskExecutorServiceState>,

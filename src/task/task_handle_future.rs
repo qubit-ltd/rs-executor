@@ -16,6 +16,15 @@ use super::TaskExecutionError;
 use super::TaskResult;
 
 /// Future returned when awaiting a task handle by value.
+///
+/// Polling this future yields the task's final result. If the result sender is
+/// dropped before publishing a result, the future resolves to
+/// [`TaskExecutionError::Dropped`].
+///
+/// # Type Parameters
+///
+/// * `R` - The value returned when the task succeeds.
+/// * `E` - The error returned when the task fails.
 pub struct TaskHandleFuture<R, E> {
     /// Async receiver created from the task result receiver.
     receiver: AsyncReceiver<TaskResult<R, E>>,
@@ -41,6 +50,18 @@ impl<R, E> Future for TaskHandleFuture<R, E> {
     type Output = TaskResult<R, E>;
 
     /// Polls the result receiver for the final task result.
+    ///
+    /// # Parameters
+    ///
+    /// * `self` - Pinned mutable access to this future.
+    /// * `cx` - Context used to arrange another poll when the result is not
+    ///   ready.
+    ///
+    /// # Returns
+    ///
+    /// `Poll::Pending` while the task has not produced a result, or
+    /// `Poll::Ready` with the result. If the sender was dropped, the ready
+    /// value contains [`TaskExecutionError::Dropped`].
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         Pin::new(&mut this.receiver)

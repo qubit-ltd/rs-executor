@@ -8,8 +8,20 @@
 use qubit_atomic::atomic::primitive::AtomicU64;
 
 /// Unique identifier assigned to an accepted task.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::hook::TaskId;
+///
+/// let task_id = TaskId::new(42);
+/// assert_eq!(task_id.get(), 42);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TaskId(u64);
+pub struct TaskId(
+    /// Raw numeric value used to distinguish the task.
+    u64,
+);
 
 impl TaskId {
     /// Creates a task id from its raw numeric value.
@@ -37,6 +49,7 @@ impl TaskId {
     }
 }
 
+/// Stores the next task identifier to allocate within this process.
 static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Allocates a fresh task id.

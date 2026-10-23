@@ -60,6 +60,7 @@ impl ScheduleExecutor {
     /// # Returns
     ///
     /// A schedule executor using `instant`.
+    #[must_use]
     #[inline]
     pub fn at(instant: Instant) -> Self {
         Self {
@@ -67,6 +68,17 @@ impl ScheduleExecutor {
             hook: None,
             stack_size: None,
         }
+    }
+
+    /// Returns the configured scheduled instant.
+    ///
+    /// # Returns
+    ///
+    /// The monotonic instant at which each task starts.
+    #[must_use]
+    #[inline]
+    pub const fn instant(&self) -> Instant {
+        self.instant
     }
 
     /// Returns a copy of this executor using the supplied task hook.
@@ -78,6 +90,7 @@ impl ScheduleExecutor {
     /// # Returns
     ///
     /// This executor configured with `hook`.
+    #[must_use]
     #[inline]
     pub fn with_hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
         self.hook = Some(hook);
@@ -94,26 +107,30 @@ impl ScheduleExecutor {
     /// # Returns
     ///
     /// This executor configured with `stack_size`.
+    #[must_use]
     #[inline]
     pub fn with_stack_size(mut self, stack_size: usize) -> Self {
         self.stack_size = Some(stack_size);
         self
-    }
-
-    /// Returns the configured scheduled instant.
-    ///
-    /// # Returns
-    ///
-    /// The monotonic instant at which each task starts.
-    #[inline]
-    pub const fn instant(&self) -> Instant {
-        self.instant
     }
 }
 
 impl Executor for ScheduleExecutor {
     /// Starts a helper thread that waits until the scheduled instant and then
     /// runs the callable.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Callable to run after the configured instant.
+    ///
+    /// # Returns
+    ///
+    /// A tracked handle for the accepted callable.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
+    /// cannot be created.
     fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,

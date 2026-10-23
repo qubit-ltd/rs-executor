@@ -86,6 +86,20 @@ use crate::task::spi::TrackedTaskHandle;
 /// reference-counted objects alive until those task bodies return. Services
 /// that need stronger cleanup behavior should expose an explicit close/join API
 /// rather than relying on destructor side effects.
+///
+/// # Examples
+///
+/// ```rust
+/// use qubit_executor::{ExecutorService, ThreadPerTaskExecutorService};
+///
+/// let service = ThreadPerTaskExecutorService::new();
+/// let task = service
+///     .submit_callable(|| Ok::<_, ()>(42))
+///     .expect("task should be accepted");
+/// assert_eq!(task.get().expect("task should succeed"), 42);
+/// service.shutdown();
+/// service.wait_termination();
+/// ```
 pub trait ExecutorService: Send + Sync {
     /// Result handle returned for an accepted callable task.
     type ResultHandle<R, E>: TaskResultHandle<R, E>
@@ -100,6 +114,11 @@ pub trait ExecutorService: Send + Sync {
         E: Send + 'static;
 
     /// Submits a runnable task to this service.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task implementation.
+    /// * `E` - Error type produced by the task.
     ///
     /// # Parameters
     ///
@@ -122,6 +141,12 @@ pub trait ExecutorService: Send + Sync {
         E: Send + 'static;
 
     /// Submits a callable task to this service.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable task implementation.
+    /// * `R` - Successful result produced by the task.
+    /// * `E` - Error type produced by the task.
     ///
     /// # Parameters
     ///
@@ -147,6 +172,11 @@ pub trait ExecutorService: Send + Sync {
 
     /// Submits a runnable task and returns a tracked handle.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task implementation.
+    /// * `E` - Error type produced by the task.
+    ///
     /// # Parameters
     ///
     /// * `task` - A fallible background action with no business return value.
@@ -171,6 +201,12 @@ pub trait ExecutorService: Send + Sync {
     }
 
     /// Submits a callable task and returns a tracked handle.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable task implementation.
+    /// * `R` - Successful result produced by the task.
+    /// * `E` - Error type produced by the task.
     ///
     /// # Parameters
     ///
@@ -221,6 +257,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// A count-based stop report describing queued, running, and cancelled work
     /// observed while handling the request.
+    #[must_use]
     fn stop(&self) -> StopReport;
 
     /// Returns the current lifecycle state.
@@ -228,6 +265,7 @@ pub trait ExecutorService: Send + Sync {
     /// # Returns
     ///
     /// The lifecycle state currently observed by this service.
+    #[must_use]
     fn lifecycle(&self) -> ExecutorServiceLifecycle;
 
     /// Returns whether the service accepts new tasks.
@@ -236,6 +274,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `true` only while the lifecycle is
     /// [`ExecutorServiceLifecycle::Running`].
+    #[must_use]
     #[inline]
     fn is_running(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::Running
@@ -247,6 +286,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `true` only while the lifecycle is
     /// [`ExecutorServiceLifecycle::ShuttingDown`].
+    #[must_use]
     #[inline]
     fn is_shutting_down(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::ShuttingDown
@@ -258,6 +298,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `true` only while the lifecycle is
     /// [`ExecutorServiceLifecycle::Stopping`].
+    #[must_use]
     #[inline]
     fn is_stopping(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::Stopping
@@ -269,6 +310,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `true` once the service has started graceful shutdown, abrupt stop, or
     /// has already terminated.
+    #[must_use]
     #[inline]
     fn is_not_running(&self) -> bool {
         self.lifecycle() != ExecutorServiceLifecycle::Running
@@ -280,6 +322,7 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// `true` only after shutdown or stop has been requested and all accepted
     /// tasks have completed or been cancelled.
+    #[must_use]
     #[inline]
     fn is_terminated(&self) -> bool {
         self.lifecycle() == ExecutorServiceLifecycle::Terminated
@@ -307,5 +350,6 @@ pub trait ExecutorService: Send + Sync {
     /// A zero timeout probes the current lifecycle without blocking. Returns
     /// `true` when the service is terminated before the deadline, or `false`
     /// when the deadline expires first.
+    #[must_use]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool;
 }

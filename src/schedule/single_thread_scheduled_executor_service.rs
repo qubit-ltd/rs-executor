@@ -110,6 +110,7 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Number of accepted scheduled tasks that have not started or been
     /// cancelled.
+    #[must_use]
     #[inline]
     pub fn queued_count(&self) -> usize {
         self.inner.queued_count()
@@ -120,6 +121,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Returns
     ///
     /// `1` when the scheduler thread is running a task, otherwise `0`.
+    #[must_use]
     #[inline]
     pub fn running_count(&self) -> usize {
         self.inner.running_count()

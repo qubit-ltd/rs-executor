@@ -52,6 +52,7 @@ use crate::task::task_admission_gate::TaskAdmissionGate;
 /// let value = handle.get().expect("task should succeed");
 /// assert_eq!(value, 42);
 /// ```
+#[must_use]
 #[derive(Clone)]
 pub struct ThreadPerTaskExecutor {
     /// Optional stack size for each spawned worker thread.

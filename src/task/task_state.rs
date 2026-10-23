@@ -38,7 +38,9 @@ impl<R, E> TaskState<R, E> {
     ///
     /// # Parameters
     ///
+    /// * `task_id` - Identifier assigned to this task.
     /// * `sender` - One-shot sender used to publish the terminal task result.
+    /// * `hook` - Optional lifecycle hook notified for accepted task events.
     ///
     /// # Returns
     ///
@@ -104,6 +106,10 @@ impl<R, E> TaskState<R, E> {
 
     /// Attempts to move the task from pending to running.
     ///
+    /// # Parameters
+    ///
+    /// * `notify_hook` - Whether to emit the started hook after the transition.
+    ///
     /// # Returns
     ///
     /// `true` if this call started the task, or `false` if the task was already
@@ -138,6 +144,10 @@ impl<R, E> TaskState<R, E> {
     }
 
     /// Publishes a dropped-result error if no terminal result exists.
+    ///
+    /// # Parameters
+    ///
+    /// * `notify_hook` - Whether to emit the finished hook after publication.
     ///
     /// # Returns
     ///

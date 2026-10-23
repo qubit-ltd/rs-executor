@@ -18,13 +18,28 @@ use super::try_get::TryGet;
 use crate::hook::TaskId;
 
 /// Result handle with active status tracking and pre-start cancellation.
+///
+/// # Type Parameters
+///
+/// * `R` - Value produced when the task succeeds.
+/// * `E` - Error value produced when the task returns an error.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::TaskEndpointPair;
+///
+/// let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+/// assert!(slot.run(|| Ok(42)));
+/// assert_eq!(tracked.get().expect("task should succeed"), 42);
+/// ```
 pub struct TrackedTask<R, E> {
     /// Lightweight result handle.
     handle: TaskHandle<R, E>,
 }
 
 impl<R, E> TrackedTask<R, E> {
-    /// Creates a tracked task from a result handle and completion state.
+    /// Creates a tracked task from a result handle.
     ///
     /// # Parameters
     ///

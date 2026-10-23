@@ -16,6 +16,17 @@ use super::task_slot::TaskSlot;
 /// to consume the same accepted task. Exactly one path can take the slot. A
 /// failed start restores the slot so its terminal result remains owned by the
 /// caller that later takes or cancels it.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_executor::task::spi::{TaskEndpointPair, TaskSlotCell};
+///
+/// let (_, slot) = TaskEndpointPair::<(), ()>::new().into_parts();
+/// let cell = TaskSlotCell::new(slot);
+/// assert!(cell.take().is_some());
+/// assert!(cell.take().is_none());
+/// ```
 pub struct TaskSlotCell<R, E> {
     /// The pending runner endpoint guarded against concurrent consumption.
     slot: Mutex<Option<TaskSlot<R, E>>>,
@@ -25,6 +36,7 @@ impl<R, E> TaskSlotCell<R, E> {
     /// Wraps one runner-side task slot in shared storage.
     ///
     /// The slot remains pending until a caller starts, takes, or cancels it.
+    #[must_use]
     #[inline]
     pub fn new(slot: TaskSlot<R, E>) -> Self {
         Self {

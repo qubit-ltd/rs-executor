@@ -38,6 +38,7 @@ impl ThreadPerTaskExecutorBuilder {
     /// # Returns
     ///
     /// A builder that uses the platform default worker stack size.
+    #[must_use]
     #[inline]
     pub fn new() -> Self {
         Self::default()
@@ -52,6 +53,7 @@ impl ThreadPerTaskExecutorBuilder {
     /// # Returns
     ///
     /// This builder with the supplied stack size.
+    #[must_use]
     #[inline]
     pub fn stack_size(mut self, stack_size: usize) -> Self {
         self.stack_size = Some(stack_size);
@@ -67,6 +69,7 @@ impl ThreadPerTaskExecutorBuilder {
     /// # Returns
     ///
     /// This builder with the supplied hook.
+    #[must_use]
     #[inline]
     pub fn hook(mut self, hook: Arc<dyn TaskHook>) -> Self {
         self.hook = Some(hook);
