@@ -35,9 +35,10 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 
 /// Managed service that runs every accepted task on a dedicated OS thread.
 ///
-/// The service has no queue: accepted tasks start immediately on their own
-/// thread. Shutdown prevents later submissions but cannot forcefully stop
-/// running OS threads.
+/// The service has no internal waiting queue: each accepted task is assigned
+/// a dedicated OS thread, and its actual start depends on system scheduling.
+/// Shutdown prevents later submissions but cannot forcefully stop running OS
+/// threads.
 ///
 /// # Examples
 ///
@@ -220,8 +221,11 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// # Errors
     ///
-    /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
-    /// requested before the task is accepted.
+    /// Returns [`SubmissionError::Shutdown`] if shutdown or stop has closed
+    /// task admission, or [`SubmissionError::WorkerSpawnFailed`] if the
+    /// operating system cannot create the dedicated worker thread. Success
+    /// means the task was accepted and its worker thread was created; it does
+    /// not guarantee when the task starts or whether it succeeds.
     fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
@@ -250,8 +254,11 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     ///
     /// # Errors
     ///
-    /// Returns [`SubmissionError::Shutdown`] if shutdown has already been
-    /// requested before the task is accepted.
+    /// Returns [`SubmissionError::Shutdown`] if shutdown or stop has closed
+    /// task admission, or [`SubmissionError::WorkerSpawnFailed`] if the
+    /// operating system cannot create the dedicated worker thread. Success
+    /// means the task was accepted and its worker thread was created; it does
+    /// not guarantee when the task starts or whether it succeeds.
     fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -266,7 +273,23 @@ impl ExecutorService for ThreadPerTaskExecutorService {
         )
     }
 
-    /// Accepts a callable and starts it with a tracked handle.
+    /// Accepts a callable and creates a dedicated worker thread for it.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Callable to execute on the worker thread.
+    ///
+    /// # Returns
+    ///
+    /// A [`TrackedTask`] for observing the accepted task's execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if shutdown or stop has closed
+    /// task admission, or [`SubmissionError::WorkerSpawnFailed`] if the
+    /// operating system cannot create the dedicated worker thread. Success
+    /// means the task was accepted and its worker thread was created; it does
+    /// not guarantee when the task starts or whether it succeeds.
     fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,

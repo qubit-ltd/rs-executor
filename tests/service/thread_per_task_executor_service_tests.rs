@@ -254,9 +254,14 @@ fn test_thread_per_task_executor_service_wait_termination_waits_for_tasks() {
     let lifecycle = service.lifecycle();
     let shutting_down = service.is_shutting_down();
     let not_running = service.is_not_running();
+    let terminated_early = service.wait_termination_timeout(Duration::from_millis(20));
+    let lifecycle_before_release = service.lifecycle();
     release_tx.send(()).expect("release running task");
-    service.wait_termination();
+    let terminated_after_release = service.wait_termination_timeout(Duration::from_secs(5));
 
+    assert!(!terminated_early);
+    assert_ne!(lifecycle_before_release, ExecutorServiceLifecycle::Terminated);
+    assert!(terminated_after_release);
     assert_eq!(lifecycle, ExecutorServiceLifecycle::ShuttingDown);
     assert!(shutting_down);
     assert!(not_running);
@@ -331,9 +336,14 @@ fn test_thread_per_task_executor_service_stop_reports_running_tasks() {
         .expect("task should start before stop");
     let report = service.stop();
     let stopping = service.is_stopping();
+    let terminated_early = service.wait_termination_timeout(Duration::from_millis(20));
+    let lifecycle_before_release = service.lifecycle();
     release_tx.send(()).expect("release running task");
-    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    let terminated_after_release = service.wait_termination_timeout(Duration::from_secs(5));
 
+    assert!(!terminated_early);
+    assert_ne!(lifecycle_before_release, ExecutorServiceLifecycle::Terminated);
+    assert!(terminated_after_release);
     assert_eq!(report.queued, 0);
     assert_eq!(report.running, 1);
     assert_eq!(report.cancelled, 0);
