@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::Condvar;
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 use std::time::Duration;
 
 use qubit_atomic::Atomic;
@@ -235,26 +236,32 @@ fn test_thread_per_task_executor_service_shutdown_rejection_notifies_hook() {
 #[test]
 fn test_thread_per_task_executor_service_wait_termination_waits_for_tasks() {
     let service = ThreadPerTaskExecutorService::new();
-    let completed = Arc::new(Atomic::new(false));
-    let completed_for_task = Arc::clone(&completed);
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
 
     service
         .submit(move || {
-            std::thread::sleep(Duration::from_millis(80));
-            completed_for_task.store(true);
+            entered_tx.send(()).expect("signal task start");
+            release_rx.recv().expect("receive task release");
             Ok::<(), io::Error>(())
         })
         .expect("service should accept task");
 
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("task should start before shutdown");
     service.shutdown();
-    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::ShuttingDown);
-    assert!(service.is_shutting_down());
-    assert!(service.is_not_running());
+    let lifecycle = service.lifecycle();
+    let shutting_down = service.is_shutting_down();
+    let not_running = service.is_not_running();
+    release_tx.send(()).expect("release running task");
     service.wait_termination();
 
+    assert_eq!(lifecycle, ExecutorServiceLifecycle::ShuttingDown);
+    assert!(shutting_down);
+    assert!(not_running);
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());
-    assert!(completed.load());
 }
 
 /// Verifies timed termination waits probe immediately and observe a later
@@ -309,26 +316,36 @@ fn test_thread_per_task_executor_service_lifecycle_defaults_to_running() {
 #[test]
 fn test_thread_per_task_executor_service_stop_reports_running_tasks() {
     let service = ThreadPerTaskExecutorService::new();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
     service
-        .submit(|| {
-            std::thread::sleep(Duration::from_millis(200));
+        .submit(move || {
+            entered_tx.send(()).expect("signal task start");
+            release_rx.recv().expect("receive task release");
             Ok::<(), io::Error>(())
         })
         .expect("service should accept task");
 
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("task should start before stop");
     let report = service.stop();
+    let stopping = service.is_stopping();
+    release_tx.send(()).expect("release running task");
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 
     assert_eq!(report.queued, 0);
+    assert_eq!(report.running, 1);
     assert_eq!(report.cancelled, 0);
-    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Stopping);
-    assert!(service.is_stopping());
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
+    assert!(stopping);
     assert!(service.is_not_running());
 }
 
 #[test]
 fn test_thread_per_task_executor_service_stop_transitions_to_terminated() {
     let service = ThreadPerTaskExecutorService::new();
-    service.stop();
+    let _ = service.stop();
 
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
     assert!(service.is_terminated());

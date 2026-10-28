@@ -7,9 +7,17 @@
 // =============================================================================
 //! Tests for task handle and completion behavior.
 
+use std::future::Future;
+use std::future::IntoFuture;
 use std::io;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
+use std::task::Context;
+use std::task::Poll;
+use std::task::Wake;
+use std::task::Waker;
 use std::thread;
 use std::time::Duration;
 
@@ -23,6 +31,67 @@ use qubit_executor::service::SubmissionError;
 use qubit_executor::task::spi::TaskEndpointPair;
 use qubit_executor::task::spi::TaskResultHandle;
 use qubit_executor::task::spi::TrackedTaskHandle;
+
+#[derive(Default)]
+struct CountingWaker(AtomicUsize);
+
+impl Wake for CountingWaker {
+    fn wake(self: Arc<Self>) {
+        self.0.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.0.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
+#[test]
+fn test_task_handle_future_pending_wakes_on_completion() {
+    let (handle, slot) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let mut future = Box::pin(handle.into_future());
+    let counter = Arc::new(CountingWaker::default());
+    let waker = Waker::from(Arc::clone(&counter));
+    let mut context = Context::from_waker(&waker);
+    assert!(Future::poll(future.as_mut(), &mut context).is_pending());
+    let before = counter.0.load(Ordering::Acquire);
+    assert!(slot.run(|| Ok(42)));
+    assert!(counter.0.load(Ordering::Acquire) > before);
+    assert!(matches!(
+        Future::poll(future.as_mut(), &mut context),
+        Poll::Ready(Ok(42)),
+    ));
+}
+
+#[test]
+fn test_task_handle_future_pending_wakes_when_slot_drops() {
+    let (handle, slot) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
+    let mut future = Box::pin(handle.into_future());
+    let counter = Arc::new(CountingWaker::default());
+    let waker = Waker::from(Arc::clone(&counter));
+    let mut context = Context::from_waker(&waker);
+    assert!(Future::poll(future.as_mut(), &mut context).is_pending());
+    let before = counter.0.load(Ordering::Acquire);
+    drop(slot);
+    assert!(counter.0.load(Ordering::Acquire) > before);
+    assert!(matches!(
+        Future::poll(future.as_mut(), &mut context),
+        Poll::Ready(Err(TaskExecutionError::Dropped)),
+    ));
+}
+
+#[test]
+fn test_tracked_task_future_reports_dropped_before_first_poll() {
+    let (handle, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    drop(slot);
+    let mut future = Box::pin(handle.into_future());
+    let counter = Arc::new(CountingWaker::default());
+    let waker = Waker::from(Arc::clone(&counter));
+    let mut context = Context::from_waker(&waker);
+    assert!(matches!(
+        Future::poll(future.as_mut(), &mut context),
+        Poll::Ready(Err(TaskExecutionError::Dropped)),
+    ));
+}
 
 #[tokio::test]
 async fn test_task_handle_await_returns_value() {

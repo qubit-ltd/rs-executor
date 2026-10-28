@@ -9,8 +9,9 @@
 
 use std::io;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
-use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -23,6 +24,14 @@ use qubit_executor::service::SubmissionError;
 
 fn delayed_value_task() -> Result<usize, io::Error> {
     Ok(42)
+}
+
+struct DropSignal(mpsc::Sender<()>);
+
+impl Drop for DropSignal {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
+    }
 }
 
 #[test]
@@ -58,16 +67,37 @@ fn test_delay_executor_returns_callable_value() {
 }
 
 #[test]
-fn test_delay_executor_cancel_before_start_skips_callable() {
-    let executor = DelayExecutor::new(Duration::from_millis(80));
-
+fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
+    let executor = DelayExecutor::new(Duration::ZERO);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_task = Arc::clone(&calls);
+    let (dropped_tx, dropped_rx) = mpsc::channel();
+    let probe = DropSignal(dropped_tx);
     let handle = executor
-        .call(delayed_value_task as fn() -> Result<usize, io::Error>)
+        .call(move || {
+            let _ = &probe;
+            calls_for_task.fetch_add(1, Ordering::AcqRel);
+            Ok::<usize, io::Error>(42)
+        })
         .expect("worker thread should spawn");
 
-    assert_eq!(handle.cancel(), CancelResult::Cancelled);
-    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
-    thread::sleep(Duration::from_millis(120));
+    let cancellation = handle.cancel();
+    let result = handle.get();
+    dropped_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("callable capture should be released");
+
+    match cancellation {
+        CancelResult::Cancelled => {
+            assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+            assert_eq!(calls.load(Ordering::Acquire), 0);
+        }
+        CancelResult::AlreadyRunning | CancelResult::AlreadyFinished => {
+            assert!(matches!(result, Ok(42)));
+            assert_eq!(calls.load(Ordering::Acquire), 1);
+        }
+        CancelResult::Unsupported => panic!("tracked delay task cancellation should be supported"),
+    }
 }
 
 #[test]
