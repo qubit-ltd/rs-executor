@@ -99,7 +99,7 @@ Ok(())
 
 [`examples/custom_executor.rs`](../examples/custom_executor.rs) 提供了可运行版本：启动一个由应用拥有的工作线程，通过 handle 读取结果 `42`，关闭队列并等待线程退出，然后验证队列断开时的拒绝路径。该示例是只有一个工作线程和无界 channel 的入门执行器，不提供队列容量限制或托管服务生命周期；应用如有需要应自行增加这些策略。
 
-示例没有安装 hook。使用 hook 的执行器必须遵守 [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html) 文档中的接纳与拒绝事件顺序。
+示例没有安装 hook，因此会在返回 handle 后由工作线程接纳 slot。启用 hook 的执行器必须先完成 `slot.accept()`（包括同步执行完 `on_accepted` 回调），再向调用方返回可取消的 handle 或允许工作线程启动任务。SPI 会维护受支持调用方式下的生命周期事件顺序，但不会串行化与接纳并发或早于接纳完成的取消/启动。详见 [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html)。
 
 ## 进阶用法
 

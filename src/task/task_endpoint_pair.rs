@@ -27,6 +27,11 @@ use crate::hook::next_task_id;
 ///
 /// Custom executors using this SPI should call [`TaskSlot::accept`] or the
 /// crate-internal handle acceptance path only after submission has succeeded.
+/// When using a hook, complete acceptance before publishing the returned
+/// cancellable handle or allowing a worker to start the task. This lets the
+/// synchronous `on_accepted` callback return before cancellation or execution
+/// can publish another lifecycle event. The SPI does not serialize unsupported
+/// call orders such as cancelling before acceptance.
 /// Dropping a runner slot before acceptance releases result waiters with
 /// `Dropped` but does not emit hook lifecycle events. Once a service has
 /// accepted a task, it should call [`TaskSlot::cancel_unstarted`] rather than

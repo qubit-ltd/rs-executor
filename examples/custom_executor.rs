@@ -6,6 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! A minimal custom executor backed by an application-owned worker queue.
+//!
+//! This example omits lifecycle hooks, so it accepts the slot on the worker
+//! after returning the handle. An executor with hooks must finish
+//! `slot.accept()` before publishing a cancellable handle or allowing a worker
+//! to start the task.
 
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;

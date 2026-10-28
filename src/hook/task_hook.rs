@@ -27,6 +27,12 @@ use crate::service::SubmissionError;
 /// Executors contain hook panics so hook implementations cannot break task
 /// execution or result publication.
 ///
+/// Acceptance and terminal-state transitions are not serialized around the
+/// full duration of user callbacks. A concurrent cancellation may therefore
+/// emit `on_finished` after `on_accepted` has entered but before it returns.
+/// Executors using this SPI with hooks should complete acceptance before
+/// publishing a cancellable handle or allowing a worker to start the task.
+///
 /// Callbacks run synchronously on the thread publishing the event; they are not
 /// forwarded to a dedicated observer thread. Depending on the executor and SPI
 /// caller, a callback may run while an internal or caller-owned lock is held.

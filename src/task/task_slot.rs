@@ -65,7 +65,10 @@ impl<R, E> TaskSlot<R, E> {
     /// call it only after submission has succeeded. Dropping a slot before
     /// acceptance still releases result waiters with `Dropped`, but does
     /// not emit lifecycle hook events for a task that was rejected before
-    /// acceptance.
+    /// acceptance. With hooks enabled, finish this call, including its
+    /// synchronous callback, before publishing the cancellable handle or
+    /// allowing a worker to start. The SPI does not serialize cancellation or
+    /// task start performed before acceptance returns.
     #[inline]
     pub fn accept(&self) {
         let _accepted_now = self.state().accept();

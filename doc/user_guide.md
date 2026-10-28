@@ -99,7 +99,7 @@ For each submission, create a `TaskEndpointPair` and split it into a `TrackedTas
 
 The runnable version of this flow is [`examples/custom_executor.rs`](../examples/custom_executor.rs). It starts one application-owned worker, observes a result of `42`, closes and joins the worker, and checks the disconnected-queue rejection path. This is an introductory executor with one worker and an unbounded channel. It does not provide queue capacity limits or a managed service lifecycle; add those policies in the application if needed.
 
-The example does not install hooks. Executors that use hooks must preserve the acceptance and rejection ordering described by [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html).
+The example does not install hooks. An executor that uses hooks must finish `slot.accept()`, including the synchronous `on_accepted` callback, before returning the cancellable handle or allowing a worker to start the task. The SPI preserves lifecycle event ordering for supported use; it does not serialize cancellation or task start that races with or precedes acceptance. See [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html).
 
 ## Advanced Usage
 
