@@ -5,6 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
+use std::panic::resume_unwind;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -12,6 +15,7 @@ use qubit_collections::map::ordered_index_map::OwnedEntry;
 use qubit_lock::ParkingLotMonitor;
 use qubit_lock::WaitTimeoutResult;
 
+use super::internal::StopDrainGuard;
 use super::scheduled_task_entry::ScheduledTaskEntry;
 use super::scheduler_state::SchedulerState;
 use crate::hook::TaskId;
@@ -208,6 +212,9 @@ impl SchedulerCore {
     /// Requests immediate shutdown and cancels detached queued entries.
     ///
     /// Cancellation callbacks run after the scheduler lock is released.
+    /// If an entry panics during ordinary unwinding, remaining entries are
+    /// still cancelled and the first panic is resumed after drain state is
+    /// restored. This does not recover from aborting panics.
     ///
     /// # Returns
     ///
@@ -234,18 +241,28 @@ impl SchedulerCore {
                 (entries, queued, running, owns_drain)
             });
         let entries: ScheduledTaskEntries = entries;
+        let drain_guard = owns_drain.then(|| StopDrainGuard::new(self));
+        let mut first_panic = None;
         let mut cancelled = 0;
         for entry in entries {
-            cancelled += usize::from(entry.into_value().cancel());
-        }
-        self.state.with_write_notify_all(|state| {
-            if owns_drain {
-                state.stop_draining = false;
+            match catch_unwind(AssertUnwindSafe(|| entry.into_value().cancel())) {
+                Ok(was_cancelled) => cancelled += usize::from(was_cancelled),
+                Err(payload) => {
+                    if first_panic.is_none() {
+                        first_panic = Some(payload);
+                    }
+                }
             }
+        }
+        drop(drain_guard);
+        self.state.with_write_notify_all(|state| {
             if state.can_terminate() {
                 state.terminated = true;
             }
         });
+        if let Some(payload) = first_panic {
+            resume_unwind(payload);
+        }
         StopReport::new(queued, running, cancelled)
     }
 }

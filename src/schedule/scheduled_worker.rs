@@ -10,6 +10,7 @@ use std::panic::catch_unwind;
 use std::sync::Arc;
 use std::time::Instant;
 
+use super::internal::WorkerActiveGuard;
 use super::scheduled_task_entry::StartedScheduledTask;
 use super::scheduler_core::SchedulerCore;
 
@@ -18,13 +19,17 @@ pub(crate) struct ScheduledWorker;
 
 impl ScheduledWorker {
     /// Runs the scheduled executor service loop.
+    ///
+    /// Ordinary panics from starting or running one entry are contained for
+    /// that entry; its active marker is restored before the worker continues.
+    /// Aborting panics cannot be recovered.
     pub(crate) fn run(core: Arc<SchedulerCore>) {
         loop {
             let Some(task) = next_ready_task(&core) else {
                 return;
             };
+            let _active_guard = WorkerActiveGuard::new(&core);
             let _ = catch_unwind(AssertUnwindSafe(task));
-            finish_task(&core);
         }
     }
 }
@@ -60,23 +65,12 @@ fn next_ready_task(core: &SchedulerCore) -> Option<StartedScheduledTask> {
             .expect("observed first scheduled entry must remain present");
         state.worker_active = true;
         drop(state);
-        if let Some(task) = entry.into_value().start() {
-            return Some(task);
-        }
-        finish_task(core);
-        state = core.state.lock();
+        return Some(Box::new(move || {
+            if let Some(task) = entry.into_value().start() {
+                task();
+            }
+        }));
     }
-}
-
-/// Records that the worker released its active entry.
-#[inline]
-fn finish_task(core: &SchedulerCore) {
-    core.state.with_write_notify_all(|state| {
-        state.worker_active = false;
-        if state.can_terminate() {
-            state.terminated = true;
-        }
-    });
 }
 
 #[cfg(test)]
@@ -96,6 +90,40 @@ mod tests {
         skip: bool,
         panic_on_run: bool,
         ran: Arc<AtomicUsize>,
+    }
+
+    struct PanicOnStartEntry {}
+
+    impl ScheduledTaskEntry for PanicOnStartEntry {
+        fn accept(&self) {}
+
+        fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
+            panic!("scheduled worker start panic");
+        }
+
+        fn cancel(self: Box<Self>) -> bool {
+            false
+        }
+    }
+
+    struct SkipWithPanickingDropEntry;
+
+    impl ScheduledTaskEntry for SkipWithPanickingDropEntry {
+        fn accept(&self) {}
+
+        fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
+            None
+        }
+
+        fn cancel(self: Box<Self>) -> bool {
+            false
+        }
+    }
+
+    impl Drop for SkipWithPanickingDropEntry {
+        fn drop(&mut self) {
+            panic!("scheduled worker skipped-entry drop panic");
+        }
     }
 
     impl ScheduledTaskEntry for MaybeSkippedEntry {
@@ -179,6 +207,57 @@ mod tests {
             }),
         )
         .expect("following entry should schedule");
+        core.shutdown();
+
+        ScheduledWorker::run(Arc::clone(&core));
+
+        assert_eq!(ran.load(Ordering::Acquire), 1);
+        assert!(!core.state.with_read(|state| state.worker_active));
+        assert!(core.is_terminated());
+    }
+
+    #[test]
+    fn test_panicking_start_does_not_kill_worker() {
+        let core = Arc::new(SchedulerCore::new());
+        let ran = Arc::new(AtomicUsize::new(0));
+        let now = Instant::now();
+        core.schedule(TaskId::new(3), now, Box::new(PanicOnStartEntry {}))
+            .expect("panicking entry should schedule");
+        core.schedule(
+            TaskId::new(4),
+            now,
+            Box::new(MaybeSkippedEntry {
+                skip: false,
+                panic_on_run: false,
+                ran: Arc::clone(&ran),
+            }),
+        )
+        .expect("follow-up entry should schedule");
+        core.shutdown();
+
+        ScheduledWorker::run(Arc::clone(&core));
+
+        assert_eq!(ran.load(Ordering::Acquire), 1);
+        assert!(core.is_terminated());
+    }
+
+    #[test]
+    fn test_panicking_skipped_entry_drop_does_not_kill_worker() {
+        let core = Arc::new(SchedulerCore::new());
+        let ran = Arc::new(AtomicUsize::new(0));
+        let now = Instant::now();
+        core.schedule(TaskId::new(5), now, Box::new(SkipWithPanickingDropEntry))
+            .expect("panicking drop entry should schedule");
+        core.schedule(
+            TaskId::new(6),
+            now,
+            Box::new(MaybeSkippedEntry {
+                skip: false,
+                panic_on_run: false,
+                ran: Arc::clone(&ran),
+            }),
+        )
+        .expect("follow-up entry should schedule");
         core.shutdown();
 
         ScheduledWorker::run(Arc::clone(&core));

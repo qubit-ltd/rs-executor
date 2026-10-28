@@ -72,7 +72,9 @@ where
     /// Publishes cancellation for this unstarted scheduled task.
     #[inline]
     fn cancel(self: Box<Self>) -> bool {
-        let Self { slot, .. } = *self;
-        slot.cancel_unstarted()
+        let Self { task, slot } = *self;
+        let cancelled = slot.cancel_unstarted();
+        drop(task);
+        cancelled
     }
 }

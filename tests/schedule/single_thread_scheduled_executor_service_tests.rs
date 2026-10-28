@@ -8,6 +8,7 @@
 //! Tests for [`SingleThreadScheduledExecutorService`](qubit_executor::SingleThreadScheduledExecutorService).
 
 use std::future::IntoFuture;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -39,36 +40,133 @@ impl Drop for DropProbe {
     }
 }
 
+struct BlockingPanicOnDrop {
+    entered: Option<mpsc::Sender<()>>,
+    release: Option<mpsc::Receiver<()>>,
+}
+
+impl Drop for BlockingPanicOnDrop {
+    fn drop(&mut self) {
+        self.entered
+            .take()
+            .expect("drop entry signal")
+            .send(())
+            .expect("drop test receiver");
+        self.release
+            .take()
+            .expect("drop release receiver")
+            .recv()
+            .expect("drop test release");
+        panic!("scheduled cancellation drop panic");
+    }
+}
+
 #[test]
 fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() {
     let service =
         SingleThreadScheduledExecutorService::new("test-scheduled-earliest").expect("scheduled service should start");
-    let (sent_tx, sent_rx) = mpsc::channel::<&'static str>();
-
-    for _ in 0..8 {
-        let sent_tx = sent_tx.clone();
-        service
-            .schedule(Duration::from_millis(250), move || {
-                sent_tx.send("long").expect("long task should send");
-                Ok::<(), ()>(())
-            })
-            .expect("long delay should schedule");
-    }
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
     service
-        .schedule(Duration::from_millis(30), move || {
-            sent_tx.send("short").expect("short task should send");
+        .schedule(Duration::ZERO, move || {
+            entered_tx.send(()).expect("signal blocking task start");
+            release_rx.recv().expect("receive blocking task release");
             Ok::<(), ()>(())
         })
-        .expect("short delay should schedule");
+        .expect("blocking task should schedule");
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("worker should start blocking task");
 
+    let later = Instant::now();
+    let earlier = later
+        .checked_sub(Duration::from_secs(1))
+        .expect("test deadline should be representable");
+    let (sent_tx, sent_rx) = mpsc::channel::<&'static str>();
+    let late_tx = sent_tx.clone();
+    service
+        .schedule_at(later, move || {
+            late_tx.send("late").expect("late task should send");
+            Ok::<(), ()>(())
+        })
+        .expect("later deadline should schedule");
+    service
+        .schedule_at(earlier, move || {
+            sent_tx.send("early").expect("early task should send");
+            Ok::<(), ()>(())
+        })
+        .expect("earlier deadline should schedule");
+
+    release_tx.send(()).expect("release blocking task");
     assert_eq!(
         sent_rx
-            .recv_timeout(Duration::from_millis(150))
-            .expect("short delay should not wait behind long delays"),
-        "short"
+            .recv_timeout(Duration::from_secs(5))
+            .expect("early task should run first"),
+        "early"
+    );
+    assert_eq!(
+        sent_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("late task should run second"),
+        "late"
     );
     service.shutdown();
     service.wait_termination();
+}
+
+#[test]
+fn test_scheduled_stop_recovers_after_captured_drop_panics() {
+    let service = Arc::new(
+        SingleThreadScheduledExecutorService::new("test-stop-drop-panic").expect("scheduled service should start"),
+    );
+    let (task_entered_tx, task_entered_rx) = mpsc::channel();
+    let (task_release_tx, task_release_rx) = mpsc::channel();
+    service
+        .schedule(Duration::ZERO, move || {
+            task_entered_tx.send(()).expect("running task signal");
+            task_release_rx.recv().expect("running task release");
+            Ok::<(), ()>(())
+        })
+        .expect("blocking task should schedule");
+    task_entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("worker should start blocking task");
+
+    let (drop_entered_tx, drop_entered_rx) = mpsc::channel();
+    let (drop_release_tx, drop_release_rx) = mpsc::channel();
+    let probe = BlockingPanicOnDrop {
+        entered: Some(drop_entered_tx),
+        release: Some(drop_release_rx),
+    };
+    let panic_handle = service
+        .schedule_callable(Duration::from_secs(60), move || {
+            let _ = &probe;
+            Ok::<(), ()>(())
+        })
+        .expect("panicking drop task should schedule");
+    let first_normal = service
+        .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(1))
+        .expect("first normal task should schedule");
+    let second_normal = service
+        .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(2))
+        .expect("second normal task should schedule");
+
+    let stop_service = Arc::clone(&service);
+    let stop_thread = thread::spawn(move || std::panic::catch_unwind(AssertUnwindSafe(|| stop_service.stop())));
+    drop_entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("stop should begin dropping the captured resource");
+    let terminated_while_drop_blocked = service.is_terminated();
+    drop_release_tx.send(()).expect("release panicking drop");
+    assert!(stop_thread.join().expect("stop thread should return").is_err());
+
+    assert!(!terminated_while_drop_blocked);
+    assert!(matches!(panic_handle.get(), Err(TaskExecutionError::Cancelled)));
+    assert!(matches!(first_normal.get(), Err(TaskExecutionError::Cancelled)));
+    assert!(matches!(second_normal.get(), Err(TaskExecutionError::Cancelled)));
+    task_release_tx.send(()).expect("release running task");
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
 }
 
 #[test]

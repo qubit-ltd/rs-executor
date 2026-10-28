@@ -8,6 +8,7 @@
 //! Scheduled executor service abstractions and basic implementations.
 
 mod completable_scheduled_task;
+mod internal;
 mod scheduled_executor_service;
 mod scheduled_task_entry;
 mod scheduled_task_handle;
