@@ -9,6 +9,7 @@
 
 mod atomic_task_status;
 mod cancel_result;
+pub(crate) mod internal;
 mod running_task_slot;
 pub(crate) mod task_admission_gate;
 mod task_endpoint_pair;

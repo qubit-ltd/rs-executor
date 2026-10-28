@@ -25,6 +25,7 @@ use qubit_executor::CancelResult;
 use qubit_executor::TaskExecutionError;
 use qubit_executor::TaskStatus;
 use qubit_executor::TryGet;
+use qubit_executor::executor::DelayExecutor;
 use qubit_executor::executor::Executor;
 use qubit_executor::executor::ThreadPerTaskExecutor;
 use qubit_executor::service::SubmissionError;
@@ -102,6 +103,28 @@ async fn test_task_handle_await_returns_value() {
         .expect("worker thread should spawn");
 
     assert_eq!(handle.await.expect("task handle should await task result"), 42,);
+}
+
+#[tokio::test]
+async fn test_dropping_delayed_handle_does_not_cancel_and_await_waits_for_task() {
+    let (started_tx, started_rx) = mpsc::channel();
+    let executor = DelayExecutor::new(Duration::from_millis(20));
+    let dropped_handle = executor
+        .call(move || {
+            started_tx.send(()).expect("test should observe delayed task");
+            Ok::<usize, io::Error>(1)
+        })
+        .expect("worker thread should spawn");
+
+    drop(dropped_handle);
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("dropping handle should not cancel delayed task");
+
+    let awaited_handle = executor
+        .call(|| Ok::<usize, io::Error>(42))
+        .expect("worker thread should spawn");
+    assert_eq!(awaited_handle.await.expect("await should wait for delayed result"), 42);
 }
 
 #[test]

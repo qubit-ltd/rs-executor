@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::sync::Arc;
-use std::thread;
 use std::time::Instant;
 
 use qubit_function::Callable;
@@ -17,6 +16,7 @@ use crate::TrackedTask;
 use crate::hook::TaskHook;
 use crate::hook::notify_rejected_optional;
 use crate::service::SubmissionError;
+use crate::task::internal::PendingTaskWait;
 use crate::task::spi::TaskEndpointPair;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 
@@ -26,6 +26,9 @@ use crate::task::task_admission_gate::TaskAdmissionGate;
 /// a helper OS thread, waits on that helper thread until the configured
 /// [`Instant`], and then runs the task on the helper thread. If the configured
 /// instant is not in the future, the helper thread runs the task immediately.
+/// Cancelling a pending task wakes the wait so its captured resources can be
+/// released early; cancellation does not join the worker or guarantee that it
+/// has exited on return. Each scheduled task still uses its own OS thread.
 ///
 /// # Examples
 ///
@@ -139,21 +142,22 @@ impl Executor for ScheduleExecutor {
     {
         let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let instant = self.instant;
+        let pending_wait = Arc::new(PendingTaskWait::new());
+        let worker_wait = Arc::clone(&pending_wait);
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();
         ThreadSpawnConfig::new(self.stack_size)
             .spawn(move || {
                 worker_gate.wait();
-                let now = Instant::now();
-                if instant > now {
-                    thread::sleep(instant.duration_since(now));
+                let delay = instant.saturating_duration_since(Instant::now());
+                if worker_wait.wait_for(delay) {
+                    slot.run(task);
                 }
-                slot.run(task);
             })
             .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
         gate.open();
-        Ok(handle)
+        Ok(handle.with_pending_wait(pending_wait))
     }
 }

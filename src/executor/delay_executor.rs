@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use qubit_function::Callable;
@@ -17,6 +16,7 @@ use crate::TrackedTask;
 use crate::hook::TaskHook;
 use crate::hook::notify_rejected_optional;
 use crate::service::SubmissionError;
+use crate::task::internal::PendingTaskWait;
 use crate::task::spi::TaskEndpointPair;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 
@@ -29,11 +29,14 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// one task should run later while the caller must return immediately. It
 /// models delayed start, not minimum execution duration.
 ///
-/// Each accepted task gets its own helper OS thread. The helper thread sleeps
-/// for the configured delay and then runs the task. This keeps the submitting
-/// thread unblocked without requiring a shared timer, queue, runtime, or
-/// scheduler worker. It is intentionally not a general-purpose delayed task
-/// scheduler and does not coalesce timers across tasks.
+/// Each accepted task gets its own helper OS thread. The helper thread waits
+/// for the configured delay and then runs the task. Cancelling a pending task
+/// wakes this wait so its captured resources can be released early;
+/// cancellation does not join the worker or guarantee that it has exited on
+/// return. This keeps the submitting thread unblocked without requiring a
+/// shared timer, queue, runtime, or scheduler worker. It is intentionally not a
+/// general-purpose delayed task scheduler and does not coalesce timers across
+/// tasks.
 ///
 /// The returned [`TrackedTask`] is created immediately. Dropping the handle
 /// does not cancel the helper thread; use [`TrackedTask::cancel`] before the
@@ -168,19 +171,20 @@ impl Executor for DelayExecutor {
     {
         let (handle, slot) = TaskEndpointPair::with_optional_hook(self.hook.clone()).into_tracked_parts();
         let delay = self.delay;
+        let pending_wait = Arc::new(PendingTaskWait::new());
+        let worker_wait = Arc::clone(&pending_wait);
         let gate = TaskAdmissionGate::new(self.hook.is_some());
         let worker_gate = gate.clone();
         let hook = self.hook.clone();
         self.spawn_worker(Box::new(move || {
             worker_gate.wait();
-            if !delay.is_zero() {
-                thread::sleep(delay);
+            if worker_wait.wait_for(delay) {
+                slot.run(task);
             }
-            slot.run(task);
         }))
         .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
         gate.open();
-        Ok(handle)
+        Ok(handle.with_pending_wait(pending_wait))
     }
 }

@@ -6,9 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::future::IntoFuture;
+use std::sync::Arc;
 
 use super::TaskResult;
 use super::cancel_result::CancelResult;
+use super::internal::PendingTaskWait;
 use super::task_handle::TaskHandle;
 use super::task_handle_future::TaskHandleFuture;
 use super::task_result_handle::TaskResultHandle;
@@ -36,6 +38,8 @@ use crate::hook::TaskId;
 pub struct TrackedTask<R, E> {
     /// Lightweight result handle.
     handle: TaskHandle<R, E>,
+    /// Optional wakeup for an executor-owned pending delay.
+    pending_wait: Option<Arc<PendingTaskWait>>,
 }
 
 impl<R, E> TrackedTask<R, E> {
@@ -49,7 +53,17 @@ impl<R, E> TrackedTask<R, E> {
     /// A tracked task handle.
     #[inline]
     pub(crate) const fn new(handle: TaskHandle<R, E>) -> Self {
-        Self { handle }
+        Self {
+            handle,
+            pending_wait: None,
+        }
+    }
+
+    /// Attaches the executor's pending delay wakeup to this tracked handle.
+    #[inline]
+    pub(crate) fn with_pending_wait(mut self, pending_wait: Arc<PendingTaskWait>) -> Self {
+        self.pending_wait = Some(pending_wait);
+        self
     }
 
     /// Waits for the task to finish and returns its final result.
@@ -140,6 +154,9 @@ impl<R, E> TrackedTask<R, E> {
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
         if self.handle.state.try_cancel_pending() {
+            if let Some(pending_wait) = &self.pending_wait {
+                pending_wait.cancel();
+            }
             return CancelResult::Cancelled;
         }
         match self.status() {
@@ -170,10 +187,10 @@ where
     /// Attempts to retrieve the underlying result without blocking.
     #[inline]
     fn try_get(self) -> TryGet<Self, R, E> {
-        let Self { handle } = self;
+        let Self { handle, pending_wait } = self;
         match handle.try_get() {
             TryGet::Ready(result) => TryGet::Ready(result),
-            TryGet::Pending(handle) => TryGet::Pending(Self { handle }),
+            TryGet::Pending(handle) => TryGet::Pending(Self { handle, pending_wait }),
         }
     }
 }
