@@ -123,7 +123,7 @@ Keep scheduled task bodies short. This implementation runs due tasks on its sing
 
 Use `submit_tracked_callable` when status and pre-start cancellation are needed. `cancel()` is not a guarantee that a task already running will stop; inspect the returned `CancelResult` and final `TaskResult`.
 
-Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and `on_finished`. Rejected submissions receive only `on_rejected` and no task id. An accepted task receives `on_accepted` before later events; a task cancelled before starting may receive `on_finished` without `on_started`. Hook panics are contained by the executor, but hooks should still be fast and non-blocking.
+Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and `on_finished`. Rejected submissions receive only `on_rejected` and no task id. An accepted task receives `on_accepted` before later events; a task cancelled before starting may receive `on_finished` without `on_started`. Hooks run synchronously on the thread publishing each event, not on a dedicated observer thread. Depending on the executor and SPI caller, a hook may run while an internal or caller-owned lock is held. Do not re-enter the same `TaskSlotCell` or wait for the current task or its owning service to terminate from a hook. Keep hooks short and non-blocking; recording an atomic counter or using a non-blocking notification such as `try_send` is suitable. Hook panics are contained by the executor.
 
 ## Errors and Diagnostics
 

@@ -35,7 +35,7 @@ use crate::task::spi::TrackedTaskHandle;
 /// ```rust
 /// use std::time::Duration;
 ///
-/// use qubit_executor::{ScheduledExecutorService, SingleThreadScheduledExecutorService};
+/// use qubit_executor::{ExecutorService, ScheduledExecutorService, SingleThreadScheduledExecutorService};
 ///
 /// let service = SingleThreadScheduledExecutorService::new("example-scheduler")
 ///     .expect("scheduler thread should start");

@@ -17,6 +17,12 @@ use super::task_slot::TaskSlot;
 /// failed start restores the slot so its terminal result remains owned by the
 /// caller that later takes or cancels it.
 ///
+/// `accept` and `try_start` notify the corresponding task hook synchronously
+/// while holding this cell's mutex. Do not re-enter this cell from those hooks.
+/// Hooks may also run while a caller-owned lock is held; keep them short and
+/// non-blocking, and do not wait for the task or its owning service to
+/// terminate.
+///
 /// # Examples
 ///
 /// ```
@@ -47,6 +53,8 @@ impl<R, E> TaskSlotCell<R, E> {
     /// Marks the stored task as accepted.
     ///
     /// Has no effect after another path has consumed the slot.
+    /// The accepted hook runs synchronously while this cell's mutex is held.
+    /// It must not re-enter this cell or wait for the task or owning service.
     #[inline]
     pub fn accept(&self) {
         if let Some(slot) = self.slot.lock().as_ref() {
@@ -67,6 +75,8 @@ impl<R, E> TaskSlotCell<R, E> {
     /// Returns a running slot when this caller wins both ownership and the
     /// task-state start race. If the task state is already terminal, restores
     /// the pending slot and returns `None`.
+    /// The started hook runs synchronously while this cell's mutex is held and
+    /// must not re-enter this cell or wait for the task or owning service.
     pub fn try_start(&self) -> Option<RunningTaskSlot<R, E>> {
         let mut slot = self.slot.lock();
         let pending = slot.take()?;

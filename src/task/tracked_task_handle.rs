@@ -29,6 +29,7 @@ use super::task_status::TaskStatus;
 /// use std::time::Duration;
 ///
 /// use qubit_executor::CancelResult;
+/// use qubit_executor::ExecutorService;
 /// use qubit_executor::ScheduledExecutorService;
 /// use qubit_executor::SingleThreadScheduledExecutorService;
 /// use qubit_executor::TaskStatus;

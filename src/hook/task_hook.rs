@@ -26,14 +26,21 @@ use crate::service::SubmissionError;
 /// Executors contain hook panics so hook implementations cannot break task
 /// execution or result publication.
 ///
+/// Callbacks run synchronously on the thread publishing the event; they are not
+/// forwarded to a dedicated observer thread. Depending on the executor and SPI
+/// caller, a callback may run while an internal or caller-owned lock is held.
+/// Keep callbacks short and non-blocking. Do not re-enter the same
+/// [`TaskSlotCell`](crate::task::spi::TaskSlotCell) or wait for the current
+/// task or its owning service to terminate from a callback.
+///
 /// # Examples
 ///
 /// ```rust
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
 ///
-/// use qubit_executor::TaskHook;
-/// use qubit_executor::TaskId;
+/// use qubit_executor::hook::TaskHook;
+/// use qubit_executor::hook::TaskId;
 ///
 /// struct RecordingHook(AtomicUsize);
 ///
