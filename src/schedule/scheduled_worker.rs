@@ -114,6 +114,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
     use std::sync::mpsc;
@@ -530,5 +531,97 @@ mod tests {
             .expect("external stop drain should be released");
         stopper.join().expect("external stop should finish");
         assert!(core.is_terminated());
+    }
+
+    #[test]
+    fn test_scheduled_deadline_earlier_submission_wakes_waiter() {
+        let core = Arc::new(SchedulerCore::new());
+        let far_deadline = Instant::now() + Duration::from_secs(60);
+        let (far_handle, far_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+        core.schedule(
+            TaskId::new(200),
+            far_deadline,
+            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), far_slot)),
+        )
+        .expect("far-future entry should schedule");
+
+        let (waiter_ready_tx, waiter_ready_rx) = mpsc::channel();
+        let (task_ran_tx, task_ran_rx) = mpsc::channel();
+        let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
+        let (early_handle, early_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+        let fallback_exit = Arc::new(AtomicBool::new(false));
+        let worker_fallback_exit = Arc::clone(&fallback_exit);
+        let worker_core = Arc::clone(&core);
+        let worker = thread::spawn(move || {
+            let mut first_wait = true;
+            ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
+                if first_wait {
+                    first_wait = false;
+                    waiter_ready_tx
+                        .send(())
+                        .expect("test should observe the first deadline wait");
+                }
+                let _ = state.wait_for(delay);
+                if worker_fallback_exit.load(Ordering::Acquire) {
+                    return Err(());
+                }
+                Ok(())
+            });
+            let _ = worker_exited_tx.send(());
+        });
+
+        let waiter_ready = waiter_ready_rx.recv_timeout(Duration::from_secs(5));
+        let scheduled = if waiter_ready.is_ok() {
+            core.schedule(
+                TaskId::new(201),
+                Instant::now(),
+                Box::new(CompletableScheduledTask::new(
+                    move || {
+                        task_ran_tx.send(()).expect("early task observer exists");
+                        Ok::<usize, ()>(2)
+                    },
+                    early_slot,
+                )),
+            )
+        } else {
+            Err(crate::service::SubmissionError::Shutdown)
+        };
+        let task_ran = if scheduled.is_ok() {
+            task_ran_rx.recv_timeout(Duration::from_secs(5))
+        } else {
+            Err(mpsc::RecvTimeoutError::Disconnected)
+        };
+
+        let _ = core.stop();
+        let mut worker_exited = worker_exited_rx.recv_timeout(Duration::from_millis(250));
+        if worker_exited.is_err() {
+            fallback_exit.store(true, Ordering::Release);
+            core.state.with_write_notify_all(|_| ());
+            worker_exited = worker_exited_rx.recv_timeout(Duration::from_secs(5));
+        }
+        let worker_joined = if worker_exited.is_ok() {
+            Some(worker.join())
+        } else {
+            // Keep the test bounded if even the fallback cannot recover the worker.
+            drop(worker);
+            None
+        };
+
+        assert!(waiter_ready.is_ok(), "worker should enter the far deadline wait");
+        assert!(scheduled.is_ok(), "earlier entry should be accepted");
+        assert!(
+            task_ran.is_ok(),
+            "earlier entry should wake and run before the far deadline"
+        );
+        assert!(worker_exited.is_ok(), "worker should exit after stop");
+        assert!(
+            matches!(worker_joined, Some(Ok(()))),
+            "worker should exit without panicking"
+        );
+        assert!(matches!(early_handle.try_get(), TryGet::Ready(Ok(2))));
+        assert!(matches!(
+            far_handle.try_get(),
+            TryGet::Ready(Err(TaskExecutionError::Cancelled))
+        ));
     }
 }

@@ -54,6 +54,20 @@ struct RecordingHook {
     events_changed: Condvar,
 }
 
+struct PausedAcceptanceHook {
+    entered: mpsc::Sender<()>,
+    release: Mutex<mpsc::Receiver<()>>,
+}
+
+impl TaskHook for PausedAcceptanceHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        let _ = self.entered.send(());
+        if let Ok(release) = self.release.lock() {
+            let _ = release.recv_timeout(Duration::from_secs(5));
+        }
+    }
+}
+
 impl RecordingHook {
     /// Records one lifecycle event and wakes threads waiting for hook progress.
     fn record_event(&self, event: &'static str) {
@@ -477,4 +491,151 @@ fn test_thread_per_task_executor_service_builder_rejects_zero_stack_size() {
     let result = ThreadPerTaskExecutorService::builder().stack_size(0).build();
 
     assert!(matches!(result, Err(ExecutorServiceBuilderError::ZeroStackSize)));
+}
+
+fn test_service_admission_close_during_acceptance(stop: bool) {
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let hook = Arc::new(PausedAcceptanceHook {
+        entered: entered_tx,
+        release: Mutex::new(release_rx),
+    });
+    let service = ThreadPerTaskExecutorService::builder()
+        .hook(hook)
+        .build()
+        .expect("service should build");
+    let (ran_tx, ran_rx) = mpsc::channel();
+    let submit_service = service.clone();
+    let submitter = std::thread::spawn(move || {
+        submit_service.submit_callable(move || {
+            ran_tx.send(()).expect("execution observer exists");
+            Ok::<(), io::Error>(())
+        })
+    });
+
+    let entered = entered_rx.recv_timeout(Duration::from_secs(5));
+    let (not_terminated_during_acceptance, rejected_during_close) = if entered.is_ok() {
+        if stop {
+            let _ = service.stop();
+        } else {
+            service.shutdown();
+        }
+        (
+            !service.wait_termination_timeout(Duration::from_millis(20)),
+            matches!(
+                service.submit_callable(|| Ok::<(), io::Error>(())),
+                Err(SubmissionError::Shutdown)
+            ),
+        )
+    } else {
+        (false, false)
+    };
+
+    let _ = release_tx.send(());
+    let submitted = submitter.join().expect("submitter should return");
+    if entered.is_err() {
+        let _ = service.stop();
+    }
+    let accepted_task = submitted.expect("in-flight submission should be accepted");
+    accepted_task.get().expect("accepted task should finish");
+    let task_ran = ran_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+    let terminated = service.wait_termination_timeout(Duration::from_secs(5));
+
+    assert!(entered.is_ok(), "acceptance hook should be reached");
+    assert!(not_terminated_during_acceptance);
+    assert!(rejected_during_close);
+    assert!(task_ran, "stop does not interrupt an accepted OS thread");
+    assert!(terminated);
+}
+
+#[test]
+fn test_service_admission_shutdown_during_acceptance() {
+    test_service_admission_close_during_acceptance(false);
+}
+
+#[test]
+fn test_service_admission_stop_during_acceptance() {
+    test_service_admission_close_during_acceptance(true);
+}
+
+fn test_service_admission_submitters_race_close(stop: bool) {
+    const SUBMITTERS: usize = 4;
+    let service = ThreadPerTaskExecutorService::new();
+    let barrier = Arc::new(std::sync::Barrier::new(SUBMITTERS + 1));
+    let (executed_tx, executed_rx) = mpsc::channel();
+    let (results_tx, results_rx) = mpsc::channel();
+    let mut submitters = Vec::new();
+
+    for id in 0..SUBMITTERS {
+        let service = service.clone();
+        let barrier = Arc::clone(&barrier);
+        let executed_tx = executed_tx.clone();
+        let results_tx = results_tx.clone();
+        submitters.push(std::thread::spawn(move || {
+            barrier.wait();
+            let result = service.submit_callable(move || {
+                executed_tx.send(id).expect("execution observer exists");
+                Ok::<usize, io::Error>(id)
+            });
+            results_tx.send((id, result)).expect("result observer exists");
+        }));
+    }
+    drop(executed_tx);
+    drop(results_tx);
+
+    barrier.wait();
+    if stop {
+        let _ = service.stop();
+    } else {
+        service.shutdown();
+    }
+
+    let mut accepted_ids = Vec::new();
+    let mut handles = Vec::new();
+    let mut rejected = 0;
+    for _ in 0..SUBMITTERS {
+        let (id, result) = results_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("each submitter should return");
+        match result {
+            Ok(handle) => {
+                accepted_ids.push(id);
+                handles.push((id, handle));
+            }
+            Err(SubmissionError::Shutdown) => rejected += 1,
+            Err(error) => panic!("unexpected submission error: {error:?}"),
+        }
+    }
+    for submitter in submitters {
+        submitter.join().expect("submitter should not panic");
+    }
+    for (id, handle) in handles {
+        assert_eq!(handle.get().expect("accepted task should succeed"), id);
+    }
+    let mut executed_ids = Vec::new();
+    while let Ok(id) = executed_rx.recv_timeout(Duration::from_millis(50)) {
+        executed_ids.push(id);
+    }
+    accepted_ids.sort_unstable();
+    executed_ids.sort_unstable();
+    let terminated = service.wait_termination_timeout(Duration::from_secs(5));
+    let rejected_after_close = matches!(
+        service.submit_callable(|| Ok::<usize, io::Error>(usize::MAX)),
+        Err(SubmissionError::Shutdown)
+    );
+
+    assert_eq!(accepted_ids.len() + rejected, SUBMITTERS);
+    assert_eq!(executed_ids, accepted_ids);
+    assert!(terminated);
+    assert!(rejected_after_close);
+}
+
+#[test]
+fn test_service_admission_multiple_submitters_race_shutdown() {
+    test_service_admission_submitters_race_close(false);
+}
+
+#[test]
+fn test_service_admission_multiple_submitters_race_stop() {
+    test_service_admission_submitters_race_close(true);
 }

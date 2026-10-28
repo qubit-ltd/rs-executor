@@ -41,3 +41,43 @@ impl Drop for ActiveTaskGuard {
         self.state.finish_task();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::super::ThreadPerTaskExecutorServiceState;
+    use super::ActiveTaskGuard;
+    use crate::ExecutorServiceLifecycle;
+
+    #[test]
+    fn test_service_admission_guard_rollback_after_shutdown() {
+        let state = Arc::new(ThreadPerTaskExecutorServiceState::default());
+        state.accept_task().expect("admit before close");
+        let guard = ActiveTaskGuard::new(Arc::clone(&state));
+        std::thread::scope(|scope| {
+            scope.spawn(|| state.shutdown()).join().expect("closer returns");
+        });
+        let before_drop = state.lifecycle();
+        drop(guard);
+        assert_eq!(before_drop, ExecutorServiceLifecycle::ShuttingDown);
+        assert!(state.wait_for_termination_timeout(Duration::from_secs(5)));
+        assert_eq!(state.lifecycle(), ExecutorServiceLifecycle::Terminated);
+    }
+
+    #[test]
+    fn test_service_admission_guard_rollback_after_stop() {
+        let state = Arc::new(ThreadPerTaskExecutorServiceState::default());
+        state.accept_task().expect("admit before close");
+        let guard = ActiveTaskGuard::new(Arc::clone(&state));
+        std::thread::scope(|scope| {
+            scope.spawn(|| state.stop()).join().expect("closer returns");
+        });
+        let before_drop = state.lifecycle();
+        drop(guard);
+        assert_eq!(before_drop, ExecutorServiceLifecycle::Stopping);
+        assert!(state.wait_for_termination_timeout(Duration::from_secs(5)));
+        assert_eq!(state.lifecycle(), ExecutorServiceLifecycle::Terminated);
+    }
+}

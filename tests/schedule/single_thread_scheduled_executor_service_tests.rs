@@ -245,6 +245,29 @@ fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
 }
 
 #[test]
+fn test_scheduled_deadline_survives_shutdown() {
+    let service = SingleThreadScheduledExecutorService::new("deadline-shutdown").expect("scheduler starts");
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let (tx, rx) = mpsc::channel();
+    let handle = service
+        .schedule_callable_at(deadline, move || {
+            tx.send(Instant::now()).expect("observer exists");
+            Ok::<(), ()>(())
+        })
+        .expect("submission succeeds");
+    service.shutdown();
+
+    let observed = rx.recv_timeout(Duration::from_secs(5));
+    if observed.is_err() {
+        let _ = service.stop();
+    }
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    let started = observed.expect("accepted task runs after shutdown");
+    assert!(started >= deadline, "task must not start before its deadline");
+    assert!(handle.get().is_ok(), "accepted task should complete successfully");
+}
+
+#[test]
 fn test_single_thread_scheduled_executor_service_submit_callable_runs_immediately() {
     let service =
         SingleThreadScheduledExecutorService::new("test-scheduled-submit").expect("scheduled service should start");

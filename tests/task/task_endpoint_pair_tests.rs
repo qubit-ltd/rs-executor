@@ -27,6 +27,38 @@ struct RecordingHook {
     events: Mutex<Vec<String>>,
 }
 
+struct PausedAcceptanceHook {
+    entered: mpsc::Sender<()>,
+    release: Mutex<mpsc::Receiver<()>>,
+    events: Mutex<Vec<String>>,
+}
+
+impl TaskHook for PausedAcceptanceHook {
+    fn on_accepted(&self, task_id: TaskId) {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push(format!("accepted-enter:{}", task_id.get()));
+        let _ignored = self.entered.send(());
+        let _ignored = self
+            .release
+            .lock()
+            .expect("release lock should not be poisoned")
+            .recv_timeout(Duration::from_secs(5));
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push(format!("accepted-return:{}", task_id.get()));
+    }
+
+    fn on_finished(&self, task_id: TaskId, status: TaskStatus) {
+        self.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .push(format!("finished:{}:{status:?}", task_id.get()));
+    }
+}
+
 impl RecordingHook {
     fn events(&self) -> Vec<String> {
         self.events.lock().expect("events lock should not be poisoned").clone()
@@ -205,5 +237,110 @@ fn test_task_endpoint_pair_start_cancel_race_has_one_result_and_one_finished_hoo
                 .count(),
             1
         );
+    }
+}
+
+#[test]
+fn test_spi_acceptance_callback_pause_allows_concurrent_cancel() {
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let hook = Arc::new(PausedAcceptanceHook {
+        entered: entered_tx,
+        release: Mutex::new(release_rx),
+        events: Mutex::new(Vec::new()),
+    });
+    let (handle, slot) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
+    let task_id = handle.task_id().get();
+    let (slot_tx, slot_rx) = mpsc::channel();
+    let accept_worker = std::thread::spawn(move || {
+        slot.accept();
+        slot_tx.send(slot).expect("slot receiver remains alive");
+    });
+
+    let entered = entered_rx.recv_timeout(Duration::from_secs(5));
+    let (cancel_tx, cancel_rx) = mpsc::channel();
+    let cancel_worker = std::thread::spawn(move || {
+        cancel_tx.send(handle.cancel()).expect("cancel observer remains alive");
+    });
+    let cancel = cancel_rx.recv_timeout(Duration::from_secs(5));
+    let events_before_release = hook.events.lock().expect("events lock should not be poisoned").clone();
+    let _ignored = release_tx.send(());
+
+    let slot = slot_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("acceptance returns after release");
+    accept_worker.join().expect("acceptance worker exits");
+    cancel_worker.join().expect("cancellation worker exits");
+    assert!(entered.is_ok(), "acceptance callback entered");
+    assert_eq!(
+        cancel.expect("cancel must not wait for acceptance release"),
+        CancelResult::Cancelled
+    );
+    assert!(!slot.run(|| Ok(42)));
+    assert_eq!(
+        events_before_release,
+        vec![
+            format!("accepted-enter:{task_id}"),
+            format!("finished:{task_id}:Cancelled")
+        ],
+        "finished may occur after callback entry and before callback return"
+    );
+    assert_eq!(
+        hook.events
+            .lock()
+            .expect("events lock should not be poisoned")
+            .as_slice(),
+        [
+            format!("accepted-enter:{task_id}"),
+            format!("finished:{task_id}:Cancelled"),
+            format!("accepted-return:{task_id}")
+        ]
+    );
+}
+
+#[test]
+fn test_spi_acceptance_before_handle_publication() {
+    for _ in 0..64 {
+        let hook = Arc::new(RecordingHook::default());
+        let (handle, slot) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
+        slot.accept();
+        let task_id = handle.task_id().get();
+        let barrier = Arc::new(Barrier::new(2));
+        let body_calls = Arc::new(AtomicUsize::new(0));
+        let worker_barrier = Arc::clone(&barrier);
+        let worker_calls = Arc::clone(&body_calls);
+        let (done_tx, done_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            worker_barrier.wait();
+            done_tx
+                .send(slot.run(|| {
+                    worker_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(42)
+                }))
+                .expect("race observer remains alive");
+        });
+        barrier.wait();
+        let cancel = handle.cancel();
+        let ran = done_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("runner completes race");
+        worker.join().expect("race worker finishes");
+
+        if cancel == CancelResult::Cancelled {
+            assert!(!ran);
+            assert_eq!(body_calls.load(Ordering::SeqCst), 0);
+            assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+        } else {
+            assert!(matches!(
+                cancel,
+                CancelResult::AlreadyRunning | CancelResult::AlreadyFinished
+            ));
+            assert!(ran);
+            assert_eq!(body_calls.load(Ordering::SeqCst), 1);
+            assert_eq!(handle.get().expect("runner publishes success"), 42);
+        }
+        let events = hook.events();
+        assert_eq!(events.first(), Some(&format!("accepted:{task_id}")));
+        assert_eq!(events.iter().filter(|event| event.starts_with("finished:")).count(), 1);
     }
 }
