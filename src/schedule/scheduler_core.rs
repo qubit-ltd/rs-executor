@@ -19,6 +19,7 @@ use super::internal::StopDrainGuard;
 use super::scheduled_task_entry::ScheduledTaskEntry;
 use super::scheduler_state::SchedulerState;
 use crate::hook::TaskId;
+use crate::internal::discard_panic_payload;
 use crate::service::ExecutorServiceLifecycle;
 use crate::service::StopReport;
 use crate::service::SubmissionError;
@@ -250,6 +251,8 @@ impl SchedulerCore {
                 Err(payload) => {
                     if first_panic.is_none() {
                         first_panic = Some(payload);
+                    } else {
+                        discard_panic_payload(payload);
                     }
                 }
             }
@@ -286,10 +289,36 @@ mod tests {
     use std::time::Duration;
     use std::time::Instant;
 
+    use super::super::completable_scheduled_task::CompletableScheduledTask;
     use super::super::scheduled_task_entry::ScheduledTaskEntry;
     use super::super::scheduled_task_entry::StartedScheduledTask;
     use super::SchedulerCore;
+    use crate::TaskExecutionError;
     use crate::hook::TaskId;
+    use crate::task::TryGet;
+    use crate::task::spi::TaskEndpointPair;
+
+    struct PanicOnCancelEntry;
+
+    struct PanicOnDrop;
+
+    impl Drop for PanicOnDrop {
+        fn drop(&mut self) {
+            panic!("stop payload drop panic");
+        }
+    }
+
+    impl ScheduledTaskEntry for PanicOnCancelEntry {
+        fn accept(&self) {}
+
+        fn start(self: Box<Self>) -> Option<StartedScheduledTask> {
+            None
+        }
+
+        fn cancel(self: Box<Self>) -> bool {
+            std::panic::panic_any(PanicOnDrop);
+        }
+    }
 
     struct BlockingCancelEntry {
         entered: Option<mpsc::Sender<()>>,
@@ -345,5 +374,35 @@ mod tests {
         assert!(core.is_terminated());
         assert_eq!(first.cancelled, 1);
         assert_eq!(second.queued, 0);
+    }
+
+    #[test]
+    fn test_stop_discards_later_cancel_panics_and_drains_all_entries() {
+        let core = SchedulerCore::new();
+        let deadline = Instant::now() + Duration::from_secs(60);
+        core.schedule(TaskId::new(10), deadline, Box::new(PanicOnCancelEntry))
+            .expect("first panicking entry should schedule");
+        core.schedule(TaskId::new(11), deadline, Box::new(PanicOnCancelEntry))
+            .expect("second panicking entry should schedule");
+        let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+        core.schedule(
+            TaskId::new(12),
+            deadline,
+            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), slot)),
+        )
+        .expect("following entry should schedule");
+
+        let stop = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| core.stop()));
+        let Err(payload) = stop else {
+            panic!("first cancellation panic should be resumed");
+        };
+        crate::internal::discard_panic_payload(payload);
+
+        assert!(matches!(
+            handle.try_get(),
+            TryGet::Ready(Err(TaskExecutionError::Cancelled))
+        ));
+        assert_eq!(core.queued_count(), 0);
+        assert!(core.is_terminated());
     }
 }

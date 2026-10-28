@@ -33,6 +33,10 @@ use crate::task::spi::TaskEndpointPair;
 /// heap, waits until the earliest task is due, and then runs that task directly
 /// on the scheduler thread. Scheduled tasks should therefore stay short; submit
 /// heavier work to another executor service from the scheduled task body.
+/// If the background timer wait fails, the service stops automatically, cancels
+/// tasks that have not started, and rejects later submissions with
+/// [`SubmissionError::Shutdown`]. This recovers ordinary unwinding only; it
+/// cannot recover from aborting panics or permanently blocking user cleanup.
 ///
 /// # Examples
 ///
