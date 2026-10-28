@@ -26,7 +26,7 @@ use crate::task::spi::TaskEndpointPair;
 use crate::task::spi::TaskSlot;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 #[path = "internal/mod.rs"]
-mod internal;
+pub(super) mod internal;
 use self::internal::ActiveTaskGuard;
 use self::internal::TaskAdmissionHandle;
 use self::internal::ThreadPerTaskExecutorServiceState;

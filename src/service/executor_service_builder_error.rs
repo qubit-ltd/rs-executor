@@ -6,10 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::io;
+use std::sync::Arc;
 
 use thiserror::Error;
 
 use super::SubmissionError;
+use super::thread_per_task_executor_service::internal::SharedIoError;
 
 /// Error returned when an executor service cannot be built.
 ///
@@ -82,7 +84,13 @@ impl ExecutorServiceBuilderError {
         match error {
             SubmissionError::WorkerSpawnFailed { source } => Self::SpawnWorker {
                 index: None,
-                source: io::Error::new(source.kind(), source.to_string()),
+                source: match Arc::try_unwrap(source) {
+                    Ok(source) => source,
+                    Err(source) => match source.raw_os_error() {
+                        Some(code) => io::Error::from_raw_os_error(code),
+                        None => io::Error::new(source.kind(), SharedIoError::new(source)),
+                    },
+                },
             },
             SubmissionError::Shutdown => Self::SpawnWorker {
                 index: None,

@@ -8,9 +8,11 @@
 //! Internal helpers for the thread-per-task executor service.
 
 mod active_task_guard;
+mod shared_io_error;
 mod task_admission_handle;
 mod thread_per_task_executor_service_state;
 
 pub(super) use active_task_guard::ActiveTaskGuard;
+pub(in crate::service) use shared_io_error::SharedIoError;
 pub(super) use task_admission_handle::TaskAdmissionHandle;
 pub(super) use thread_per_task_executor_service_state::ThreadPerTaskExecutorServiceState;

@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::error::Error;
+use std::fmt;
 use std::io;
 use std::sync::Arc;
 
@@ -79,4 +81,68 @@ fn test_executor_service_builder_error_from_submission_error() {
         panic!("saturation during prestart should convert to spawn build error");
     };
     assert_eq!(source.to_string(), "executor service saturated during prestart");
+}
+
+#[test]
+fn test_executor_service_builder_error_preserves_spawn_io_error_context() {
+    for shared in [false, true] {
+        let original = Arc::new(io::Error::from_raw_os_error(17));
+        let original_kind = original.kind();
+        let original_errno = original.raw_os_error();
+        let keep_alive = shared.then(|| Arc::clone(&original));
+        let converted =
+            ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed { source: original });
+        let ExecutorServiceBuilderError::SpawnWorker { source, .. } = converted else {
+            panic!("spawn failure should retain its variant");
+        };
+        assert_eq!(source.kind(), original_kind);
+        assert_eq!(source.raw_os_error(), original_errno);
+        drop(keep_alive);
+    }
+
+    #[derive(Debug)]
+    struct Nested;
+    impl fmt::Display for Nested {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("nested")
+        }
+    }
+    impl Error for Nested {}
+
+    #[derive(Debug)]
+    struct Payload;
+    impl fmt::Display for Payload {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("payload")
+        }
+    }
+    impl Error for Payload {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&Nested)
+        }
+    }
+
+    let unique = ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed {
+        source: Arc::new(io::Error::other(Payload)),
+    });
+    let ExecutorServiceBuilderError::SpawnWorker { source, .. } = unique else {
+        unreachable!()
+    };
+    assert!(source.get_ref().and_then(|e| e.downcast_ref::<Payload>()).is_some());
+    assert!(source.get_ref().and_then(Error::source).unwrap().is::<Nested>());
+
+    let shared_source = Arc::new(io::Error::other(Payload));
+    let keep_alive = Arc::clone(&shared_source);
+    let shared = ExecutorServiceBuilderError::from_submission_error(SubmissionError::WorkerSpawnFailed {
+        source: shared_source,
+    });
+    let ExecutorServiceBuilderError::SpawnWorker { source, .. } = shared else {
+        unreachable!()
+    };
+    let wrapped_io = Error::source(&source)
+        .and_then(|e| e.downcast_ref::<io::Error>())
+        .unwrap();
+    assert!(wrapped_io.get_ref().and_then(|e| e.downcast_ref::<Payload>()).is_some());
+    assert!(wrapped_io.get_ref().and_then(Error::source).unwrap().is::<Nested>());
+    drop(keep_alive);
 }
