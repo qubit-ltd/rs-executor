@@ -121,4 +121,18 @@ where
     }
 }
 
-impl<E> Error for TaskExecutionError<E> where E: Error + 'static {}
+impl<E> Error for TaskExecutionError<E>
+where
+    E: Error + 'static,
+{
+    /// Returns the task's original error when the task returned `Err`.
+    ///
+    /// Panics, cancellations, and dropped completion endpoints do not carry a
+    /// source error.
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Failed(error) => Some(error),
+            Self::Panicked | Self::Cancelled | Self::Dropped => None,
+        }
+    }
+}

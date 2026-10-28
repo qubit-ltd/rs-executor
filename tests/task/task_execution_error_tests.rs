@@ -49,3 +49,42 @@ fn test_task_execution_error_implements_error() {
 
     assert_eq!(as_error.to_string(), "task failed: failed");
 }
+
+#[test]
+fn test_task_execution_error_exposes_failed_source_chain() {
+    #[derive(Debug)]
+    struct NestedCause;
+    impl std::fmt::Display for NestedCause {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("nested cause")
+        }
+    }
+    impl Error for NestedCause {}
+
+    #[derive(Debug)]
+    struct Cause(NestedCause);
+    impl std::fmt::Display for Cause {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "cause: {}", self.0)
+        }
+    }
+    impl Error for Cause {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
+    let error = TaskExecutionError::Failed(Cause(NestedCause));
+    let erased: &dyn Error = &error;
+    let cause = erased.source().expect("failed task must expose its cause");
+    assert!(cause.downcast_ref::<Cause>().is_some());
+    assert!(cause.source().unwrap().is::<NestedCause>());
+
+    for error in [
+        TaskExecutionError::<std::io::Error>::Panicked,
+        TaskExecutionError::Cancelled,
+        TaskExecutionError::Dropped,
+    ] {
+        assert!(Error::source(&error).is_none());
+    }
+}
