@@ -91,6 +91,16 @@ Ok(())
 
 已接受任务需要排空时调用 `shutdown()`；需要尽力取消排队或尚未开始的任务时调用 `stop()`。返回的 `StopReport` 提供 `queued`、`running` 和 `cancelled` 数量。`stop()` 不能强制中断已经运行的任意 Rust 代码、阻塞调用或 OS 线程任务。若调用方必须等到服务没有活动任务，再使用 `wait_termination()`。
 
+## 实现自定义执行器
+
+如果应用已经拥有队列或工作线程，并希望返回 crate 标准的可跟踪任务句柄，可以实现 `Executor`。应用负责提供调度边界，SPI 负责提供任务完成与取消状态。
+
+每次提交时，创建一个 `TaskEndpointPair`，将它拆分为 `TrackedTask` 和 `TaskSlot`。把 slot 与 callable 放入 `Send` 任务，再发送到应用自己的队列。发送成功即表示接纳；工作线程取出任务后调用 `slot.accept()`，并通过 `TaskRunner::new(task).run(slot)` 执行。若队列已断开，则返回 `SubmissionError::Shutdown`；被丢弃的拒绝任务也会丢弃其 slot，因此它从未被接受。
+
+[`examples/custom_executor.rs`](../examples/custom_executor.rs) 提供了可运行版本：启动一个由应用拥有的工作线程，通过 handle 读取结果 `42`，关闭队列并等待线程退出，然后验证队列断开时的拒绝路径。该示例是只有一个工作线程和无界 channel 的入门执行器，不提供队列容量限制或托管服务生命周期；应用如有需要应自行增加这些策略。
+
+示例没有安装 hook。使用 hook 的执行器必须遵守 [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html) 文档中的接纳与拒绝事件顺序。
+
 ## 进阶用法
 
 ### 延迟提交
@@ -121,7 +131,7 @@ Ok(())
 
 ### 跟踪、取消与任务钩子
 
-需要状态和任务开始前取消能力时，使用 `submit_tracked_callable`。`cancel()` 不保证已经开始运行的任务会停止；应同时检查返回的 `CancelResult` 和最终 `TaskResult`。
+需要状态和任务开始前取消能力时，使用 `submit_tracked_callable`。`cancel()` 不保证已经开始运行的任务会停止；应同时检查返回的 `CancelResult` 和最终 `TaskResult`。对于 `DelayExecutor` 和 `ScheduleExecutor`，取消会唤醒正在等待延迟的工作线程，使它能够在截止时刻前释放捕获的任务。它们仍是每个任务创建一个 OS 线程；得到 `Cancelled` 不表示工作线程已经退出。丢弃 tracked handle 也不会取消任务；按值 await 会等待任务结果。
 
 实现 `TaskHook` 可以观察 `on_accepted`、`on_rejected`、`on_started` 和 `on_finished`。被拒绝的提交只触发 `on_rejected`，不会获得 task id。已接受任务先触发 `on_accepted`；任务在开始前取消时，可能触发没有 `on_started` 的 `on_finished`。钩子在发布事件的线程上同步运行，不会转发到专用观察线程。根据执行器和 SPI 调用方，钩子运行时可能持有内部锁或调用方自己的锁。不要在钩子中重入同一个 `TaskSlotCell`，也不要等待当前任务或所属服务终止。钩子应短小且非阻塞；记录原子计数或使用 `try_send` 等非阻塞通知都是合适做法。执行器会隔离钩子 panic。
 
@@ -134,7 +144,9 @@ Ok(())
 - `SubmissionError::InvalidDeadline`：定时延迟超出目标平台 `Instant` 可以表示的范围。
 - `SubmissionError::WorkerSpawnFailed`：创建工作线程失败，并携带底层错误。
 
-任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。可使用 `lifecycle()`、`is_running()`、`is_shutting_down()`、`is_stopping()` 和 `is_terminated()` 检查服务状态。
+任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。`Dropped` 表示已接受任务的 completion endpoint 在没有显式结果的情况下被放弃；`Cancelled` 表示任务开始前取消胜出。`TaskRunner` 会将 callable 的普通 unwind（包括释放捕获值时发生的 panic）转换为 `Panicked`，但无法恢复 aborting panic 或进程终止。
+
+可使用 `lifecycle()`、`is_running()`、`is_shutting_down()`、`is_stopping()` 和 `is_terminated()` 检查服务状态。如果 `SingleThreadScheduledExecutorService` 的后台计时等待失败，服务会停止、取消尚未开始的任务，并以 `Shutdown` 拒绝新提交。
 
 ## 排障
 

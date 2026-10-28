@@ -91,6 +91,16 @@ Ok(())
 
 Call `shutdown()` when accepted work should drain. Call `stop()` when queued or unstarted work should be cancelled where possible. The returned `StopReport` exposes `queued`, `running`, and `cancelled` counts. Stopping is best effort and cannot forcibly interrupt already-running arbitrary Rust code, blocking calls, or OS-thread work. Use `wait_termination()` when the caller must wait until no accepted work remains active.
 
+## Implement a custom executor
+
+Implement `Executor` when an application already owns a queue or worker and wants to return the crate's standard tracked task handle. The application supplies the scheduling boundary; the SPI supplies completion and cancellation state.
+
+For each submission, create a `TaskEndpointPair` and split it into a `TrackedTask` and `TaskSlot`. Put the slot and callable in a `Send` job, then send that job to the application-owned queue. A successful send is the admission decision. When a worker takes the job, call `slot.accept()` and run it with `TaskRunner::new(task).run(slot)`. If the queue is disconnected, return `SubmissionError::Shutdown`; dropping the rejected job also drops its slot, so it was never accepted.
+
+The runnable version of this flow is [`examples/custom_executor.rs`](../examples/custom_executor.rs). It starts one application-owned worker, observes a result of `42`, closes and joins the worker, and checks the disconnected-queue rejection path. This is an introductory executor with one worker and an unbounded channel. It does not provide queue capacity limits or a managed service lifecycle; add those policies in the application if needed.
+
+The example does not install hooks. Executors that use hooks must preserve the acceptance and rejection ordering described by [`TaskEndpointPair`](https://docs.rs/qubit-executor/latest/qubit_executor/task/spi/struct.TaskEndpointPair.html).
+
 ## Advanced Usage
 
 ### Delayed submission
@@ -121,7 +131,7 @@ Keep scheduled task bodies short. This implementation runs due tasks on its sing
 
 ### Tracking, cancellation, and hooks
 
-Use `submit_tracked_callable` when status and pre-start cancellation are needed. `cancel()` is not a guarantee that a task already running will stop; inspect the returned `CancelResult` and final `TaskResult`.
+Use `submit_tracked_callable` when status and pre-start cancellation are needed. `cancel()` is not a guarantee that a task already running will stop; inspect the returned `CancelResult` and final `TaskResult`. For `DelayExecutor` and `ScheduleExecutor`, cancellation wakes the worker's pending delay so it can release the captured task before its deadline. They still create one OS thread per task, and `Cancelled` does not mean that the worker thread has already exited. Dropping a tracked handle also does not cancel the task; awaiting it waits for its result.
 
 Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and `on_finished`. Rejected submissions receive only `on_rejected` and no task id. An accepted task receives `on_accepted` before later events; a task cancelled before starting may receive `on_finished` without `on_started`. Hooks run synchronously on the thread publishing each event, not on a dedicated observer thread. Depending on the executor and SPI caller, a hook may run while an internal or caller-owned lock is held. Do not re-enter the same `TaskSlotCell` or wait for the current task or its owning service to terminate from a hook. Keep hooks short and non-blocking; recording an atomic counter or using a non-blocking notification such as `try_send` is suitable. Hook panics are contained by the executor.
 
@@ -134,7 +144,9 @@ Submission errors are returned before a task is accepted:
 - `SubmissionError::InvalidDeadline` means a scheduled delay cannot be represented by the target platform's `Instant` range.
 - `SubmissionError::WorkerSpawnFailed` contains the worker creation error.
 
-After acceptance, inspect the handle rather than the submission result. `TaskExecutionError::Failed(E)` is the task's own error; `Panicked`, `Cancelled`, and `Dropped` describe execution or completion conditions. Use `lifecycle()`, `is_running()`, `is_shutting_down()`, `is_stopping()`, and `is_terminated()` to diagnose service state.
+After acceptance, inspect the handle rather than the submission result. `TaskExecutionError::Failed(E)` is the task's own error; `Panicked`, `Cancelled`, and `Dropped` describe execution or completion conditions. `Dropped` means an accepted completion endpoint was abandoned without an explicit result; `Cancelled` means cancellation won before execution started. `TaskRunner` converts ordinary unwinding from a callable, including a panic while its captured values are dropped, into `Panicked`. This cannot recover from aborting panics or process termination.
+
+Use `lifecycle()`, `is_running()`, `is_shutting_down()`, `is_stopping()`, and `is_terminated()` to diagnose service state. If the background timer wait in `SingleThreadScheduledExecutorService` fails, that service stops, cancels work that has not started, and rejects new submissions with `Shutdown`.
 
 ## Troubleshooting
 

@@ -72,7 +72,9 @@ The crate requires Rust 1.94 or newer.
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
+- [Build a custom executor](doc/user_guide.md#implement-a-custom-executor)
 - [简体中文用户手册](doc/user_guide.zh_CN.md)
+- [实现自定义执行器](doc/user_guide.zh_CN.md#实现自定义执行器)
 - [API documentation](https://docs.rs/qubit-executor)
 - [简体中文 README](README.zh_CN.md)
 
