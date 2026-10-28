@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use super::TaskId;
 use crate::TaskStatus;
+use crate::internal::discard_panic_payload;
 use crate::service::SubmissionError;
 
 /// Observes task lifecycle events emitted by executors and executor services.
@@ -106,7 +107,8 @@ pub trait TaskHook: Send + Sync + 'static {
 ///
 /// * `callback` - Hook callback to invoke.
 fn contain_hook_panic(callback: impl FnOnce()) {
-    if catch_unwind(AssertUnwindSafe(callback)).is_err() {
+    if let Err(payload) = catch_unwind(AssertUnwindSafe(callback)) {
+        discard_panic_payload(payload);
         log::warn!("task hook panicked");
     }
 }

@@ -14,6 +14,7 @@ use super::TaskExecutionError;
 use super::TaskResult;
 use super::running_task_slot::RunningTaskSlot;
 use super::task_slot::TaskSlot;
+use crate::internal::discard_panic_payload;
 
 /// Runner that executes a callable task with standard task-handle semantics.
 ///
@@ -79,11 +80,16 @@ impl<C> TaskRunner<C> {
     where
         C: Callable<R, E>,
     {
-        let mut task = self.task;
-        match catch_unwind(AssertUnwindSafe(|| task.call())) {
+        match catch_unwind(AssertUnwindSafe(|| {
+            let mut task = self.task;
+            task.call()
+        })) {
             Ok(Ok(value)) => Ok(value),
             Ok(Err(err)) => Err(TaskExecutionError::Failed(err)),
-            Err(_) => Err(TaskExecutionError::Panicked),
+            Err(payload) => {
+                discard_panic_payload(payload);
+                Err(TaskExecutionError::Panicked)
+            }
         }
     }
 

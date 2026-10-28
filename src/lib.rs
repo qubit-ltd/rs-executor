@@ -10,6 +10,8 @@
 //! Core executor abstractions, task handles, and basic executor
 //! implementations.
 
+mod internal;
+
 pub mod executor;
 pub mod hook;
 pub mod schedule;

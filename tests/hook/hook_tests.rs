@@ -61,21 +61,29 @@ impl RecordingHook {
 
 struct PanickingHook;
 
+struct PanicOnDrop;
+
+impl Drop for PanicOnDrop {
+    fn drop(&mut self) {
+        panic!("drop panic");
+    }
+}
+
 impl TaskHook for PanickingHook {
     fn on_accepted(&self, _task_id: TaskId) {
-        panic!("accepted hook panic");
+        panic::panic_any(PanicOnDrop);
     }
 
     fn on_started(&self, _task_id: TaskId) {
-        panic!("started hook panic");
+        panic::panic_any(PanicOnDrop);
     }
 
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
-        panic!("finished hook panic");
+        panic::panic_any(PanicOnDrop);
     }
 
     fn on_rejected(&self, _error: &SubmissionError) {
-        panic!("rejected hook panic");
+        panic::panic_any(PanicOnDrop);
     }
 }
 
