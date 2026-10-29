@@ -379,18 +379,17 @@ fn test_single_thread_scheduled_executor_service_handle_try_get_ready_path() {
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("task should schedule");
 
-    while !handle.is_done() {
-        thread::sleep(Duration::from_millis(5));
-    }
-
+    service.shutdown();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "scheduled service should terminate after publishing the task result"
+    );
     match TaskResultHandle::try_get(handle) {
         TryGet::Ready(result) => {
-            assert_eq!(result.expect("task should succeed"), 42)
+            assert_eq!(result.expect("task should succeed"), 42);
         }
-        TryGet::Pending(_) => panic!("completed task should be ready"),
+        TryGet::Pending(_) => panic!("terminated service should have published the task result"),
     }
-    service.shutdown();
-    service.wait_termination();
 }
 
 #[tokio::test]
