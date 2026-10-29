@@ -107,7 +107,8 @@ pub trait TaskHook: Send + Sync + 'static {
 
 /// Invokes a callback without allowing its panic to unwind into task execution.
 ///
-/// A panic is caught and logged; its payload is discarded.
+/// A panic is caught and logged; both the callback panic payload and any panic
+/// raised by the logger are safely discarded.
 ///
 /// # Parameters
 ///
@@ -115,7 +116,11 @@ pub trait TaskHook: Send + Sync + 'static {
 fn contain_hook_panic(callback: impl FnOnce()) {
     if let Err(payload) = catch_unwind(AssertUnwindSafe(callback)) {
         discard_panic_payload(payload);
-        log::warn!("task hook panicked");
+        if let Err(log_payload) = catch_unwind(AssertUnwindSafe(|| {
+            log::warn!("task hook panicked");
+        })) {
+            discard_panic_payload(log_payload);
+        }
     }
 }
 
