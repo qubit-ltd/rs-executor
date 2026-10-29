@@ -71,7 +71,8 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Parameters
     ///
-    /// * `thread_name` - Name for the scheduler thread.
+    /// * `thread_name` - Name for the scheduler thread; must not contain a NUL
+    ///   byte.
     ///
     /// # Returns
     ///
@@ -81,6 +82,10 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
     /// thread cannot be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `thread_name` contains a NUL byte.
     #[inline]
     pub fn new(thread_name: &str) -> Result<Self, ExecutorServiceBuilderError> {
         Self::with_stack_size(thread_name, None)
@@ -91,7 +96,8 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Parameters
     ///
-    /// * `thread_name` - Name for the scheduler thread.
+    /// * `thread_name` - Name for the scheduler thread; must not contain a NUL
+    ///   byte.
     /// * `stack_size` - Optional stack size for the scheduler thread.
     ///
     /// # Returns
@@ -102,6 +108,10 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
     /// thread cannot be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `thread_name` contains a NUL byte.
     pub fn with_stack_size(thread_name: &str, stack_size: Option<usize>) -> Result<Self, ExecutorServiceBuilderError> {
         let inner = Arc::new(SchedulerCore::new());
         let worker_inner = Arc::clone(&inner);
