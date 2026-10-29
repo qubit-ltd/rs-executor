@@ -127,7 +127,11 @@ mod tests {
     use super::super::scheduled_task_entry::StartedScheduledTask;
     use super::super::scheduler_core::SchedulerCore;
     use super::ScheduledWorker;
+    use super::WorkerActiveGuard;
+    use super::next_ready_task;
+    use crate::CancelResult;
     use crate::TaskExecutionError;
+    use crate::TaskStatus;
     use crate::hook::TaskId;
     use crate::task::TryGet;
     use crate::task::spi::TaskEndpointPair;
@@ -241,6 +245,69 @@ mod tests {
         fn cancel(self: Box<Self>) -> bool {
             false
         }
+    }
+
+    #[test]
+    fn test_scheduled_claim_can_start_after_stop() {
+        let core = SchedulerCore::new();
+        let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+        core.schedule(
+            tracked.task_id(),
+            Instant::now(),
+            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(42), slot)),
+        )
+        .expect("queue due task");
+
+        let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
+            panic!("due task must not wait for a deadline");
+        })
+        .expect("claim succeeds")
+        .expect("due task exists");
+        let active = WorkerActiveGuard::new(&core);
+        assert_eq!(tracked.status(), TaskStatus::Pending);
+
+        let report = core.stop();
+
+        assert_eq!((report.queued, report.running, report.cancelled), (0, 1, 0));
+        assert_eq!(tracked.status(), TaskStatus::Pending);
+        claimed();
+        drop(active);
+        assert_eq!(tracked.get().expect("claimed task may still run"), 42);
+        assert!(core.is_terminated());
+    }
+
+    #[test]
+    fn test_scheduled_claim_can_be_cancelled_before_start() {
+        let core = SchedulerCore::new();
+        let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let task_calls = Arc::clone(&calls);
+        core.schedule(
+            tracked.task_id(),
+            Instant::now(),
+            Box::new(CompletableScheduledTask::new(
+                move || {
+                    task_calls.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, ()>(42)
+                },
+                slot,
+            )),
+        )
+        .expect("queue due task");
+
+        let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
+            panic!("due task must not wait for a deadline");
+        })
+        .expect("claim succeeds")
+        .expect("due task exists");
+        let active = WorkerActiveGuard::new(&core);
+        assert_eq!(tracked.cancel(), CancelResult::Cancelled);
+        claimed();
+        drop(active);
+
+        assert_eq!(calls.load(Ordering::Acquire), 0);
+        assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
+        assert!(!core.state.with_read(|state| state.worker_active));
     }
 
     #[test]

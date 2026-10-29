@@ -45,6 +45,26 @@ struct BlockingPanicOnDrop {
     release: Option<mpsc::Receiver<()>>,
 }
 
+struct BlockingDrop {
+    entered: Option<mpsc::Sender<()>>,
+    release: Option<mpsc::Receiver<()>>,
+}
+
+impl Drop for BlockingDrop {
+    fn drop(&mut self) {
+        self.entered
+            .take()
+            .expect("observe cleanup entry")
+            .send(())
+            .expect("test should observe cleanup entry");
+        self.release
+            .take()
+            .expect("release cleanup")
+            .recv()
+            .expect("test should release cleanup");
+    }
+}
+
 impl Drop for BlockingPanicOnDrop {
     fn drop(&mut self) {
         self.entered
@@ -112,6 +132,47 @@ fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() 
     );
     service.shutdown();
     service.wait_termination();
+}
+
+#[test]
+fn test_scheduled_termination_does_not_join_concurrent_cancel() {
+    let service = Arc::new(
+        SingleThreadScheduledExecutorService::new("scheduled-cancel-cleanup").expect("scheduled service should start"),
+    );
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let resource = Some(BlockingDrop {
+        entered: Some(entered_tx),
+        release: Some(release_rx),
+    });
+    let handle = service
+        .schedule_callable(Duration::from_secs(3600), move || {
+            let _ = resource.as_ref();
+            Ok::<(), ()>(())
+        })
+        .expect("future task should be accepted");
+
+    let cancel_thread = thread::spawn(move || handle.cancel());
+    let cleanup_entered = entered_rx.recv_timeout(Duration::from_secs(5));
+    service.shutdown();
+    let terminated = service.wait_termination_timeout(Duration::from_secs(5));
+    let cancel_finished_before_release = cancel_thread.is_finished();
+
+    let release_result = release_tx.send(());
+    let cancel_result = cancel_thread.join();
+
+    assert!(
+        cleanup_entered.is_ok(),
+        "concurrent cancel should enter captured-value cleanup"
+    );
+    assert!(release_result.is_ok(), "release captured-value cleanup");
+    let cancel_result = cancel_result.expect("cancel call should return");
+    assert!(terminated, "service should terminate while cancel cleanup blocks");
+    assert!(
+        !cancel_finished_before_release,
+        "cancel call should still be blocked before cleanup is released"
+    );
+    assert_eq!(cancel_result, CancelResult::Cancelled);
 }
 
 #[test]

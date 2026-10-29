@@ -38,6 +38,13 @@ use crate::task::spi::TaskEndpointPair;
 /// [`SubmissionError::Shutdown`]. This recovers ordinary unwinding only; it
 /// cannot recover from aborting panics or permanently blocking user cleanup.
 ///
+/// `stop` cancels entries still queued when they are drained. A task already
+/// claimed by the worker may still start after `stop` returns. The queue and
+/// active counts describe scheduler entries and worker activity, so they need
+/// not match each handle's `TaskStatus` at every instant. Termination waiting
+/// observes the scheduler service's termination condition; it does not join
+/// every OS thread or wait for unrelated concurrent cancellation cleanup.
+///
 /// # Examples
 ///
 /// ```rust
@@ -112,8 +119,9 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Returns
     ///
-    /// Number of accepted scheduled tasks that have not started or been
-    /// cancelled.
+    /// Number of accepted scheduled entries that remain in the deadline queue.
+    /// A worker-claimed entry is no longer queued, even if its handle still
+    /// reports `Pending` while the worker is about to start it.
     #[must_use]
     #[inline]
     pub fn queued_count(&self) -> usize {
@@ -124,7 +132,10 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// # Returns
     ///
-    /// `1` when the scheduler thread is running a task, otherwise `0`.
+    /// `1` while the scheduler worker owns a claimed entry, otherwise `0`.
+    /// This may include the interval before the handle changes from `Pending`
+    /// to `Running`, and does not count concurrent cancellation cleanup on
+    /// another thread.
     #[must_use]
     #[inline]
     pub fn running_count(&self) -> usize {
@@ -251,11 +262,12 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
         self.inner.shutdown();
     }
 
-    /// Requests immediate shutdown and cancels tasks that have not started.
+    /// Requests immediate shutdown and cancels entries still queued.
     ///
     /// This implementation cancels drained queued tasks synchronously on the
-    /// calling thread. Destruction of captured values can block. Running tasks
-    /// are not forcibly interrupted.
+    /// calling thread. Destruction of captured values can block. A task already
+    /// claimed by the worker is outside this queue drain and may still start;
+    /// running tasks are not forcibly interrupted.
     ///
     /// # Panics
     ///
@@ -281,19 +293,30 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
         self.inner.is_not_running()
     }
 
-    /// Returns whether the scheduler thread has exited.
+    /// Returns whether the scheduler worker has published the service's
+    /// termination condition.
+    ///
+    /// This does not join the OS thread or wait for a concurrent cancellation
+    /// call to finish destroying captured values.
     #[inline]
     fn is_terminated(&self) -> bool {
         self.inner.is_terminated()
     }
 
-    /// Blocks until this scheduled service has terminated.
+    /// Blocks until this scheduled service reports termination.
+    ///
+    /// This waits for the worker's service condition, not for an OS-thread
+    /// join, thread-local destructors, or concurrent cancellation cleanup.
     #[inline]
     fn wait_termination(&self) {
         self.inner.wait_for_termination();
     }
 
-    /// Waits at most `timeout` for the scheduler worker to exit.
+    /// Waits at most `timeout` for the scheduler service to report termination.
+    ///
+    /// Returns `true` when the worker publishes the service's termination
+    /// condition. This does not join the OS thread or wait for cleanup running
+    /// in a concurrent cancellation call.
     #[inline]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool {
         self.inner.wait_for_termination_timeout(timeout)

@@ -139,7 +139,10 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// release may instead occur on the worker path. A successful cancellation
     /// does not guarantee that this call immediately releases all captured
     /// values, and cancellation does not wait for a running task or for the
-    /// scheduler thread to exit.
+    /// scheduler thread to exit. Conversely, service termination does not wait
+    /// for this call if another thread is still destroying values removed by
+    /// cancellation; callers that need that cleanup must join or otherwise
+    /// await their cancellation calls.
     ///
     /// # Returns
     ///

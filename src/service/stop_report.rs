@@ -26,7 +26,9 @@ pub struct StopReport {
     /// Number of tasks that were still queued when stop was requested.
     pub queued: usize,
 
-    /// Number of tasks that were running when stop was requested.
+    /// Number of tasks the implementation observed as running when stop was
+    /// requested. Implementations may count at a worker-claim boundary, so
+    /// this snapshot need not match each task handle's `TaskStatus` exactly.
     pub running: usize,
 
     /// Number of tasks for which cancellation or abort was requested.

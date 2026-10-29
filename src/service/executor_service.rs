@@ -72,18 +72,22 @@ use crate::task::spi::TrackedTaskHandle;
 /// interrupted.
 ///
 /// Code that needs deterministic cleanup must request termination explicitly
-/// and then wait for it:
+/// and then wait for the service's termination condition:
 ///
 /// 1. Call [`shutdown`](Self::shutdown) to drain accepted work, or
 ///    [`stop`](Self::stop) to request best-effort cancellation or abort of work
 ///    that has not become non-interruptible.
 /// 2. Call [`wait_termination`](Self::wait_termination) to block until the
-///    service reports that no accepted work remains active.
+///    service reports its termination condition. This is not a portable join
+///    for every OS thread, thread-local destructor, or external resource.
 /// 3. Drop the service handle and any task handles after the wait returns.
 ///
-/// If a service owns OS threads or blocking tasks, already-running task bodies
-/// can keep external resources such as file descriptors, sockets, locks, or
-/// reference-counted objects alive until those task bodies return. Services
+/// If a service owns OS threads or blocking tasks, task bodies can keep
+/// external resources such as file descriptors, sockets, locks, or
+/// reference-counted objects alive until they return. A service may also
+/// report termination while another thread is still performing cleanup for a
+/// concurrent cancellation call. Applications must wait for cancellation calls
+/// they started and use each external resource's own cleanup protocol. Services
 /// that need stronger cleanup behavior should expose an explicit close/join API
 /// rather than relying on destructor side effects.
 ///
@@ -256,7 +260,9 @@ pub trait ExecutorService: Send + Sync {
     /// # Returns
     ///
     /// A count-based stop report describing queued, running, and cancelled work
-    /// observed while handling the request.
+    /// observed while handling the request. Counts are implementation-defined
+    /// snapshots; they need not correspond exactly to each task handle's
+    /// `TaskStatus` during a concurrent transition.
     #[must_use]
     fn stop(&self) -> StopReport;
 
@@ -320,8 +326,10 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// # Returns
     ///
-    /// `true` only after shutdown or stop has been requested and all accepted
-    /// tasks have completed or been cancelled.
+    /// `true` after the service's termination condition has been reached.
+    /// Depending on the implementation, this does not imply that every worker
+    /// OS thread has been joined or that concurrent cancellation cleanup has
+    /// finished.
     #[must_use]
     #[inline]
     fn is_terminated(&self) -> bool {
@@ -336,10 +344,11 @@ pub trait ExecutorService: Send + Sync {
     /// is still [`ExecutorServiceLifecycle::Running`] and no other thread
     /// requests shutdown or stop, it may block forever.
     ///
-    /// This method is the portable way to wait for service-owned resources to
-    /// quiesce after an explicit shutdown or stop request. Dropping a service
-    /// handle is not a substitute for calling this method when deterministic
-    /// cleanup matters.
+    /// This waits for the service's termination condition, not necessarily for
+    /// every service-owned resource to quiesce. It is not a portable OS-thread
+    /// join and does not wait for unrelated concurrent cancellation cleanup.
+    /// Dropping a service handle is not a substitute for calling this method
+    /// when deterministic cleanup matters.
     ///
     /// Implementations must not present this method as an asynchronous or
     /// non-blocking operation.
@@ -349,7 +358,9 @@ pub trait ExecutorService: Send + Sync {
     ///
     /// A zero timeout probes the current lifecycle without blocking. Returns
     /// `true` when the service is terminated before the deadline, or `false`
-    /// when the deadline expires first.
+    /// when the deadline expires first. Termination is defined by the service;
+    /// this does not promise an OS-thread join or completion of cleanup in a
+    /// concurrent cancellation call.
     #[must_use]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool;
 }

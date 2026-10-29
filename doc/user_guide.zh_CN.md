@@ -89,7 +89,7 @@ Ok(())
 }
 ```
 
-已接受任务需要排空时调用 `shutdown()`；需要尽力取消排队或尚未开始的任务时调用 `stop()`。返回的 `StopReport` 提供 `queued`、`running` 和 `cancelled` 数量。`stop()` 不能强制中断已经运行的任意 Rust 代码、阻塞调用或 OS 线程任务。若调用方必须等到服务没有活动任务，再使用 `wait_termination()`。
+已接受任务需要排空时调用 `shutdown()`；需要尽力取消排队或尚未开始的任务时调用 `stop()`。返回的 `StopReport` 提供实现观察到的 `queued`、`running` 和 `cancelled` 快照；并发状态转换期间，这些计数不一定与每个 handle 的状态严格一致。`stop()` 不能强制中断已经运行的任意 Rust 代码、阻塞调用或 OS 线程任务。对于单线程定时服务，stop 只排空仍在队列中的条目；worker 已领取的任务之后仍可能启动，活动计数也可能短暂包含状态仍为 `Pending` 的 handle。`wait_termination()` 等待服务定义的终止条件，不代表 join 所有 OS 线程或析构线程局部存储。
 
 ## 实现自定义执行器
 
@@ -131,7 +131,7 @@ Ok(())
 
 ### 跟踪、取消与任务钩子
 
-需要状态和任务开始前取消能力时，使用 `submit_tracked_callable`。`cancel()` 不保证已经开始运行的任务会停止；应同时检查返回的 `CancelResult` 和最终 `TaskResult`。对于 `DelayExecutor` 和 `ScheduleExecutor`，取消会唤醒正在等待延迟的工作线程，使它能够在截止时刻前释放捕获的任务。它们仍是每个任务创建一个 OS 线程；得到 `Cancelled` 不表示工作线程已经退出。丢弃 tracked handle 也不会取消任务；按值 await 会等待任务结果。
+需要状态和任务开始前取消能力时，使用 `submit_tracked_callable`。`cancel()` 不保证已经开始运行的任务会停止；应同时检查返回的 `CancelResult` 和最终 `TaskResult`。对于 `DelayExecutor` 和 `ScheduleExecutor`，取消会唤醒正在等待延迟的工作线程，使它能够在截止时刻前释放捕获的任务。它们仍是每个任务创建一个 OS 线程；得到 `Cancelled` 不表示工作线程已经退出。丢弃 tracked handle 也不会取消任务；按值 await 会等待任务结果。取消调用移除定时任务时，捕获值会在调用线程同步析构，析构可能阻塞。若另一个线程仍在执行这段清理，服务仍可能报告终止；应用必须自行等待并发取消调用结束。
 
 实现 `TaskHook` 可以观察 `on_accepted`、`on_rejected`、`on_started` 和 `on_finished`。被拒绝的提交只触发 `on_rejected`，不会获得 task id。已接受任务先触发 `on_accepted`；任务在开始前取消时，可能触发没有 `on_started` 的 `on_finished`。钩子在发布事件的线程上同步运行，不会转发到专用观察线程。根据执行器和 SPI 调用方，钩子运行时可能持有内部锁或调用方自己的锁。不要在钩子中重入同一个 `TaskSlotCell`，也不要等待当前任务或所属服务终止。钩子应短小且非阻塞；记录原子计数或使用 `try_send` 等非阻塞通知都是合适做法。执行器会隔离钩子 panic。
 
@@ -158,7 +158,7 @@ Ok(())
 
 ## 限制与最佳实践
 
-`ThreadPerTaskExecutor` 和 `ThreadPerTaskExecutorService` 会为每个已接受任务创建一个 OS 线程，因此应用应自行设置并发上限。`SingleThreadScheduledExecutorService` 只有一个调度线程，不能替代有界工作线程池。`stop()` 和丢弃 service handle 都不保证立即中断任务或释放资源。需要确定性清理时，应请求 `shutdown()` 或 `stop()`，等待 `wait_termination()` 返回后再丢弃 handle。
+`ThreadPerTaskExecutor` 和 `ThreadPerTaskExecutorService` 会为每个已接受任务创建一个 OS 线程，因此应用应自行设置并发上限。`SingleThreadScheduledExecutorService` 只有一个调度线程，不能替代有界工作线程池。`stop()` 和丢弃 service handle 都不保证立即中断任务或释放资源。需要清理时，先停止新提交、请求 `shutdown()` 或 `stop()`，等待应用发起的取消调用结束，再等待 `wait_termination()`，并按外部资源所有者的协议完成清理。服务等待不保证 join 所有 OS 线程、析构线程局部存储，也不会释放仍由 handle、`Arc` 或外部线程持有的资源。
 
 ## 延伸阅读
 

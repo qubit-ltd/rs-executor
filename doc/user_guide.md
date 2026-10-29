@@ -89,7 +89,7 @@ Ok(())
 }
 ```
 
-Call `shutdown()` when accepted work should drain. Call `stop()` when queued or unstarted work should be cancelled where possible. The returned `StopReport` exposes `queued`, `running`, and `cancelled` counts. Stopping is best effort and cannot forcibly interrupt already-running arbitrary Rust code, blocking calls, or OS-thread work. Use `wait_termination()` when the caller must wait until no accepted work remains active.
+Call `shutdown()` when accepted work should drain. Call `stop()` when queued or unstarted work should be cancelled where possible. The returned `StopReport` exposes implementation-observed `queued`, `running`, and `cancelled` counts; they are snapshots and need not match every handle's status during a transition. Stopping is best effort and cannot forcibly interrupt already-running arbitrary Rust code, blocking calls, or OS-thread work. For the single-thread scheduled service, stop drains entries still queued; a worker-claimed task may still start afterward, and the active count can include a task whose handle remains `Pending` briefly. `wait_termination()` waits for the service's termination condition, not a join of every OS thread or thread-local destructor.
 
 ## Implement a custom executor
 
@@ -131,7 +131,7 @@ Keep scheduled task bodies short. This implementation runs due tasks on its sing
 
 ### Tracking, cancellation, and hooks
 
-Use `submit_tracked_callable` when status and pre-start cancellation are needed. `cancel()` is not a guarantee that a task already running will stop; inspect the returned `CancelResult` and final `TaskResult`. For `DelayExecutor` and `ScheduleExecutor`, cancellation wakes the worker's pending delay so it can release the captured task before its deadline. They still create one OS thread per task, and `Cancelled` does not mean that the worker thread has already exited. Dropping a tracked handle also does not cancel the task; awaiting it waits for its result.
+Use `submit_tracked_callable` when status and pre-start cancellation are needed. `cancel()` is not a guarantee that a task already running will stop; inspect the returned `CancelResult` and final `TaskResult`. For `DelayExecutor` and `ScheduleExecutor`, cancellation wakes the worker's pending delay so it can release the captured task before its deadline. They still create one OS thread per task, and `Cancelled` does not mean that the worker thread has already exited. Dropping a tracked handle also does not cancel the task; awaiting it waits for its result. When a cancellation call removes a scheduled task, destroying its captured values can block on that caller's thread. A service may terminate while another thread is still in that cleanup, so applications must wait for their concurrent cancellation calls to finish separately.
 
 Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and `on_finished`. Rejected submissions receive only `on_rejected` and no task id. An accepted task receives `on_accepted` before later events; a task cancelled before starting may receive `on_finished` without `on_started`. Hooks run synchronously on the thread publishing each event, not on a dedicated observer thread. Depending on the executor and SPI caller, a hook may run while an internal or caller-owned lock is held. Do not re-enter the same `TaskSlotCell` or wait for the current task or its owning service to terminate from a hook. Keep hooks short and non-blocking; recording an atomic counter or using a non-blocking notification such as `try_send` is suitable. Hook panics are contained by the executor.
 
@@ -158,7 +158,7 @@ Use `lifecycle()`, `is_running()`, `is_shutting_down()`, `is_stopping()`, and `i
 
 ## Limitations and Best Practices
 
-`ThreadPerTaskExecutor` and `ThreadPerTaskExecutorService` create an OS thread for each accepted task, so applications should impose their own concurrency limit. `SingleThreadScheduledExecutorService` has one scheduler thread and is not a replacement for a bounded worker pool. Neither `stop()` nor dropping a service handle guarantees immediate interruption or resource release. For deterministic cleanup, request `shutdown()` or `stop()`, wait for `wait_termination()`, and then drop handles.
+`ThreadPerTaskExecutor` and `ThreadPerTaskExecutorService` create an OS thread for each accepted task, so applications should impose their own concurrency limit. `SingleThreadScheduledExecutorService` has one scheduler thread and is not a replacement for a bounded worker pool. Neither `stop()` nor dropping a service handle guarantees immediate interruption or resource release. For cleanup, stop new submissions, request `shutdown()` or `stop()`, wait for cancellation calls the application started, then wait for `wait_termination()` and use each external resource's own cleanup protocol. The service wait does not join every OS thread, wait for thread-local destructors, or release resources still owned by handles, `Arc`s, or external threads.
 
 ## Further Reading
 
