@@ -7,8 +7,16 @@
 // =============================================================================
 use super::super::scheduler_core::SchedulerCore;
 
-/// Clears the active-worker marker after one scheduled entry finishes.
+/// Owns cleanup of the active-worker marker for one claimed scheduled entry.
+///
+/// Create this guard only after the scheduler has set `worker_active` to
+/// `true` for the claimed entry. Dropping it on normal scope exit or during
+/// unwinding clears that marker while holding the scheduler state lock,
+/// publishes `terminated` only when `SchedulerState::can_terminate()` allows
+/// it, and notifies state waiters. This cleanup also applies when a recoverable
+/// unwind occurs while starting or running the entry.
 pub(crate) struct WorkerActiveGuard<'a> {
+    /// Scheduler core whose state lock protects the active marker owned here.
     core: &'a SchedulerCore,
 }
 
@@ -20,6 +28,8 @@ impl<'a> WorkerActiveGuard<'a> {
 }
 
 impl Drop for WorkerActiveGuard<'_> {
+    /// Clears the owned active marker and conditionally publishes termination
+    /// under the state lock.
     fn drop(&mut self) {
         self.core.state.with_write_notify_all(|state| {
             state.worker_active = false;

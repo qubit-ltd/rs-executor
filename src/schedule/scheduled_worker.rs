@@ -35,6 +35,18 @@ impl ScheduledWorker {
         });
     }
 
+    /// Runs the worker loop with a custom wait operation for the next deadline.
+    ///
+    /// The waiter is called while the scheduler monitor guard is held. A
+    /// blocking wait must release that lock while waiting and reacquire it
+    /// before returning. After a successful return, the worker checks the
+    /// scheduler conditions again; a wake alone does not make a task ready.
+    /// If the waiter returns `Err`, or its panic is caught by the worker's
+    /// unwind handler, the worker requests immediate stop through
+    /// [`SchedulerCore::stop`]. Termination is still published only when
+    /// `SchedulerState::can_terminate()` is true, so an existing stop drain
+    /// remains responsible for its own cleanup and is not bypassed. This stop
+    /// request does not guarantee that all task work ends immediately.
     fn run_with_waiter<F>(core: Arc<SchedulerCore>, mut waiter: F)
     where
         F: for<'a, 'b> FnMut(&'a mut ParkingLotMonitorGuard<'b, SchedulerState>, Duration) -> Result<(), ()>,
