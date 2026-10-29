@@ -1,95 +1,58 @@
 # Code Formatting Guide
 
-## Overview
+## Recommended workflow
 
-This project uses **nightly Rust's `rustfmt`** for code formatting to support advanced formatting features, specifically the `imports_layout = "Vertical"` option.
+Run the repository's alignment and CI checks from the repository root:
 
-## Why Nightly?
+```bash
+./.infra/bin/align-ci.sh
+git diff --check
+./.infra/bin/ci-check.sh
+```
 
-The `imports_layout` configuration option is an **unstable feature** that requires nightly Rust. This allows us to format imports with each item on its own line:
+`align-ci.sh` applies the formatting and style fixes managed by the rs-infra
+style tool. It writes changes to the working tree, so review the resulting diff
+before keeping it. `git diff --check` checks for whitespace errors, and
+`ci-check.sh` runs the repository CI checks.
+
+## Formatting configuration
+
+Rust formatting is configured in [`.infra/style/rustfmt.toml`](.infra/style/rustfmt.toml).
+The project uses Rust 2024 formatting, a 120-column maximum width, and
+`imports_granularity = "Item"` with `group_imports = "StdExternalCrate"`.
+
+`Item` formats imports at the item level. `StdExternalCrate` groups imports by
+standard library, external crate, and the current crate, with blank lines
+between groups. For example:
 
 ```rust
-pub use module::{
-    Item1,
-    Item2,
-    Item3,
-};
+use std::io;
+
+use serde::Serialize;
+
+use crate::task::Task;
 ```
 
-**Official Documentation:**
-- [Rustfmt Configuration Documentation](https://rust.googlesource.com/rustfmt/+/105cbf8ed517d9e42ae1dc837bdc97cc3ff28175/Configurations.md)
-- [GitHub Tracking Issue #5083](https://github.com/rust-lang/rustfmt/issues/5083)
+## Toolchain responsibilities
 
-## How to Format Code
+The project build toolchain is stable Rust 1.94.0, as specified by
+[`rust-toolchain.toml`](rust-toolchain.toml) and
+[`.infra/tools/defaults.toml`](.infra/tools/defaults.toml). The infrastructure
+defaults pin `nightly-2026-06-05` for its Clippy and nightly tool roles. These
+settings describe tool-specific responsibilities; they do not mean that every
+CI job runs on nightly.
 
-### Option 1: Using the Format Script (Recommended)
+## CI
 
-```bash
-./format.sh
-```
-
-This script will:
-1. Check if nightly toolchain is installed
-2. Install it automatically if needed
-3. Run `cargo +nightly fmt`
-
-### Option 2: Manual Command
-
-```bash
-# Install nightly toolchain (if not already installed)
-rustup toolchain install nightly
-
-# Format code
-cargo +nightly fmt
-```
-
-## CI/CD Integration
-
-Both the local CI check script (`.infra/bin/ci-check.sh`) and CircleCI configuration (`.circleci/config.yml`) have been configured to use nightly Rust:
-
-- **Local checks**: Run `./.infra/bin/ci-check.sh` before committing (automatically installs nightly if needed)
-- **CircleCI**: Uses `rustlang/rust:nightly` Docker image for all jobs
-
-## Configuration
-
-The formatting configuration is defined in `rustfmt.toml`:
-
-```toml
-# Format imports with vertical layout (each item on its own line within braces)
-imports_layout = "Vertical"
-```
-
-This is the **only configuration option** needed to achieve our desired formatting style.
-
-## Important Notes
-
-1. **All CI jobs use nightly Rust**: The entire CI pipeline uses nightly Rust toolchain for consistency
-2. **Local development**: Can use either stable or nightly; formatting requires nightly
-3. **Automatic installation**: The `.infra/bin/ci-check.sh` script automatically installs nightly toolchain if needed
-4. **Docker image**: CircleCI uses the official `rustlang/rust:nightly` Docker image
-5. **No manual intervention**: Developers don't need to manually switch toolchains
+The GitHub Actions workflow is [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+It delegates to the shared rs-infra CI workflow. Use `./.infra/bin/ci-check.sh`
+to run the repository's CI checks locally; use `./.infra/bin/align-ci.sh` to
+apply style fixes before reviewing the diff.
 
 ## Troubleshooting
 
-### Format check fails in CI
-
-Make sure your code is formatted before committing:
-
-```bash
-./format.sh
-```
-
-### Nightly toolchain issues
-
-Reinstall the nightly toolchain:
-
-```bash
-rustup toolchain uninstall nightly
-rustup toolchain install nightly --component rustfmt
-```
-
-## References
-
-- [Rustfmt Documentation](https://rust-lang.github.io/rustfmt/)
-- [Rustup Documentation](https://rust-lang.github.io/rustup/)
-
+If alignment changes files, inspect `git diff` to confirm the changes are
+expected. If a CI check reports a formatting issue, run the recommended
+alignment command and review the diff, then rerun the CI check. Check that the
+repository's configured toolchains and rs-infra settings match the files above
+when a tool reports a version mismatch.
