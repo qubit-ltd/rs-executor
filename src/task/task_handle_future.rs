@@ -25,6 +25,36 @@ use super::TaskResult;
 ///
 /// * `R` - The value returned when the task succeeds.
 /// * `E` - The error returned when the task fails.
+///
+/// A `TaskHandleFuture` owns the wait for a submitted task's result. Dropping
+/// this future abandons the wait; it does not actively cancel the submitted
+/// task.
+///
+/// # Examples
+///
+/// The async function below shows a runtime-independent way to await a task
+/// result. The example demonstrates the async usage at compile time; it does
+/// not execute the body of `example` as part of the doctest.
+///
+/// ```rust
+/// use std::future::IntoFuture;
+/// use std::io;
+///
+/// use qubit_executor::ExecutorService;
+/// use qubit_executor::ThreadPerTaskExecutorService;
+/// use qubit_executor::task::TaskHandleFuture;
+///
+/// async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///     let service = ThreadPerTaskExecutorService::new();
+///     let handle = service.submit_callable(|| Ok::<usize, io::Error>(42))?;
+///     let future: TaskHandleFuture<usize, io::Error> = handle.into_future();
+///     let result = future.await;
+///     service.shutdown();
+///     service.wait_termination();
+///     assert_eq!(result?, 42);
+///     Ok(())
+/// }
+/// ```
 pub struct TaskHandleFuture<R, E> {
     /// Async receiver created from the task result receiver.
     receiver: AsyncReceiver<TaskResult<R, E>>,

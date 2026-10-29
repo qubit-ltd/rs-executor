@@ -14,6 +14,30 @@ use super::try_get::TryGet;
 ///
 /// * `R` - The value produced when the task succeeds.
 /// * `E` - The error returned when the task itself fails.
+///
+/// # Examples
+///
+/// A generic function can consume any task result handle and return the
+/// result using [`TaskResult`].
+///
+/// ```rust
+/// use std::io;
+///
+/// use qubit_executor::DirectExecutor;
+/// use qubit_executor::Executor;
+/// use qubit_executor::TaskResult;
+/// use qubit_executor::task::spi::TaskResultHandle;
+///
+/// fn consume<H: TaskResultHandle<usize, io::Error>>(handle: H) -> TaskResult<usize, io::Error> {
+///     handle.get()
+/// }
+///
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let handle = DirectExecutor::new().call(|| Ok::<usize, io::Error>(42))?;
+///     assert_eq!(consume(handle)?, 42);
+///     Ok(())
+/// }
+/// ```
 pub trait TaskResultHandle<R, E>: Send {
     /// Returns whether the task has installed a terminal state.
     ///

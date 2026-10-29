@@ -22,6 +22,30 @@ use crate::service::SubmissionError;
 /// time. Successful submission only means the service accepted the scheduled
 /// task. Task success, failure, panic, or cancellation is observed through the
 /// returned tracked handle.
+///
+/// # Examples
+///
+/// Schedule a callable with zero delay, read its result, then shut down the
+/// service and wait for termination.
+///
+/// ```rust
+/// use std::io;
+/// use std::time::Duration;
+///
+/// use qubit_executor::ExecutorService;
+/// use qubit_executor::ScheduledExecutorService;
+/// use qubit_executor::SingleThreadScheduledExecutorService;
+///
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let service = SingleThreadScheduledExecutorService::new("scheduled-example")?;
+///     let handle = service.schedule_callable(Duration::ZERO, || Ok::<usize, io::Error>(42))?;
+///     let result = handle.get();
+///     service.shutdown();
+///     service.wait_termination();
+///     assert_eq!(result?, 42);
+///     Ok(())
+/// }
+/// ```
 pub trait ScheduledExecutorService: ExecutorService {
     /// Schedules a runnable task to start after the supplied delay.
     ///
