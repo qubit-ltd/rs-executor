@@ -129,6 +129,7 @@ impl<R, E> TrackedTask<R, E> {
     /// `true` after the task succeeds, fails, panics, is cancelled, or loses
     /// its completion endpoint. The final result send may still be racing with
     /// this status observation.
+    #[must_use]
     #[inline]
     pub fn is_done(&self) -> bool
     where
@@ -143,6 +144,7 @@ impl<R, E> TrackedTask<R, E> {
     /// # Returns
     ///
     /// The current task status.
+    #[must_use]
     #[inline]
     pub fn status(&self) -> TaskStatus {
         self.handle.state.status()
@@ -153,6 +155,7 @@ impl<R, E> TrackedTask<R, E> {
     /// # Returns
     ///
     /// The task id stored in the shared task state.
+    #[must_use]
     #[inline]
     pub fn task_id(&self) -> TaskId {
         self.handle.task_id()

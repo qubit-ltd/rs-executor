@@ -33,6 +33,7 @@ impl TaskId {
     /// # Returns
     ///
     /// A task id wrapping `value`.
+    #[must_use]
     #[inline]
     pub const fn new(value: u64) -> Self {
         Self(value)
@@ -43,6 +44,7 @@ impl TaskId {
     /// # Returns
     ///
     /// The raw task id value.
+    #[must_use]
     #[inline]
     pub const fn get(self) -> u64 {
         self.0

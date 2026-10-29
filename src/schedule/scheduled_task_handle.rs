@@ -119,6 +119,7 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     ///
     /// `true` after the task succeeds, fails, panics, is cancelled, or loses
     /// its completion endpoint.
+    #[must_use]
     #[inline]
     pub fn is_done(&self) -> bool
     where
@@ -133,6 +134,7 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// # Returns
     ///
     /// The current task status.
+    #[must_use]
     #[inline]
     pub fn status(&self) -> TaskStatus {
         self.inner.status()
@@ -143,6 +145,7 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// # Returns
     ///
     /// The task id stored in the shared task state.
+    #[must_use]
     #[inline]
     pub fn task_id(&self) -> TaskId {
         self.inner.task_id()
