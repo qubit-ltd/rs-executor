@@ -30,6 +30,31 @@ impl Drop for DropSignal {
     }
 }
 
+struct PanicOnDrop(mpsc::Sender<()>);
+
+impl Drop for PanicOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
+        panic!("cancelled callable drop panic");
+    }
+}
+
+#[derive(Default)]
+struct FinishedCount {
+    finished: AtomicUsize,
+    started: AtomicUsize,
+}
+
+impl qubit_executor::hook::TaskHook for FinishedCount {
+    fn on_started(&self, _task_id: qubit_executor::hook::TaskId) {
+        self.started.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn on_finished(&self, _task_id: qubit_executor::hook::TaskId, _status: qubit_executor::TaskStatus) {
+        self.finished.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
 #[test]
 fn test_schedule_executor_runs_task_at_instant() {
     let instant = Instant::now() + Duration::from_millis(80);
@@ -140,6 +165,36 @@ fn test_schedule_executor_cancel_releases_long_scheduled_callable() {
     assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
     assert_eq!(executions, 0);
     assert!(released, "cancelled callable capture should be released promptly");
+}
+
+#[test]
+fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
+    let hook = Arc::new(FinishedCount::default());
+    let executor = ScheduleExecutor::at(Instant::now() + Duration::from_secs(3600))
+        .with_hook(Arc::clone(&hook) as Arc<dyn qubit_executor::hook::TaskHook>);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let (drop_started_tx, drop_started_rx) = mpsc::channel();
+    let probe = PanicOnDrop(drop_started_tx);
+    let handle = executor
+        .call(move || {
+            let _keep = &probe;
+            task_calls.fetch_add(1, Ordering::AcqRel);
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("worker thread should spawn");
+
+    let cancellation = handle.cancel();
+    let result = handle.get();
+    drop_started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("cancelled callable cleanup should begin");
+
+    assert_eq!(cancellation, CancelResult::Cancelled);
+    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+    assert_eq!(calls.load(Ordering::Acquire), 0);
+    assert_eq!(hook.started.load(Ordering::Acquire), 0);
+    assert_eq!(hook.finished.load(Ordering::Acquire), 1);
 }
 
 #[test]

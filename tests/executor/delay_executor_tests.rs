@@ -38,12 +38,26 @@ impl Drop for DropSignal {
     }
 }
 
+struct PanicOnDrop(mpsc::Sender<()>);
+
+impl Drop for PanicOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
+        panic!("cancelled callable drop panic");
+    }
+}
+
 struct FinishedCount {
     count: AtomicUsize,
     signal: mpsc::Sender<()>,
+    started: AtomicUsize,
 }
 
 impl TaskHook for FinishedCount {
+    fn on_started(&self, _task_id: TaskId) {
+        self.started.fetch_add(1, Ordering::AcqRel);
+    }
+
     fn on_finished(&self, _task_id: TaskId, _status: TaskStatus) {
         self.count.fetch_add(1, Ordering::AcqRel);
         let _ = self.signal.send(());
@@ -93,6 +107,7 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
     let hook = Arc::new(FinishedCount {
         count: AtomicUsize::new(0),
         signal: finished_tx,
+        started: AtomicUsize::new(0),
     });
     let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
     let calls = Arc::new(AtomicUsize::new(0));
@@ -127,6 +142,43 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
     finished_rx
         .recv_timeout(Duration::from_secs(1))
         .expect("task should emit its finished event");
+    assert_eq!(hook.count.load(Ordering::Acquire), 1);
+}
+
+#[test]
+fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
+    let (finished_tx, finished_rx) = mpsc::channel();
+    let hook = Arc::new(FinishedCount {
+        count: AtomicUsize::new(0),
+        signal: finished_tx,
+        started: AtomicUsize::new(0),
+    });
+    let executor = DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let (drop_started_tx, drop_started_rx) = mpsc::channel();
+    let probe = PanicOnDrop(drop_started_tx);
+    let handle = executor
+        .call(move || {
+            let _keep = &probe;
+            task_calls.fetch_add(1, Ordering::AcqRel);
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("worker thread should spawn");
+
+    let cancellation = handle.cancel();
+    let result = handle.get();
+    drop_started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("cancelled callable cleanup should begin");
+    finished_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("task should emit its finished event");
+
+    assert_eq!(cancellation, CancelResult::Cancelled);
+    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+    assert_eq!(calls.load(Ordering::Acquire), 0);
+    assert_eq!(hook.started.load(Ordering::Acquire), 0);
     assert_eq!(hook.count.load(Ordering::Acquire), 1);
 }
 

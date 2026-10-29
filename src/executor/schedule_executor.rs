@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::sync::Arc;
+use std::time::Duration;
 use std::time::Instant;
 
 use qubit_function::Callable;
@@ -18,7 +19,17 @@ use crate::hook::notify_rejected_optional;
 use crate::service::SubmissionError;
 use crate::task::internal::PendingTaskWait;
 use crate::task::spi::TaskEndpointPair;
+use crate::task::spi::TaskSlot;
 use crate::task::task_admission_gate::TaskAdmissionGate;
+
+fn wait_then_run<C, R, E>(worker_wait: &PendingTaskWait, delay: Duration, slot: TaskSlot<R, E>, task: C)
+where
+    C: Callable<R, E>,
+{
+    // The wait controls timing; the slot decides whether to run or clean up.
+    let _ = worker_wait.wait_for(delay);
+    slot.run(task);
+}
 
 /// Executor that starts each task at a specified monotonic instant.
 ///
@@ -151,13 +162,65 @@ impl Executor for ScheduleExecutor {
             .spawn(move || {
                 worker_gate.wait();
                 let delay = instant.saturating_duration_since(Instant::now());
-                if worker_wait.wait_for(delay) {
-                    slot.run(task);
-                }
+                wait_then_run(&worker_wait, delay, slot, task);
             })
             .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
         gate.open();
         Ok(handle.with_pending_wait(pending_wait))
+    }
+}
+
+#[cfg(test)]
+mod cancellation_cleanup_tests {
+    use std::io;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::wait_then_run;
+    use crate::CancelResult;
+    use crate::TaskExecutionError;
+    use crate::task::internal::PendingTaskWait;
+    use crate::task::spi::TaskEndpointPair;
+
+    struct PanicOnDrop(mpsc::Sender<()>);
+
+    impl Drop for PanicOnDrop {
+        fn drop(&mut self) {
+            let _ = self.0.send(());
+            panic!("cancelled callable drop panic");
+        }
+    }
+
+    #[test]
+    fn test_cancelled_callable_drop_panic_is_contained() {
+        let (handle, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+        slot.accept();
+        assert_eq!(handle.cancel(), CancelResult::Cancelled);
+        let worker_wait = Arc::new(PendingTaskWait::new());
+        worker_wait.cancel();
+        let (drop_started_tx, drop_started_rx) = mpsc::channel();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let task_calls = Arc::clone(&calls);
+        let probe = PanicOnDrop(drop_started_tx);
+        let worker = thread::spawn(move || {
+            wait_then_run(&worker_wait, Duration::from_secs(3600), slot, move || {
+                let _keep = &probe;
+                task_calls.fetch_add(1, Ordering::AcqRel);
+                Ok::<usize, io::Error>(42)
+            });
+        });
+
+        drop_started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("cancelled callable cleanup should begin");
+        worker.join().expect("worker should contain callable drop panic");
+
+        assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+        assert_eq!(calls.load(Ordering::Acquire), 0);
     }
 }
