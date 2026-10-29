@@ -11,6 +11,23 @@ use crate::hook::TaskId;
 use crate::service::SubmissionError;
 
 /// Task hook that writes lifecycle events through the `log` facade.
+///
+/// An application must install a logger and enable the debug level to observe
+/// these events.
+///
+/// # Examples
+///
+/// ```
+/// use std::sync::Arc;
+///
+/// use qubit_executor::DirectExecutor;
+/// use qubit_executor::Executor;
+/// use qubit_executor::hook::LoggingTaskHook;
+///
+/// let executor = DirectExecutor::new().with_hook(Arc::new(LoggingTaskHook));
+/// let task = executor.call(|| Ok::<usize, ()>(42)).expect("task accepted");
+/// assert_eq!(task.get().expect("task completed"), 42);
+/// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct LoggingTaskHook;
 
