@@ -470,24 +470,42 @@ async fn test_single_thread_scheduled_executor_service_handle_await_returns_resu
 fn test_single_thread_scheduled_executor_service_cancel_skips_pending_task() {
     let service =
         SingleThreadScheduledExecutorService::new("test-scheduled-cancel").expect("scheduled service should start");
-    let (sent_tx, sent_rx) = mpsc::channel::<()>();
-
-    let handle = service
-        .schedule(Duration::from_millis(120), move || {
-            sent_tx.send(()).expect("cancelled task should not send");
+    let timeout = Duration::from_secs(5);
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let blocker = service
+        .schedule(Duration::ZERO, move || {
+            entered_tx.send(()).expect("test should observe blocker entry");
+            release_rx.recv_timeout(timeout).expect("test should release blocker");
             Ok::<(), ()>(())
         })
-        .expect("delayed task should schedule");
+        .expect("blocker should schedule");
+    entered_rx.recv_timeout(timeout).expect("blocker should start");
 
-    assert_eq!(handle.cancel(), CancelResult::Cancelled);
-    assert_eq!(handle.cancel(), CancelResult::AlreadyFinished);
-    assert!(
-        sent_rx.recv_timeout(Duration::from_millis(180)).is_err(),
-        "cancelled task should not run"
-    );
-    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+    let (sent_tx, sent_rx) = mpsc::channel::<()>();
+    let handle = service
+        .schedule(Duration::ZERO, move || {
+            sent_tx.send(()).expect("test should retain receiver");
+            Ok::<(), ()>(())
+        })
+        .expect("target should schedule behind blocker");
+    let first = handle.cancel();
+    let second = handle.cancel();
+    let released = release_tx.send(());
     service.shutdown();
-    service.wait_termination();
+
+    let terminated = service.wait_termination_timeout(timeout);
+
+    assert!(released.is_ok(), "blocker should be waiting for release");
+    assert!(terminated, "scheduled service should terminate");
+    assert_eq!(first, CancelResult::Cancelled);
+    assert_eq!(second, CancelResult::AlreadyFinished);
+    blocker.get().expect("blocker should finish normally");
+    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+    assert!(
+        matches!(sent_rx.try_recv(), Err(mpsc::TryRecvError::Disconnected)),
+        "cancelled callable must be destroyed without sending"
+    );
     assert!(service.is_terminated());
 }
 
