@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
 use std::sync::Arc;
 
 use qubit_function::Callable;
@@ -13,6 +15,7 @@ use super::TaskResult;
 use super::running_task_slot::RunningTaskSlot;
 use super::task_runner::TaskRunner;
 use super::task_state::TaskState;
+use crate::internal::discard_panic_payload;
 
 /// Runner-side slot for one task submission.
 ///
@@ -130,7 +133,11 @@ impl<R, E> TaskSlot<R, E> {
     ///
     /// The supplied closure is executed only if this completion endpoint wins
     /// the start race. If the handle was cancelled first, the closure is not
-    /// called and the existing cancellation result is preserved.
+    /// called and the existing cancellation result is preserved. If
+    /// cancellation won before start, unwinding while discarding the
+    /// unexecuted callable is contained and the existing `Cancelled` result is
+    /// preserved. This applies to ordinary unwinding, not aborting panics or a
+    /// double panic during unwinding.
     ///
     /// # Parameters
     ///
@@ -147,6 +154,9 @@ impl<R, E> TaskSlot<R, E> {
         F: FnOnce() -> TaskResult<R, E>,
     {
         let Ok(running) = self.try_start() else {
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| drop(task))) {
+                discard_panic_payload(payload);
+            }
             return false;
         };
         running.complete(task())
@@ -162,6 +172,10 @@ impl<R, E> TaskSlot<R, E> {
     ///
     /// `true` if the callable ran and published a result, or `false` if the
     /// task had already been cancelled.
+    /// If cancellation won before start, unwinding while discarding the
+    /// unexecuted callable is contained and the existing `Cancelled` result is
+    /// preserved. This applies to ordinary unwinding, not aborting panics or a
+    /// double panic during unwinding.
     #[inline]
     pub fn run<C>(self, task: C) -> bool
     where

@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use qubit_executor::CancelResult;
 use qubit_executor::TaskExecutionError;
 use qubit_executor::TaskStatus;
 use qubit_executor::hook::TaskHook;
@@ -76,6 +77,60 @@ fn assert_finished_once(hook: &FinishCounter, status: TaskStatus) {
         *hook.status.lock().expect("status lock should not be poisoned"),
         Some(status)
     );
+}
+
+fn assert_cancelled_cleanup_is_contained<P>(probe: P, via_slot: bool) {
+    let hook = Arc::new(FinishCounter::default());
+    let (handle, slot) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
+    slot.accept();
+    assert_eq!(handle.cancel(), CancelResult::Cancelled);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let task = move || {
+        let _keep = &probe;
+        task_calls.fetch_add(1, Ordering::SeqCst);
+        Ok::<usize, io::Error>(42)
+    };
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        if via_slot {
+            slot.run(task)
+        } else {
+            TaskRunner::new(task).run(slot)
+        }
+    }));
+    let published = match outcome {
+        Ok(published) => published,
+        Err(payload) => {
+            // Avoid another panic when a failed assertion drops the payload.
+            std::mem::forget(payload);
+            panic!("cancelled callable cleanup panic must be contained");
+        }
+    };
+    assert!(!published, "cancelled task must not start or republish a result");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(handle.status(), TaskStatus::Cancelled);
+    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+    assert_eq!(hook.accepted.load(Ordering::SeqCst), 1);
+    assert_eq!(hook.started.load(Ordering::SeqCst), 0);
+    assert_eq!(hook.finished.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        *hook.status.lock().expect("status lock should not be poisoned"),
+        Some(TaskStatus::Cancelled),
+    );
+    assert_eq!(
+        TaskRunner::new(|| Ok::<usize, io::Error>(42))
+            .call::<usize, io::Error>()
+            .expect("subsequent task should run"),
+        42,
+    );
+}
+
+#[test]
+fn test_runner_cancelled_cleanup_contains_drop_panics() {
+    for via_slot in [false, true] {
+        assert_cancelled_cleanup_is_contained(PanicOnDrop, via_slot);
+        assert_cancelled_cleanup_is_contained(PanicsWithSecondaryPayload, via_slot);
+    }
 }
 
 #[test]

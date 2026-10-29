@@ -104,6 +104,10 @@ impl<C> TaskRunner<C> {
     /// `true` if the task started and its result was published, or `false` if
     /// the completion endpoint had already been completed before the runner
     /// started.
+    /// If cancellation won before start, unwinding while discarding the
+    /// unexecuted callable is contained and the existing `Cancelled` result is
+    /// preserved. This applies to ordinary unwinding, not aborting panics or a
+    /// double panic during unwinding.
     ///
     /// # Type Parameters
     ///

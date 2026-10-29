@@ -144,7 +144,7 @@ Ok(())
 - `SubmissionError::InvalidDeadline`：定时延迟超出目标平台 `Instant` 可以表示的范围。
 - `SubmissionError::WorkerSpawnFailed`：创建工作线程失败，并携带底层错误。
 
-任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。`Dropped` 表示已接受任务的 completion endpoint 在没有显式结果的情况下被放弃；`Cancelled` 表示任务开始前取消胜出。`TaskRunner` 会将 callable 的普通 unwind（包括释放捕获值时发生的 panic）转换为 `Panicked`，但无法恢复 aborting panic 或进程终止。
+任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。`Dropped` 表示已接受任务的 completion endpoint 在没有显式结果的情况下被放弃；`Cancelled` 表示任务开始前取消胜出。对于已经启动的任务，TaskRunner 会将 callable 的普通 unwind（包括捕获值析构）转换为 Panicked。若取消在启动前胜出，清理未执行 callable 时的普通 unwind 会被隔离，结果仍为 Cancelled。这些保证不能恢复 aborting panic、展开期间的双重 panic 或进程终止。
 
 可使用 `lifecycle()`、`is_running()`、`is_shutting_down()`、`is_stopping()` 和 `is_terminated()` 检查服务状态。如果 `SingleThreadScheduledExecutorService` 的后台计时等待失败，服务会停止、取消尚未开始的任务，并以 `Shutdown` 拒绝新提交。
 
