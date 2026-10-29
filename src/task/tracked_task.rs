@@ -85,6 +85,34 @@ impl<R, E> TrackedTask<R, E> {
     /// # Returns
     ///
     /// A ready result or the pending tracked handle.
+    ///
+    /// This method consumes `self`. If the task is still pending, the returned
+    /// value contains the original tracked handle so it can be polled again.
+    /// To intentionally discard either outcome, write `let _ =` explicitly.
+    ///
+    /// ```rust,compile_fail
+    /// #![deny(unused_must_use)]
+    /// use qubit_executor::task::spi::TaskEndpointPair;
+    ///
+    /// let (tracked, _slot) = TaskEndpointPair::<(), ()>::new().into_tracked_parts();
+    /// tracked.try_get();
+    /// ```
+    ///
+    /// Handle both possible outcomes to retain a pending task for later:
+    ///
+    /// ```
+    /// use qubit_executor::TryGet;
+    /// use qubit_executor::task::spi::TaskEndpointPair;
+    ///
+    /// let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    /// let tracked = match tracked.try_get() {
+    ///     TryGet::Pending(tracked) => tracked,
+    ///     TryGet::Ready(_) => panic!("unstarted task should be pending"),
+    /// };
+    /// slot.run(|| Ok::<usize, ()>(42));
+    /// assert_eq!(tracked.get().expect("published result"), 42);
+    /// ```
+    #[must_use = "inspect the ready result or retain the pending task handle"]
     #[inline]
     pub fn try_get(self) -> TryGet<Self, R, E>
     where
