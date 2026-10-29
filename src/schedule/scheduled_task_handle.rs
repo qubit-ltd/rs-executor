@@ -133,9 +133,23 @@ impl<R, E> ScheduledTaskHandle<R, E> {
 
     /// Attempts to cancel this task before it starts.
     ///
+    /// When cancellation wins and this call removes the queued entry, the
+    /// captured task is destroyed synchronously on the calling thread.
+    /// Destruction can block. If a worker has already claimed the entry,
+    /// release may instead occur on the worker path. A successful cancellation
+    /// does not guarantee that this call immediately releases all captured
+    /// values, and cancellation does not wait for a running task or for the
+    /// scheduler thread to exit.
+    ///
     /// # Returns
     ///
     /// The observed cancellation outcome.
+    ///
+    /// # Panics
+    ///
+    /// Panics if destruction of the removed task's captured values panics.
+    /// Such a panic does not roll back the cancellation state already
+    /// published.
     #[inline]
     pub fn cancel(&self) -> CancelResult {
         self.cancel_inner()

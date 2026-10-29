@@ -252,6 +252,18 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Requests immediate shutdown and cancels tasks that have not started.
+    ///
+    /// This implementation cancels drained queued tasks synchronously on the
+    /// calling thread. Destruction of captured values can block. Running tasks
+    /// are not forcibly interrupted.
+    ///
+    /// # Panics
+    ///
+    /// If cancellation or destruction of a drained task unwinds, this
+    /// implementation continues processing the remaining drained entries,
+    /// completes its drain bookkeeping, and then resumes the first captured
+    /// panic. This does not recover from aborting panics or process
+    /// termination.
     #[inline]
     fn stop(&self) -> StopReport {
         self.inner.stop()
