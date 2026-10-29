@@ -585,31 +585,100 @@ mod tests {
 
         let worker_core = Arc::clone(&core);
         let (waiter_entered_tx, waiter_entered_rx) = mpsc::channel();
+        let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
         let worker = thread::spawn(move || {
             ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
                 waiter_entered_tx.send(()).expect("test should observe waiter entry");
                 let _ = state.wait_for(delay);
                 Err(())
             });
+            let _ = worker_exited_tx.send(());
         });
-        waiter_entered_rx.recv().expect("worker should reach its deadline wait");
+        let waiter_entered = waiter_entered_rx.recv_timeout(Duration::from_secs(5));
         // The worker holds the monitor while entering the waiter. This read
         // completes only after wait_for releases the monitor to sleep.
-        core.state.with_read(|_| ());
+        let (probe_tx, probe_rx) = mpsc::channel();
+        let probe_core = Arc::clone(&core);
+        let probe = thread::spawn(move || {
+            probe_core.state.with_read(|_| ());
+            let _ = probe_tx.send(());
+        });
+        let monitor_released = probe_rx.recv_timeout(Duration::from_secs(5));
+        if monitor_released.is_ok() {
+            probe.join().expect("monitor probe should return");
+        } else {
+            drop(probe);
+        }
 
         let stop_core = Arc::clone(&core);
-        let stopper = thread::spawn(move || stop_core.stop());
-        cancel_entered_rx
-            .recv()
-            .expect("the external stop should own and enter the drain");
-        worker.join().expect("failed worker should leave its loop");
+        let (stopper_exited_tx, stopper_exited_rx) = mpsc::channel();
+        let stopper = thread::spawn(move || {
+            let _ = stop_core.stop();
+            let _ = stopper_exited_tx.send(());
+        });
+        let cancel_entered = cancel_entered_rx.recv_timeout(Duration::from_secs(5));
+        let worker_exited_while_drain_blocked = worker_exited_rx.recv_timeout(Duration::from_secs(5));
+        let worker_exited_during_drain = worker_exited_while_drain_blocked.is_ok();
+        let (terminated_probe_tx, terminated_probe_rx) = mpsc::channel();
+        let terminated_probe_core = Arc::clone(&core);
+        let terminated_probe = thread::spawn(move || {
+            let _ = terminated_probe_tx.send(terminated_probe_core.is_terminated());
+        });
+        let terminated_while_drain_blocked = terminated_probe_rx.recv_timeout(Duration::from_secs(5));
+        if terminated_while_drain_blocked.is_ok() {
+            terminated_probe.join().expect("termination probe should return");
+        } else {
+            drop(terminated_probe);
+        }
 
-        assert!(!core.is_terminated());
-        cancel_release_tx
-            .send(())
-            .expect("external stop drain should be released");
-        stopper.join().expect("external stop should finish");
-        assert!(core.is_terminated());
+        let _ = cancel_release_tx.send(());
+        let worker_exited = if worker_exited_while_drain_blocked.is_ok() {
+            worker_exited_while_drain_blocked
+        } else {
+            worker_exited_rx.recv_timeout(Duration::from_secs(5))
+        };
+        let worker_joined = if worker_exited.is_ok() {
+            Some(worker.join())
+        } else {
+            drop(worker);
+            None
+        };
+        let stopper_exited = stopper_exited_rx.recv_timeout(Duration::from_secs(5));
+        let stopper_joined = if stopper_exited.is_ok() {
+            Some(stopper.join())
+        } else {
+            drop(stopper);
+            None
+        };
+
+        assert!(waiter_entered.is_ok(), "worker should reach its deadline wait");
+        assert!(monitor_released.is_ok(), "waiter should release the scheduler monitor");
+        assert!(cancel_entered.is_ok(), "external stop should enter the drain");
+        assert!(
+            worker_exited_during_drain,
+            "failed worker should exit while another stop drains"
+        );
+        assert_eq!(terminated_while_drain_blocked, Ok(false));
+        assert!(
+            matches!(worker_joined, Some(Ok(()))),
+            "worker should exit during bounded cleanup"
+        );
+        assert!(
+            matches!(stopper_joined, Some(Ok(()))),
+            "external stop should finish during bounded cleanup"
+        );
+        let (final_probe_tx, final_probe_rx) = mpsc::channel();
+        let final_probe_core = Arc::clone(&core);
+        let final_probe = thread::spawn(move || {
+            let _ = final_probe_tx.send(final_probe_core.is_terminated());
+        });
+        let terminated_after_drain = final_probe_rx.recv_timeout(Duration::from_secs(5));
+        if terminated_after_drain.is_ok() {
+            final_probe.join().expect("final termination probe should return");
+        } else {
+            drop(final_probe);
+        }
+        assert_eq!(terminated_after_drain, Ok(true));
     }
 
     #[test]

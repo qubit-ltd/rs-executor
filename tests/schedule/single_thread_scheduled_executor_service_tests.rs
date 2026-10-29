@@ -213,19 +213,45 @@ fn test_scheduled_stop_recovers_after_captured_drop_panics() {
         .expect("second normal task should schedule");
 
     let stop_service = Arc::clone(&service);
-    let stop_thread = thread::spawn(move || std::panic::catch_unwind(AssertUnwindSafe(|| stop_service.stop())));
-    drop_entered_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("stop should begin dropping the captured resource");
-    let terminated_while_drop_blocked = service.is_terminated();
-    drop_release_tx.send(()).expect("release panicking drop");
-    assert!(stop_thread.join().expect("stop thread should return").is_err());
+    let (stop_exited_tx, stop_exited_rx) = mpsc::channel();
+    let stop_thread = thread::spawn(move || {
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| stop_service.stop()));
+        let _ = stop_exited_tx.send(result);
+    });
+    let drop_entered = drop_entered_rx.recv_timeout(Duration::from_secs(5));
+    let probe_service = Arc::clone(&service);
+    let (probe_tx, probe_rx) = mpsc::channel();
+    let probe_thread = thread::spawn(move || {
+        let _ = probe_tx.send(probe_service.is_terminated());
+    });
+    let terminated_while_drop_blocked = probe_rx.recv_timeout(Duration::from_secs(5));
 
-    assert!(!terminated_while_drop_blocked);
+    let _ = drop_release_tx.send(());
+    let _ = task_release_tx.send(());
+    let stop_exited = stop_exited_rx.recv_timeout(Duration::from_secs(5));
+    let stop_joined = if stop_exited.is_ok() {
+        Some(stop_thread.join())
+    } else {
+        drop(stop_thread);
+        None
+    };
+    if terminated_while_drop_blocked.is_ok() {
+        probe_thread.join().expect("termination probe should return");
+    } else {
+        drop(probe_thread);
+    }
+
+    assert!(drop_entered.is_ok(), "stop should begin dropping the captured resource");
+    assert!(
+        matches!(stop_joined, Some(Ok(()))),
+        "stop thread should exit during bounded cleanup"
+    );
+    assert_eq!(terminated_while_drop_blocked, Ok(false));
+    assert!(stop_exited.expect("stop exit signal should arrive").is_err());
+
     assert!(matches!(panic_handle.get(), Err(TaskExecutionError::Cancelled)));
     assert!(matches!(first_normal.get(), Err(TaskExecutionError::Cancelled)));
     assert!(matches!(second_normal.get(), Err(TaskExecutionError::Cancelled)));
-    task_release_tx.send(()).expect("release running task");
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
 }
