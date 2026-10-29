@@ -65,10 +65,15 @@ fn test_delay_executor_delays_task_start() {
         .expect("worker thread should spawn");
 
     let started_at = started_rx
-        .recv_timeout(Duration::from_secs(1))
+        .recv_timeout(Duration::from_secs(5))
         .expect("task should start after delay");
     handle.get().expect("delayed task should complete");
-    assert!(started_at.duration_since(start) >= Duration::from_millis(70));
+    assert!(
+        started_at.duration_since(start) >= executor.delay(),
+        "task started after {:?}, before configured delay {:?}",
+        started_at.duration_since(start),
+        executor.delay(),
+    );
 }
 
 #[test]

@@ -77,11 +77,24 @@ fn test_schedule_executor_with_hook_runs_past_instant_promptly() {
 fn test_schedule_executor_with_hook_waits_until_future_instant() {
     let instant = Instant::now() + Duration::from_millis(20);
     let executor = ScheduleExecutor::at(instant).with_hook(Arc::new(NoopTaskHook));
+    let (started_tx, started_rx) = mpsc::channel();
 
     let handle = executor
-        .call(|| Ok::<usize, io::Error>(42))
+        .call(move || {
+            started_tx
+                .send(Instant::now())
+                .expect("test should observe task start");
+            Ok::<usize, io::Error>(42)
+        })
         .expect("worker thread should spawn");
 
+    let started_at = started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("scheduled task should eventually start");
+    assert!(
+        started_at >= instant,
+        "hook-enabled task must not start before its deadline"
+    );
     assert_eq!(handle.get().expect("callable should complete"), 42);
 }
 
