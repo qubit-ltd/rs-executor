@@ -29,12 +29,6 @@ fn test_task_state_returns_completion_result_across_threads() {
         drop(waiter);
         None
     };
-    assert!(
-        matches!(observed, Ok(Ok(42))),
-        "get should return the published value"
-    );
-    assert!(
-        matches!(joined, Some(Ok(()))),
-        "reader should exit without panic"
-    );
+    assert!(matches!(observed, Ok(Ok(42))), "get should return the published value");
+    assert!(matches!(joined, Some(Ok(()))), "reader should exit without panic");
 }

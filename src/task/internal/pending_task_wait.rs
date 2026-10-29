@@ -49,7 +49,8 @@ impl PendingTaskWait {
         })
     }
 
-    /// Runs the delay loop with a replaceable condition-variable wait operation.
+    /// Runs the delay loop with a replaceable condition-variable wait
+    /// operation.
     ///
     /// The waiter is called while `cancelled` is locked and must release and
     /// reacquire that lock as part of waiting. The method returns `false` when
@@ -68,11 +69,7 @@ impl PendingTaskWait {
             if remaining.is_zero() {
                 return true;
             }
-            waiter(
-                &self.changed,
-                &mut cancelled,
-                remaining.min(Duration::from_secs(3600)),
-            );
+            waiter(&self.changed, &mut cancelled, remaining.min(Duration::from_secs(3600)));
         }
     }
 }
@@ -107,11 +104,7 @@ mod tests {
         done_rx: &mpsc::Receiver<bool>,
         worker: thread::JoinHandle<()>,
         primary_result: Result<bool, mpsc::RecvTimeoutError>,
-    ) -> (
-        Result<bool, mpsc::RecvTimeoutError>,
-        Option<thread::Result<()>>,
-        bool,
-    ) {
+    ) -> (Result<bool, mpsc::RecvTimeoutError>, Option<thread::Result<()>>, bool) {
         if let Some(mut cancelled) = wait.cancelled.try_lock_for(Duration::from_secs(5)) {
             *cancelled = true;
             drop(cancelled);
@@ -145,51 +138,31 @@ mod tests {
         let (done_tx, done_rx) = mpsc::channel();
         let worker_wait = Arc::clone(&wait);
         let worker = thread::spawn(move || {
-            let result = worker_wait.wait_for_with_waiter(
-                Duration::from_secs(3600),
-                |changed, cancelled, interval| {
-                    let _ = entered_tx.send(());
-                    changed.wait_for(cancelled, interval);
-                },
-            );
+            let result = worker_wait.wait_for_with_waiter(Duration::from_secs(3600), |changed, cancelled, interval| {
+                let _ = entered_tx.send(());
+                changed.wait_for(cancelled, interval);
+            });
             let _ = done_tx.send(result);
         });
 
         let stage_seen = entered_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-        let lock_released = stage_seen
-            && wait
-                .cancelled
-                .try_lock_for(Duration::from_secs(5))
-                .is_some();
+        let lock_released = stage_seen && wait.cancelled.try_lock_for(Duration::from_secs(5)).is_some();
         let cancel_completed = cancel_with_timeout(&wait);
         let primary_result = done_rx.recv_timeout(Duration::from_secs(5));
-        let (result, joined, cleanup_completed) =
-            clean_up_worker(&wait, &done_rx, worker, primary_result);
+        let (result, joined, cleanup_completed) = clean_up_worker(&wait, &done_rx, worker, primary_result);
 
-        assert!(
-            stage_seen,
-            "worker should reach a real condition-variable wait"
-        );
+        assert!(stage_seen, "worker should reach a real condition-variable wait");
         assert!(
             lock_released,
             "condition-variable wait should release the cancellation lock"
         );
-        assert!(
-            cancel_completed,
-            "cancellation should finish within five seconds"
-        );
+        assert!(cancel_completed, "cancellation should finish within five seconds");
         assert!(
             matches!(result, Ok(false)),
             "cancellation should finish the wait within five seconds"
         );
-        assert!(
-            cleanup_completed,
-            "worker should complete during bounded cleanup"
-        );
-        assert!(
-            matches!(joined, Some(Ok(()))),
-            "worker should exit without panic"
-        );
+        assert!(cleanup_completed, "worker should complete during bounded cleanup");
+        assert!(matches!(joined, Some(Ok(()))), "worker should exit without panic");
     }
 
     #[test]
@@ -205,22 +178,15 @@ mod tests {
         let (done_tx, done_rx) = mpsc::channel();
         let worker_wait = Arc::clone(&wait);
         let worker = thread::spawn(move || {
-            let result = worker_wait.wait_for_with_waiter(
-                Duration::from_secs(3600),
-                |changed, cancelled, interval| {
-                    let _ = entered_tx.send(());
-                    changed.wait_for(cancelled, interval);
-                },
-            );
+            let result = worker_wait.wait_for_with_waiter(Duration::from_secs(3600), |changed, cancelled, interval| {
+                let _ = entered_tx.send(());
+                changed.wait_for(cancelled, interval);
+            });
             let _ = done_tx.send(result);
         });
 
         let first_stage_seen = entered_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-        let first_lock_released = first_stage_seen
-            && wait
-                .cancelled
-                .try_lock_for(Duration::from_secs(5))
-                .is_some();
+        let first_lock_released = first_stage_seen && wait.cancelled.try_lock_for(Duration::from_secs(5)).is_some();
         let second_stage_seen = if first_lock_released {
             let cancelled = wait.cancelled.try_lock_for(Duration::from_secs(5));
             match cancelled {
@@ -230,11 +196,7 @@ mod tests {
                     wait.changed.notify_one();
                     drop(guard);
                     let stage_seen = entered_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-                    let lock_released = stage_seen
-                        && wait
-                            .cancelled
-                            .try_lock_for(Duration::from_secs(5))
-                            .is_some();
+                    let lock_released = stage_seen && wait.cancelled.try_lock_for(Duration::from_secs(5)).is_some();
                     let no_result_after_notification = done_rx.try_recv().is_err();
                     no_result_before_notification && lock_released && no_result_after_notification
                 }
@@ -245,37 +207,21 @@ mod tests {
         };
         let cancel_completed = cancel_with_timeout(&wait);
         let primary_result = done_rx.recv_timeout(Duration::from_secs(5));
-        let (result, joined, cleanup_completed) =
-            clean_up_worker(&wait, &done_rx, worker, primary_result);
+        let (result, joined, cleanup_completed) = clean_up_worker(&wait, &done_rx, worker, primary_result);
 
-        assert!(
-            first_stage_seen,
-            "worker should reach its initial real wait"
-        );
-        assert!(
-            first_lock_released,
-            "initial wait should release the cancellation lock"
-        );
+        assert!(first_stage_seen, "worker should reach its initial real wait");
+        assert!(first_lock_released, "initial wait should release the cancellation lock");
         assert!(
             second_stage_seen,
             "ordinary notification should lead to another real wait before completion"
         );
-        assert!(
-            cancel_completed,
-            "cancellation should finish within five seconds"
-        );
+        assert!(cancel_completed, "cancellation should finish within five seconds");
         assert!(
             matches!(result, Ok(false)),
             "cancellation should finish the wait within five seconds"
         );
-        assert!(
-            cleanup_completed,
-            "worker should complete during bounded cleanup"
-        );
-        assert!(
-            matches!(joined, Some(Ok(()))),
-            "worker should exit without panic"
-        );
+        assert!(cleanup_completed, "worker should complete during bounded cleanup");
+        assert!(matches!(joined, Some(Ok(()))), "worker should exit without panic");
     }
 
     #[test]
@@ -285,48 +231,30 @@ mod tests {
         let (done_tx, done_rx) = mpsc::channel();
         let worker_wait = Arc::clone(&wait);
         let worker = thread::spawn(move || {
-            let result =
-                worker_wait.wait_for_with_waiter(Duration::MAX, |changed, cancelled, interval| {
-                    let _ = entered_tx.send(());
-                    changed.wait_for(cancelled, interval);
-                });
+            let result = worker_wait.wait_for_with_waiter(Duration::MAX, |changed, cancelled, interval| {
+                let _ = entered_tx.send(());
+                changed.wait_for(cancelled, interval);
+            });
             let _ = done_tx.send(result);
         });
 
         let stage_seen = entered_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-        let lock_released = stage_seen
-            && wait
-                .cancelled
-                .try_lock_for(Duration::from_secs(5))
-                .is_some();
+        let lock_released = stage_seen && wait.cancelled.try_lock_for(Duration::from_secs(5)).is_some();
         let cancel_completed = cancel_with_timeout(&wait);
         let primary_result = done_rx.recv_timeout(Duration::from_secs(5));
-        let (result, joined, cleanup_completed) =
-            clean_up_worker(&wait, &done_rx, worker, primary_result);
+        let (result, joined, cleanup_completed) = clean_up_worker(&wait, &done_rx, worker, primary_result);
 
-        assert!(
-            stage_seen,
-            "worker should reach a real condition-variable wait"
-        );
+        assert!(stage_seen, "worker should reach a real condition-variable wait");
         assert!(
             lock_released,
             "condition-variable wait should release the cancellation lock"
         );
-        assert!(
-            cancel_completed,
-            "cancellation should finish within five seconds"
-        );
+        assert!(cancel_completed, "cancellation should finish within five seconds");
         assert!(
             matches!(result, Ok(false)),
             "cancellation should finish the maximum-duration wait"
         );
-        assert!(
-            cleanup_completed,
-            "worker should complete during bounded cleanup"
-        );
-        assert!(
-            matches!(joined, Some(Ok(()))),
-            "worker should exit without panic"
-        );
+        assert!(cleanup_completed, "worker should complete during bounded cleanup");
+        assert!(matches!(joined, Some(Ok(()))), "worker should exit without panic");
     }
 }

@@ -81,9 +81,7 @@ fn test_schedule_executor_with_hook_waits_until_future_instant() {
 
     let handle = executor
         .call(move || {
-            started_tx
-                .send(Instant::now())
-                .expect("test should observe task start");
+            started_tx.send(Instant::now()).expect("test should observe task start");
             Ok::<usize, io::Error>(42)
         })
         .expect("worker thread should spawn");
