@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
 use std::sync::Arc;
 
 use oneshot::Sender;
@@ -18,6 +20,7 @@ use super::task_status::TaskStatus;
 use crate::hook::TaskId;
 use crate::hook::notify_finished;
 use crate::hook::notify_started;
+use crate::internal::discard_panic_payload;
 
 /// Shared completion endpoint state for one submitted task.
 pub(crate) struct TaskState<R, E> {
@@ -193,8 +196,11 @@ impl<R, E> TaskState<R, E> {
     /// * `status` - Terminal status installed before this call.
     fn publish_terminal_result(&self, result: TaskResult<R, E>, notify_hook: bool, status: TaskStatus) {
         let sender = self.sender.lock().take();
-        if let Some(sender) = sender {
-            let _ignored = sender.send(result);
+        if let Err(payload) = catch_unwind(AssertUnwindSafe(move || match sender {
+            Some(sender) => drop(sender.send(result)),
+            None => drop(result),
+        })) {
+            discard_panic_payload(payload);
         }
         if notify_hook && let Some(hook) = &self.hook {
             notify_finished(hook.as_ref(), self.task_id, status);

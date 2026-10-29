@@ -146,6 +146,11 @@ impl<C> TaskRunner<C> {
     /// This is intended for detached runnable submissions whose caller only
     /// observes acceptance. The callable is still wrapped in panic conversion,
     /// but success, task failure, and panic results are intentionally dropped.
+    /// Panics while the executor discards a result are contained. If
+    /// [`Self::call`] returns a result to its caller, dropping that result
+    /// remains the caller's responsibility. These guarantees apply to
+    /// unwinding and cannot recover from process aborts; they do not
+    /// guarantee immediate resource release.
     ///
     /// # Type Parameters
     ///
@@ -156,6 +161,9 @@ impl<C> TaskRunner<C> {
     where
         C: Callable<R, E>,
     {
-        let _ignored = self.call::<R, E>();
+        let result = self.call::<R, E>();
+        if let Err(payload) = catch_unwind(AssertUnwindSafe(|| drop(result))) {
+            discard_panic_payload(payload);
+        }
     }
 }
