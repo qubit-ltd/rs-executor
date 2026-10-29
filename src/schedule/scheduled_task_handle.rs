@@ -87,6 +87,23 @@ impl<R, E> ScheduledTaskHandle<R, E> {
     /// # Returns
     ///
     /// A ready result or the pending scheduled handle.
+    /// Preserve the handle in [`TryGet::Pending`](crate::TryGet::Pending) to
+    /// poll or await it later. Discarding the return value abandons result
+    /// observation without cancelling the task.
+    ///
+    /// # Examples
+    ///
+    /// Discarding the returned pending handle or task result is diagnosed.
+    ///
+    /// ```rust,compile_fail
+    /// #![deny(unused_must_use)]
+    /// use qubit_executor::schedule::ScheduledTaskHandle;
+    ///
+    /// fn discard_poll(handle: ScheduledTaskHandle<usize, ()>) {
+    ///     handle.try_get();
+    /// }
+    /// ```
+    #[must_use = "the pending handle or task result must be handled"]
     #[inline]
     pub fn try_get(self) -> TryGet<Self, R, E>
     where
