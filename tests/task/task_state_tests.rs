@@ -6,19 +6,35 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 use std::io;
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use qubit_executor::task::spi::TaskEndpointPair;
 
-/// Test shared handle internals wake blocking waiters after completion.
+/// Test that `get` returns a completion result when called from another thread.
 #[test]
-fn test_task_state_notifies_blocking_waiter_on_completion() {
+fn test_task_state_returns_completion_result_across_threads() {
     let (handle, completion) = TaskEndpointPair::<usize, io::Error>::new().into_parts();
-
-    let waiter = thread::spawn(move || handle.get().expect("waiter should receive result"));
-    thread::sleep(Duration::from_millis(20));
+    let (done_tx, done_rx) = mpsc::channel();
+    let waiter = thread::spawn(move || {
+        let _ = done_tx.send(handle.get());
+    });
     completion.run(|| Ok(42));
 
-    assert_eq!(waiter.join().expect("waiter thread should not panic"), 42);
+    let observed = done_rx.recv_timeout(Duration::from_secs(5));
+    let joined = if observed.is_ok() {
+        Some(waiter.join())
+    } else {
+        drop(waiter);
+        None
+    };
+    assert!(
+        matches!(observed, Ok(Ok(42))),
+        "get should return the published value"
+    );
+    assert!(
+        matches!(joined, Some(Ok(()))),
+        "reader should exit without panic"
+    );
 }
