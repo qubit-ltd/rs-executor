@@ -125,31 +125,85 @@ fn main() {}
 
 ## Cancel after an async timeout
 
-A concrete scheduled handle can provide a `TaskCancellationHandle` before the original handle is consumed by `into_future()`. This keeps cancellation available while the result future is being polled:
+A concrete scheduled handle can provide a `TaskCancellationHandle` before the original handle is consumed by `into_future()`. This keeps cancellation available while the result future is being polled. The example uses a small standard-library polling loop and a deadline helper so it can run without choosing an async runtime:
 
 ```rust
-use std::future::IntoFuture;
-use std::time::Duration;
+use std::error::Error;
+use std::future::{Future, IntoFuture};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Wake, Waker};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use qubit_executor::{
     CancelResult, ExecutorService, ScheduledExecutorService,
     SingleThreadScheduledExecutorService, TaskExecutionError,
 };
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn timeout<'a, F: Future>(
+    duration: Duration,
+    mut future: Pin<&'a mut F>,
+) -> impl Future<Output = Option<F::Output>> + 'a {
+    let deadline = Instant::now() + duration;
+    let mut timer_started = false;
+    std::future::poll_fn(move |context| {
+        if Instant::now() >= deadline {
+            return Poll::Ready(None);
+        }
+        if let Poll::Ready(output) = future.as_mut().poll(context) {
+            return Poll::Ready(Some(output));
+        }
+        if !timer_started {
+            timer_started = true;
+            let waker = context.waker().clone();
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            thread::spawn(move || {
+                thread::sleep(remaining);
+                waker.wake();
+            });
+        }
+        Poll::Pending
+    })
+}
+
+struct ThreadWaker(thread::Thread);
+
+impl Wake for ThreadWaker {
+    fn wake(self: Arc<Self>) {
+        self.0.unpark();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.0.unpark();
+    }
+}
+
+fn block_on<F: Future>(future: F) -> F::Output {
+    let waker = Waker::from(Arc::new(ThreadWaker(thread::current())));
+    let mut context = Context::from_waker(&waker);
+    let mut future = Box::pin(future);
+    loop {
+        match future.as_mut().poll(&mut context) {
+            Poll::Ready(output) => return output,
+            Poll::Pending => thread::park(),
+        }
+    }
+}
+
+async fn run() -> Result<(), Box<dyn Error>> {
     let service = SingleThreadScheduledExecutorService::new("cancel-after-timeout")?;
     let task = service.schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))?;
     let cancellation = task.cancellation_handle();
     let mut result = Box::pin(task.into_future());
 
-    if tokio::time::timeout(Duration::from_millis(10), result.as_mut())
+    if timeout(Duration::from_millis(10), result.as_mut())
         .await
-        .is_err()
+        .is_none()
     {
         assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
     }
-    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
+    let outcome = timeout(Duration::from_secs(5), result.as_mut())
         .await
         .expect("cancelled task should finish within five seconds");
     assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
@@ -157,6 +211,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    block_on(run())
 }
 ```
 
