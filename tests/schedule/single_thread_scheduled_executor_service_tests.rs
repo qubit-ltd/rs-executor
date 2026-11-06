@@ -60,7 +60,7 @@ impl Drop for BlockingDrop {
         self.release
             .take()
             .expect("release cleanup")
-            .recv()
+            .recv_timeout(Duration::from_secs(5))
             .expect("test should release cleanup");
     }
 }
@@ -75,7 +75,7 @@ impl Drop for BlockingPanicOnDrop {
         self.release
             .take()
             .expect("drop release receiver")
-            .recv()
+            .recv_timeout(Duration::from_secs(5))
             .expect("drop test release");
         panic!("scheduled cancellation drop panic");
     }
@@ -90,7 +90,9 @@ fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() 
     service
         .schedule(Duration::ZERO, move || {
             entered_tx.send(()).expect("signal blocking task start");
-            release_rx.recv().expect("receive blocking task release");
+            release_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("receive blocking task release");
             Ok::<(), ()>(())
         })
         .expect("blocking task should schedule");
@@ -131,129 +133,149 @@ fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() 
         "late"
     );
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_runs_earliest_deadline_first service should terminate within five seconds"
+    );
 }
 
 #[test]
 fn test_scheduled_termination_does_not_join_concurrent_cancel() {
-    let service = Arc::new(
-        SingleThreadScheduledExecutorService::new("scheduled-cancel-cleanup").expect("scheduled service should start"),
-    );
-    let (entered_tx, entered_rx) = mpsc::channel();
-    let (release_tx, release_rx) = mpsc::channel();
-    let resource = Some(BlockingDrop {
-        entered: Some(entered_tx),
-        release: Some(release_rx),
-    });
-    let handle = service
-        .schedule_callable(Duration::from_secs(3600), move || {
-            let _ = resource.as_ref();
-            Ok::<(), ()>(())
-        })
-        .expect("future task should be accepted");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_termination_does_not_join_concurrent_cancel",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-termination-concurrent-cancel",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = Arc::new(
+                SingleThreadScheduledExecutorService::new("scheduled-cancel-cleanup")
+                    .expect("scheduled service should start"),
+            );
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let resource = Some(BlockingDrop {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+            });
+            let handle = service
+                .schedule_callable(Duration::from_secs(3600), move || {
+                    let _ = resource.as_ref();
+                    Ok::<(), ()>(())
+                })
+                .expect("future task should be accepted");
 
-    let cancel_thread = thread::spawn(move || handle.cancel());
-    let cleanup_entered = entered_rx.recv_timeout(Duration::from_secs(5));
-    service.shutdown();
-    let terminated = service.wait_termination_timeout(Duration::from_secs(5));
-    let cancel_finished_before_release = cancel_thread.is_finished();
+            let cancel_thread = thread::spawn(move || handle.cancel());
+            let cleanup_entered = entered_rx.recv_timeout(Duration::from_secs(5));
+            service.shutdown();
+            let terminated = service.wait_termination_timeout(Duration::from_secs(5));
+            let cancel_finished_before_release = cancel_thread.is_finished();
 
-    let release_result = release_tx.send(());
-    let cancel_result = cancel_thread.join();
+            let release_result = release_tx.send(());
+            let cancel_result = cancel_thread.join();
 
-    assert!(
-        cleanup_entered.is_ok(),
-        "concurrent cancel should enter captured-value cleanup"
-    );
-    assert!(release_result.is_ok(), "release captured-value cleanup");
-    let cancel_result = cancel_result.expect("cancel call should return");
-    assert!(terminated, "service should terminate while cancel cleanup blocks");
-    assert!(
-        !cancel_finished_before_release,
-        "cancel call should still be blocked before cleanup is released"
-    );
-    assert_eq!(cancel_result, CancelResult::Cancelled);
+            assert!(
+                cleanup_entered.is_ok(),
+                "concurrent cancel should enter captured-value cleanup"
+            );
+            assert!(release_result.is_ok(), "release captured-value cleanup");
+            let cancel_result = cancel_result.expect("cancel call should return");
+            assert!(terminated, "service should terminate while cancel cleanup blocks");
+            assert!(
+                !cancel_finished_before_release,
+                "cancel call should still be blocked before cleanup is released"
+            );
+            assert_eq!(cancel_result, CancelResult::Cancelled);
+        },
+    )
+    .expect("watchdog should observe the concurrent-cancel test body finish");
 }
 
 #[test]
 fn test_scheduled_stop_recovers_after_captured_drop_panics() {
-    let service = Arc::new(
-        SingleThreadScheduledExecutorService::new("test-stop-drop-panic").expect("scheduled service should start"),
-    );
-    let (task_entered_tx, task_entered_rx) = mpsc::channel();
-    let (task_release_tx, task_release_rx) = mpsc::channel();
-    service
-        .schedule(Duration::ZERO, move || {
-            task_entered_tx.send(()).expect("running task signal");
-            task_release_rx.recv().expect("running task release");
-            Ok::<(), ()>(())
-        })
-        .expect("blocking task should schedule");
-    task_entered_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("worker should start blocking task");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_stop_recovers_after_captured_drop_panics",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-stop-captured-drop-panic",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = Arc::new(
+                SingleThreadScheduledExecutorService::new("test-stop-drop-panic")
+                    .expect("scheduled service should start"),
+            );
+            let (task_entered_tx, task_entered_rx) = mpsc::channel();
+            let (task_release_tx, task_release_rx) = mpsc::channel();
+            service
+                .schedule(Duration::ZERO, move || {
+                    task_entered_tx.send(()).expect("running task signal");
+                    task_release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("running task release");
+                    Ok::<(), ()>(())
+                })
+                .expect("blocking task should schedule");
+            task_entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker should start blocking task");
 
-    let (drop_entered_tx, drop_entered_rx) = mpsc::channel();
-    let (drop_release_tx, drop_release_rx) = mpsc::channel();
-    let probe = BlockingPanicOnDrop {
-        entered: Some(drop_entered_tx),
-        release: Some(drop_release_rx),
-    };
-    let panic_handle = service
-        .schedule_callable(Duration::from_secs(60), move || {
-            let _ = &probe;
-            Ok::<(), ()>(())
-        })
-        .expect("panicking drop task should schedule");
-    let first_normal = service
-        .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(1))
-        .expect("first normal task should schedule");
-    let second_normal = service
-        .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(2))
-        .expect("second normal task should schedule");
+            let (drop_entered_tx, drop_entered_rx) = mpsc::channel();
+            let (drop_release_tx, drop_release_rx) = mpsc::channel();
+            let probe = BlockingPanicOnDrop {
+                entered: Some(drop_entered_tx),
+                release: Some(drop_release_rx),
+            };
+            let panic_handle = service
+                .schedule_callable(Duration::from_secs(60), move || {
+                    let _ = &probe;
+                    Ok::<(), ()>(())
+                })
+                .expect("panicking drop task should schedule");
+            let first_normal = service
+                .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(1))
+                .expect("first normal task should schedule");
+            let second_normal = service
+                .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(2))
+                .expect("second normal task should schedule");
 
-    let stop_service = Arc::clone(&service);
-    let (stop_exited_tx, stop_exited_rx) = mpsc::channel();
-    let stop_thread = thread::spawn(move || {
-        let result = std::panic::catch_unwind(AssertUnwindSafe(|| stop_service.stop()));
-        let _ = stop_exited_tx.send(result);
-    });
-    let drop_entered = drop_entered_rx.recv_timeout(Duration::from_secs(5));
-    let probe_service = Arc::clone(&service);
-    let (probe_tx, probe_rx) = mpsc::channel();
-    let probe_thread = thread::spawn(move || {
-        let _ = probe_tx.send(probe_service.is_terminated());
-    });
-    let terminated_while_drop_blocked = probe_rx.recv_timeout(Duration::from_secs(5));
+            let stop_service = Arc::clone(&service);
+            let (stop_exited_tx, stop_exited_rx) = mpsc::channel();
+            let stop_thread = thread::spawn(move || {
+                let result = std::panic::catch_unwind(AssertUnwindSafe(|| stop_service.stop()));
+                let _ = stop_exited_tx.send(result);
+            });
+            let drop_entered = drop_entered_rx.recv_timeout(Duration::from_secs(5));
+            let probe_service = Arc::clone(&service);
+            let (probe_tx, probe_rx) = mpsc::channel();
+            let probe_thread = thread::spawn(move || {
+                let _ = probe_tx.send(probe_service.is_terminated());
+            });
+            let terminated_while_drop_blocked = probe_rx.recv_timeout(Duration::from_secs(5));
 
-    let _ = drop_release_tx.send(());
-    let _ = task_release_tx.send(());
-    let stop_exited = stop_exited_rx.recv_timeout(Duration::from_secs(5));
-    let stop_joined = if stop_exited.is_ok() {
-        Some(stop_thread.join())
-    } else {
-        drop(stop_thread);
-        None
-    };
-    if terminated_while_drop_blocked.is_ok() {
-        probe_thread.join().expect("termination probe should return");
-    } else {
-        drop(probe_thread);
-    }
+            let _ = drop_release_tx.send(());
+            let _ = task_release_tx.send(());
+            let stop_exited = stop_exited_rx.recv_timeout(Duration::from_secs(5));
+            let stop_joined = stop_thread.join();
+            probe_thread.join().expect("termination probe should return");
 
-    assert!(drop_entered.is_ok(), "stop should begin dropping the captured resource");
-    assert!(
-        matches!(stop_joined, Some(Ok(()))),
-        "stop thread should exit during bounded cleanup"
-    );
-    assert_eq!(terminated_while_drop_blocked, Ok(false));
-    assert!(stop_exited.expect("stop exit signal should arrive").is_err());
+            assert!(drop_entered.is_ok(), "stop should begin dropping the captured resource");
+            assert!(
+                matches!(stop_joined, Ok(())),
+                "stop thread should exit during bounded cleanup"
+            );
+            assert_eq!(terminated_while_drop_blocked, Ok(false));
+            assert!(stop_exited.expect("stop exit signal should arrive").is_err());
 
-    assert!(matches!(panic_handle.get(), Err(TaskExecutionError::Cancelled)));
-    assert!(matches!(first_normal.get(), Err(TaskExecutionError::Cancelled)));
-    assert!(matches!(second_normal.get(), Err(TaskExecutionError::Cancelled)));
-    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
-    assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
+            assert!(matches!(panic_handle.get(), Err(TaskExecutionError::Cancelled)));
+            assert!(matches!(first_normal.get(), Err(TaskExecutionError::Cancelled)));
+            assert!(matches!(second_normal.get(), Err(TaskExecutionError::Cancelled)));
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+            assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
+        },
+    )
+    .expect("watchdog should observe the captured-drop-panic test body finish");
 }
 
 #[test]
@@ -265,9 +287,12 @@ fn test_single_thread_scheduled_executor_service_schedule_callable_returns_resul
         .schedule_callable(Duration::from_millis(10), || Ok::<usize, ()>(40 + 2))
         .expect("callable should schedule");
 
-    assert_eq!(handle.get().expect("callable should succeed"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_schedule_callable_returns_result service should terminate within five seconds"
+    );
+    assert_eq!(handle.get().expect("callable should succeed"), 42);
 }
 
 #[test]
@@ -280,9 +305,12 @@ fn test_single_thread_scheduled_executor_service_rejects_unrepresentable_delay()
     let handle = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("service should remain usable after rejecting a deadline");
-    assert_eq!(handle.get().expect("follow-up task should succeed"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_rejects_unrepresentable_delay service should terminate within five seconds"
+    );
+    assert_eq!(handle.get().expect("follow-up task should succeed"), 42);
 }
 
 #[test]
@@ -290,7 +318,10 @@ fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handle
     let service =
         SingleThreadScheduledExecutorService::new("test-termination-overflow").expect("scheduled service should start");
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_wait_termination_timeout_handles_max_duration service should terminate within five seconds"
+    );
 
     assert!(service.wait_termination_timeout(Duration::MAX));
 }
@@ -323,6 +354,26 @@ fn test_scheduled_service_max_timeout_waits_for_shutdown() {
 }
 
 #[test]
+fn test_scheduled_wait_termination_returns_after_shutdown() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_wait_termination_returns_after_shutdown",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-wait-termination-after-shutdown",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::new("scheduled-wait-termination")
+                .expect("scheduled service should start");
+            service.shutdown();
+            service.wait_termination();
+            assert!(service.is_terminated());
+        },
+    )
+    .expect("watchdog should observe the wait-termination test body finish");
+}
+
+#[test]
 fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
     let service =
         SingleThreadScheduledExecutorService::new("test-scheduled-at").expect("scheduled service should start");
@@ -338,9 +389,12 @@ fn test_single_thread_scheduled_executor_service_schedule_at_runs_runnable() {
     sent_rx
         .recv_timeout(Duration::from_secs(1))
         .expect("scheduled task should run");
-    assert!(handle.get().is_ok());
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_schedule_at_runs_runnable service should terminate within five seconds"
+    );
+    assert!(handle.get().is_ok());
 }
 
 #[test]
@@ -375,9 +429,12 @@ fn test_single_thread_scheduled_executor_service_submit_callable_runs_immediatel
         .submit_callable(|| Ok::<usize, ()>(6 * 7))
         .expect("callable should submit");
 
-    assert_eq!(handle.get().expect("callable should succeed"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_submit_callable_runs_immediately service should terminate within five seconds"
+    );
+    assert_eq!(handle.get().expect("callable should succeed"), 42);
 }
 
 #[test]
@@ -397,7 +454,10 @@ fn test_single_thread_scheduled_executor_service_submit_runs_runnable() {
         .recv_timeout(Duration::from_secs(1))
         .expect("submitted task should run");
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_submit_runs_runnable service should terminate within five seconds"
+    );
 }
 
 #[test]
@@ -409,9 +469,12 @@ fn test_single_thread_scheduled_executor_service_submit_tracked_callable_reports
         .submit_tracked_callable(|| Ok::<usize, ()>(42))
         .expect("tracked callable should submit");
 
-    assert_eq!(handle.get().expect("tracked callable should succeed"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_submit_tracked_callable_reports_status service should terminate within five seconds"
+    );
+    assert_eq!(handle.get().expect("tracked callable should succeed"), 42);
 }
 
 #[test]
@@ -424,7 +487,9 @@ fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks
     let handle = service
         .schedule_callable(Duration::ZERO, move || {
             started_tx.send(()).expect("test should observe task start");
-            release_rx.recv().expect("test should release task");
+            release_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("test should release task");
             Ok::<usize, ()>(42)
         })
         .expect("task should schedule");
@@ -436,9 +501,12 @@ fn test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks
     assert_eq!(service.running_count(), 1);
 
     release_tx.send(()).expect("task should receive release signal");
-    assert_eq!(handle.get().expect("task should complete"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_counts_queued_and_running_tasks service should terminate within five seconds"
+    );
+    assert_eq!(handle.get().expect("task should complete"), 42);
 }
 
 #[test]
@@ -467,7 +535,10 @@ fn test_single_thread_scheduled_executor_service_handle_observation_paths() {
         Err(TaskExecutionError::Cancelled)
     ));
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_handle_observation_paths service should terminate within five seconds"
+    );
 }
 
 #[test]
@@ -501,7 +572,10 @@ async fn test_single_thread_scheduled_executor_service_handle_await_returns_resu
 
     assert_eq!(handle.into_future().await.expect("task should succeed"), 42);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_handle_await_returns_result service should terminate within five seconds"
+    );
 }
 
 #[test]
@@ -567,23 +641,40 @@ fn test_single_thread_scheduled_executor_service_cancel_releases_queued_entry() 
     assert_eq!(service.queued_count(), 0);
     assert_eq!(drops.load(Ordering::Acquire), 1);
     service.shutdown();
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_cancel_releases_queued_entry service should terminate within five seconds"
+    );
 }
 
 #[test]
 fn test_single_thread_scheduled_executor_service_stop_cancels_pending_task() {
-    let service =
-        SingleThreadScheduledExecutorService::new("test-scheduled-stop").expect("scheduled service should start");
-    let handle = service
-        .schedule(Duration::from_secs(10), || Ok::<(), ()>(()))
-        .expect("delayed task should schedule");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_single_thread_scheduled_executor_service_stop_cancels_pending_task",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-stop-cancels-pending-task",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::new("test-scheduled-stop")
+                .expect("scheduled service should start");
+            let handle = service
+                .schedule(Duration::from_secs(10), || Ok::<(), ()>(()))
+                .expect("delayed task should schedule");
 
-    let report = service.stop();
+            let report = service.stop();
 
-    assert_eq!(report.queued, 1);
-    assert_eq!(report.cancelled, 1);
-    assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
-    service.wait_termination();
+            assert_eq!(report.queued, 1);
+            assert_eq!(report.cancelled, 1);
+            assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+            assert!(
+                service.wait_termination_timeout(Duration::from_secs(5)),
+                "test_single_thread_scheduled_executor_service_stop_cancels_pending_task service should terminate within five seconds"
+            );
+        },
+    )
+    .expect("watchdog should observe the stop-cancels-pending-task test body finish");
 }
 
 #[test]
@@ -598,7 +689,10 @@ fn test_single_thread_scheduled_executor_service_rejects_after_shutdown() {
         service.schedule(Duration::ZERO, || Ok::<(), ()>(())),
         Err(SubmissionError::Shutdown)
     ));
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_rejects_after_shutdown service should terminate within five seconds"
+    );
 }
 
 #[test]
@@ -610,7 +704,9 @@ fn test_single_thread_scheduled_executor_service_reports_shutting_down_with_runn
     service
         .schedule(Duration::ZERO, move || {
             started_tx.send(()).expect("test should receive task start signal");
-            release_rx.recv().expect("test should release task");
+            release_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("test should release task");
             Ok::<(), ()>(())
         })
         .expect("task should schedule");
@@ -624,7 +720,10 @@ fn test_single_thread_scheduled_executor_service_reports_shutting_down_with_runn
     assert!(service.is_shutting_down());
 
     release_tx.send(()).expect("task should receive release signal");
-    service.wait_termination();
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "test_single_thread_scheduled_executor_service_reports_shutting_down_with_running_work service should terminate within five seconds"
+    );
     assert_eq!(service.lifecycle(), ExecutorServiceLifecycle::Terminated);
 }
 
