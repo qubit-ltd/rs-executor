@@ -124,11 +124,7 @@ fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
     barrier.wait();
     let main_thread_result = main_thread_clone.cancel();
     drop(main_thread_clone);
-    let results = [
-        first.join().unwrap(),
-        second.join().unwrap(),
-        main_thread_result,
-    ];
+    let results = [first.join().unwrap(), second.join().unwrap(), main_thread_result];
     assert_eq!(
         results
             .iter()
