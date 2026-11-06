@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 mod generic_async_handle_tests;
+mod task_cancellation_handle_tests;
 mod task_endpoint_pair_tests;
 mod task_execution_error_tests;
 mod task_handle_state_tests;

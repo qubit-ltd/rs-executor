@@ -12,6 +12,7 @@ mod cancel_result;
 pub(crate) mod internal;
 mod running_task_slot;
 pub(crate) mod task_admission_gate;
+mod task_cancellation_handle;
 mod task_endpoint_pair;
 mod task_execution_error;
 mod task_handle;
@@ -29,6 +30,7 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
+pub use task_cancellation_handle::TaskCancellationHandle;
 pub use task_execution_error::TaskExecutionError;
 pub use task_execution_error::TaskResult;
 pub use task_handle::TaskHandle;

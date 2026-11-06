@@ -14,6 +14,7 @@ use super::internal::PendingTaskWait;
 use super::task_handle::TaskHandle;
 use super::task_handle_future::TaskHandleFuture;
 use super::task_result_handle::TaskResultHandle;
+use super::task_state::TaskState;
 use super::task_status::TaskStatus;
 use super::tracked_task_handle::TrackedTaskHandle;
 use super::try_get::TryGet;
@@ -189,17 +190,22 @@ impl<R, E> TrackedTask<R, E> {
     /// The observed cancellation outcome.
     #[inline]
     fn cancel_inner(&self) -> CancelResult {
-        if self.handle.state.try_cancel_pending() {
-            if let Some(pending_wait) = &self.pending_wait {
-                pending_wait.cancel();
-            }
-            return CancelResult::Cancelled;
-        }
-        match self.status() {
-            TaskStatus::Pending => CancelResult::Unsupported,
-            TaskStatus::Running => CancelResult::AlreadyRunning,
-            _ => CancelResult::AlreadyFinished,
-        }
+        cancel_pending(&self.handle.state, &self.pending_wait)
+    }
+
+    /// Creates an independent endpoint for cancelling this task while pending.
+    ///
+    /// The endpoint can be retained after this result handle is consumed into a
+    /// future. Cloning or dropping it does not cancel the task. Holding it keeps
+    /// the shared task state alive, and cancellation cannot stop a running task.
+    pub fn cancellation_handle(&self) -> super::TaskCancellationHandle
+    where
+        R: Send + 'static,
+        E: Send + 'static,
+    {
+        let state = Arc::clone(&self.handle.state);
+        let wait = self.pending_wait.clone();
+        super::TaskCancellationHandle::new(move || cancel_pending(&state, &wait))
     }
 }
 
@@ -259,5 +265,22 @@ impl<R, E> IntoFuture for TrackedTask<R, E> {
     #[inline]
     fn into_future(self) -> Self::IntoFuture {
         self.handle.into_future()
+    }
+}
+
+fn cancel_pending<R, E>(
+    state: &TaskState<R, E>,
+    pending_wait: &Option<Arc<PendingTaskWait>>,
+) -> CancelResult {
+    if state.try_cancel_pending() {
+        if let Some(wait) = pending_wait {
+            wait.cancel();
+        }
+        return CancelResult::Cancelled;
+    }
+    match state.status() {
+        TaskStatus::Pending => CancelResult::Unsupported,
+        TaskStatus::Running => CancelResult::AlreadyRunning,
+        _ => CancelResult::AlreadyFinished,
     }
 }

@@ -74,6 +74,7 @@ pub use crate::service::SubmissionError;
 pub use crate::service::ThreadPerTaskExecutorService;
 pub use crate::service::ThreadPerTaskExecutorServiceBuilder;
 pub use crate::task::CancelResult;
+pub use crate::task::TaskCancellationHandle;
 pub use crate::task::TaskExecutionError;
 pub use crate::task::TaskHandle;
 pub use crate::task::TaskResult;

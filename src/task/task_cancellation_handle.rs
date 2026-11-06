@@ -1,0 +1,53 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+use std::sync::Arc;
+
+use crate::CancelResult;
+
+/// A clonable endpoint for cancelling a task while it is still pending.
+///
+/// Clones share the same cancellation action. Dropping an endpoint does not
+/// cancel the task. The action may synchronously clean up executor resources,
+/// block, or panic; panics are propagated to the caller. Cancellation cannot
+/// forcibly stop a task that has started running.
+///
+/// This endpoint can outlive the result handle and keeps resources captured by
+/// its cancellation action alive until the final clone is dropped.
+///
+/// Executor providers can use [`TaskCancellationHandle::new`] to adapt their
+/// own cancellation path. The callback must be safe for concurrent invocation
+/// and must perform all executor-specific cleanup when it wins cancellation.
+#[derive(Clone)]
+pub struct TaskCancellationHandle {
+    cancel: Arc<dyn Fn() -> CancelResult + Send + Sync + 'static>,
+}
+
+impl TaskCancellationHandle {
+    /// Creates a cancellation endpoint from a provider-supplied action.
+    ///
+    /// The callback is not run during construction or when the endpoint is
+    /// dropped. It may be called concurrently through cloned endpoints, so it
+    /// must safely coordinate state transitions and executor cleanup. Any
+    /// panic from the callback is propagated by [`Self::cancel`].
+    pub fn new<F>(cancel: F) -> Self
+    where
+        F: Fn() -> CancelResult + Send + Sync + 'static,
+    {
+        Self {
+            cancel: Arc::new(cancel),
+        }
+    }
+
+    /// Attempts to cancel the associated task.
+    ///
+    /// The callback's [`CancelResult`] reports whether cancellation won or
+    /// whether the task is already running or finished.
+    pub fn cancel(&self) -> CancelResult {
+        (self.cancel)()
+    }
+}
