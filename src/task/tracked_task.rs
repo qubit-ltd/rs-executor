@@ -60,6 +60,11 @@ impl<R, E> TrackedTask<R, E> {
     }
 
     /// Attaches the executor's pending delay wakeup to this tracked handle.
+    ///
+    /// # Parameters
+    ///
+    /// * `self` - Tracked task that receives the wakeup.
+    /// * `pending_wait` - Shared wakeup used to interrupt the pending delay.
     #[inline]
     pub(crate) fn with_pending_wait(mut self, pending_wait: Arc<PendingTaskWait>) -> Self {
         self.pending_wait = Some(pending_wait);
@@ -245,7 +250,9 @@ where
 }
 
 impl<R, E> IntoFuture for TrackedTask<R, E> {
+    /// Result produced by awaiting this tracked task.
     type Output = TaskResult<R, E>;
+    /// Future that receives the task result asynchronously.
     type IntoFuture = TaskHandleFuture<R, E>;
 
     /// Converts this tracked handle into a future resolving to the task result.

@@ -54,6 +54,11 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// * `delay` - Minimum delay before the task becomes runnable.
     /// * `task` - Runnable to execute after the delay elapses.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task to execute.
+    /// * `E` - Error type returned by the runnable.
+    ///
     /// # Returns
     ///
     /// A tracked handle for observing or cancelling the scheduled task.
@@ -78,6 +83,12 @@ pub trait ScheduledExecutorService: ExecutorService {
     ///
     /// * `delay` - Minimum delay before the task becomes runnable.
     /// * `task` - Callable to execute after the delay elapses.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     ///
     /// # Returns
     ///
@@ -107,6 +118,11 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// * `instant` - Monotonic instant at which the task becomes runnable.
     /// * `task` - Runnable to execute at or after the instant.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task to execute.
+    /// * `E` - Error type returned by the runnable.
+    ///
     /// # Returns
     ///
     /// A tracked handle for observing or cancelling the scheduled task.
@@ -131,6 +147,12 @@ pub trait ScheduledExecutorService: ExecutorService {
     ///
     /// * `instant` - Monotonic instant at which the task becomes runnable.
     /// * `task` - Callable to execute at or after the instant.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     ///
     /// # Returns
     ///

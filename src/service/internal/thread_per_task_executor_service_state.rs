@@ -139,6 +139,11 @@ impl ThreadPerTaskExecutorServiceState {
     }
 
     /// Marks the service terminated when no active work remains.
+    ///
+    /// # Parameters
+    ///
+    /// * `state` - Mutable service state to update.
+    /// * `termination` - Condition variable used to wake termination waiters.
     #[inline]
     fn terminate_if_ready(state: &mut ServiceState, termination: &Condvar) {
         if state.lifecycle != ExecutorServiceLifecycle::Running && state.active_tasks == 0 {

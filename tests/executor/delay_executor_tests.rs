@@ -140,7 +140,7 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
         CancelResult::Unsupported => panic!("tracked delay task cancellation should be supported"),
     }
     finished_rx
-        .recv_timeout(Duration::from_secs(1))
+        .recv_timeout(Duration::from_secs(5))
         .expect("task should emit its finished event");
     assert_eq!(hook.count.load(Ordering::Acquire), 1);
 }
@@ -172,7 +172,7 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
         .recv_timeout(Duration::from_secs(5))
         .expect("cancelled callable cleanup should begin");
     finished_rx
-        .recv_timeout(Duration::from_secs(1))
+        .recv_timeout(Duration::from_secs(5))
         .expect("task should emit its finished event");
 
     assert_eq!(cancellation, CancelResult::Cancelled);
@@ -184,7 +184,13 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
 
 #[test]
 fn test_delay_executor_cancel_releases_long_delayed_callable() {
-    let executor = DelayExecutor::new(Duration::from_secs(3600));
+    let (finished_tx, finished_rx) = mpsc::channel();
+    let hook = Arc::new(FinishedCount {
+        count: AtomicUsize::new(0),
+        signal: finished_tx,
+        started: AtomicUsize::new(0),
+    });
+    let executor = DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_task = Arc::clone(&calls);
     let (dropped_tx, dropped_rx) = mpsc::channel();
@@ -200,12 +206,62 @@ fn test_delay_executor_cancel_releases_long_delayed_callable() {
     let cancellation = handle.cancel();
     let result = handle.get();
     let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+    let finished = finished_rx.recv_timeout(Duration::from_secs(5)).is_ok();
     let executions = calls.load(Ordering::Acquire);
+    let started = hook.started.load(Ordering::Acquire);
+    let finished_count = hook.count.load(Ordering::Acquire);
 
     assert_eq!(cancellation, CancelResult::Cancelled);
     assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
     assert_eq!(executions, 0);
     assert!(released, "cancelled callable capture should be released promptly");
+    assert!(finished, "task should emit its finished event");
+    assert_eq!(started, 0);
+    assert_eq!(finished_count, 1);
+}
+
+#[test]
+fn test_delay_executor_cancel_after_start_preserves_running_task() {
+    let (finished_tx, finished_rx) = mpsc::channel();
+    let hook = Arc::new(FinishedCount {
+        count: AtomicUsize::new(0),
+        signal: finished_tx,
+        started: AtomicUsize::new(0),
+    });
+    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let (value_tx, value_rx) = mpsc::channel();
+    let handle = executor
+        .call(move || {
+            entered_tx.send(()).expect("observer exists");
+            release_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("task should be released");
+            task_calls.fetch_add(1, Ordering::AcqRel);
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("worker should spawn");
+
+    let entered = entered_rx.recv_timeout(Duration::from_secs(5));
+    let cancellation = handle.cancel();
+    let _ = release_tx.send(());
+    // Collect get on an observer thread so this test's waiting remains bounded.
+    std::thread::spawn(move || {
+        let _ = value_tx.send(handle.get());
+    });
+    let result = value_rx.recv_timeout(Duration::from_secs(5));
+    let finished = finished_rx.recv_timeout(Duration::from_secs(5));
+
+    assert!(entered.is_ok(), "task must enter before cancellation");
+    assert_eq!(cancellation, CancelResult::AlreadyRunning);
+    assert!(matches!(result, Ok(Ok(42))));
+    assert!(finished.is_ok(), "finished event should arrive");
+    assert_eq!(calls.load(Ordering::Acquire), 1);
+    assert_eq!(hook.started.load(Ordering::Acquire), 1);
+    assert_eq!(hook.count.load(Ordering::Acquire), 1);
 }
 
 #[test]

@@ -239,7 +239,9 @@ where
 }
 
 impl<R, E> IntoFuture for ScheduledTaskHandle<R, E> {
+    /// Final result produced by the scheduled task.
     type Output = TaskResult<R, E>;
+    /// Future that receives the task's final result.
     type IntoFuture = TaskHandleFuture<R, E>;
 
     /// Converts this scheduled handle into a future resolving to the task

@@ -22,6 +22,20 @@ use crate::task::spi::TaskEndpointPair;
 use crate::task::spi::TaskSlot;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 
+/// Waits for a delay or cancellation before attempting to run a task.
+///
+/// # Parameters
+///
+/// * `worker_wait` - Cancellation-aware wait associated with the task.
+/// * `delay` - Minimum delay before the task may start.
+/// * `slot` - Runner-side endpoint that arbitrates start and cancellation.
+/// * `task` - Callable to run if cancellation has not won.
+///
+/// # Type Parameters
+///
+/// * `C` - Callable that produces the task result.
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
 fn wait_then_run<C, R, E>(worker_wait: &PendingTaskWait, delay: Duration, slot: TaskSlot<R, E>, task: C)
 where
     C: Callable<R, E>,
@@ -145,6 +159,12 @@ impl Executor for ScheduleExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the helper thread
     /// cannot be created.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,

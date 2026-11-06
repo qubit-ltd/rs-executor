@@ -33,7 +33,21 @@ use super::TaskResult;
 /// ```
 pub enum TryGet<H, R, E> {
     /// The task result is ready.
-    Ready(TaskResult<R, E>),
+    ///
+    /// # Parameters
+    ///
+    /// * `0` - Final task result.
+    Ready(
+        /// Final task result.
+        TaskResult<R, E>,
+    ),
     /// The task has not completed and the handle is returned to the caller.
-    Pending(H),
+    ///
+    /// # Parameters
+    ///
+    /// * `0` - Task handle to poll again or await later.
+    Pending(
+        /// Task handle to poll again or await later.
+        H,
+    ),
 }

@@ -46,6 +46,11 @@ pub enum TaskStatus {
 impl TaskStatus {
     /// Returns the terminal status represented by a task result.
     ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    ///
     /// # Parameters
     ///
     /// * `result` - Final task result being published.

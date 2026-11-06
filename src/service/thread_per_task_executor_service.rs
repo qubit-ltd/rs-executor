@@ -163,6 +163,14 @@ impl ThreadPerTaskExecutorService {
     /// Returns [`SubmissionError::Shutdown`] if the service is not running, or
     /// [`SubmissionError::WorkerSpawnFailed`] if the worker thread cannot be
     /// created.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    /// * `H` - Handle returned to the submitter.
+    /// * `S` - Function that splits task endpoints into a handle and slot.
+    /// * `F` - Worker function that consumes the task slot.
     fn submit_with_slot<R, E, H, S, F>(&self, split_pair: S, run_slot: F) -> Result<H, SubmissionError>
     where
         R: Send + 'static,
@@ -197,12 +205,14 @@ impl ThreadPerTaskExecutorService {
 }
 
 impl ExecutorService for ThreadPerTaskExecutorService {
+    /// Standard result handle returned by immediate task submission.
     type ResultHandle<R, E>
         = TaskHandle<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
 
+    /// Tracked task handle returned by tracked submission.
     type TrackedHandle<R, E>
         = TrackedTask<R, E>
     where
@@ -226,6 +236,11 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     /// operating system cannot create the dedicated worker thread. Success
     /// means the task was accepted and its worker thread was created; it does
     /// not guarantee when the task starts or whether it succeeds.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task to execute.
+    /// * `E` - Error type returned by the runnable.
     fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
@@ -259,6 +274,12 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     /// operating system cannot create the dedicated worker thread. Success
     /// means the task was accepted and its worker thread was created; it does
     /// not guarantee when the task starts or whether it succeeds.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -290,6 +311,12 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     /// operating system cannot create the dedicated worker thread. Success
     /// means the task was accepted and its worker thread was created; it does
     /// not guarantee when the task starts or whether it succeeds.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -342,6 +369,10 @@ impl ExecutorService for ThreadPerTaskExecutorService {
     }
 
     /// Waits at most `timeout` for all accepted threads to complete.
+    ///
+    /// # Parameters
+    ///
+    /// * `timeout` - Maximum duration to wait for accepted threads.
     #[inline]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool {
         self.state.wait_for_termination_timeout(timeout)

@@ -361,6 +361,10 @@ pub trait ExecutorService: Send + Sync {
     /// when the deadline expires first. Termination is defined by the service;
     /// this does not promise an OS-thread join or completion of cleanup in a
     /// concurrent cancellation call.
+    ///
+    /// # Parameters
+    ///
+    /// * `timeout` - Maximum duration to wait.
     #[must_use]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool;
 }

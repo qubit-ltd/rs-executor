@@ -22,6 +22,10 @@ pub(crate) struct StopDrainGuard<'a> {
 
 impl<'a> StopDrainGuard<'a> {
     /// Creates the unique guard for the stop call draining a non-empty batch.
+    ///
+    /// # Parameters
+    ///
+    /// * `core` - Scheduler state whose drain this guard owns.
     pub(crate) fn new(core: &'a SchedulerCore) -> Self {
         Self { core }
     }

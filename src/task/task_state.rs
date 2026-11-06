@@ -23,6 +23,11 @@ use crate::hook::notify_started;
 use crate::internal::discard_panic_payload;
 
 /// Shared completion endpoint state for one submitted task.
+///
+/// # Type Parameters
+///
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
 pub(crate) struct TaskState<R, E> {
     /// Identifier assigned to this task.
     pub(crate) task_id: TaskId,

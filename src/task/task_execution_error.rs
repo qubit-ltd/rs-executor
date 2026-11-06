@@ -42,7 +42,14 @@ pub type TaskResult<R, E> = Result<R, TaskExecutionError<E>>;
 #[derive(Debug)]
 pub enum TaskExecutionError<E> {
     /// The task ran and returned `Err(E)`.
-    Failed(E),
+    ///
+    /// # Parameters
+    ///
+    /// * `0` - Error value returned by the task.
+    Failed(
+        /// Error value returned by the task.
+        E,
+    ),
 
     /// The task panicked while running.
     Panicked,
@@ -111,6 +118,11 @@ where
     E: fmt::Display,
 {
     /// Formats this task execution error for users.
+    ///
+    /// # Parameters
+    ///
+    /// * `self` - Execution error to format.
+    /// * `f` - Formatter receiving the error text.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Failed(err) => write!(f, "task failed: {err}"),

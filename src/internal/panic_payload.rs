@@ -14,6 +14,10 @@ use std::panic::catch_unwind;
 /// If dropping the original payload panics, the secondary payload is
 /// intentionally leaked because dropping it could trigger another panic. This
 /// contains recoverable unwinding only; it cannot recover from process aborts.
+///
+/// # Parameters
+///
+/// * `payload` - Panic payload whose destructor must be contained.
 pub(crate) fn discard_panic_payload(payload: Box<dyn Any + Send>) {
     if let Err(secondary) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
         std::mem::forget(secondary);

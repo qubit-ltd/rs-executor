@@ -33,6 +33,11 @@ use crate::internal::discard_panic_payload;
 /// [`crate::ExecutorService::stop`], should call [`Self::cancel_unstarted`] so
 /// callers observe [`crate::TaskExecutionError::Cancelled`] instead.
 ///
+/// # Type Parameters
+///
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
+///
 /// # Examples
 ///
 /// ```
@@ -144,6 +149,10 @@ impl<R, E> TaskSlot<R, E> {
     /// * `task` - Closure that runs the accepted task and returns its final
     ///   result.
     ///
+    /// # Type Parameters
+    ///
+    /// * `F` - Closure that produces the task result.
+    ///
     /// # Returns
     ///
     /// `true` if the closure was executed and its result was published, or
@@ -167,6 +176,10 @@ impl<R, E> TaskSlot<R, E> {
     /// # Parameters
     ///
     /// * `task` - Callable to run if the task has not been cancelled.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable task implementation.
     ///
     /// # Returns
     ///

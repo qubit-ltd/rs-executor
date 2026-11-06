@@ -145,6 +145,12 @@ impl Executor for ThreadPerTaskExecutor {
     ///
     /// Returns [`SubmissionError::WorkerSpawnFailed`] if the worker thread
     /// cannot be created.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,

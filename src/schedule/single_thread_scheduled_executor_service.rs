@@ -158,6 +158,10 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Callback that removes a queued task and wakes the scheduler when its
     /// handle cancels before start.
+    ///
+    /// # Parameters
+    ///
+    /// * `task_id` - Identifier of the scheduled task to cancel.
     fn cancellation_callback(&self, task_id: crate::hook::TaskId) -> Arc<dyn Fn() + Send + Sync + 'static> {
         let inner = Arc::downgrade(&self.inner);
         Arc::new(move || {
@@ -200,6 +204,12 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     fn schedule_result_handle<C, R, E>(&self, deadline: Instant, task: C) -> Result<TaskHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -222,12 +232,14 @@ impl Drop for SingleThreadScheduledExecutorService {
 }
 
 impl ExecutorService for SingleThreadScheduledExecutorService {
+    /// Standard result handle returned by immediate task submission.
     type ResultHandle<R, E>
         = TaskHandle<R, E>
     where
         R: Send + 'static,
         E: Send + 'static;
 
+    /// Scheduled handle that can cancel an accepted task before it starts.
     type TrackedHandle<R, E>
         = ScheduledTaskHandle<R, E>
     where
@@ -235,6 +247,24 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
         E: Send + 'static;
 
     /// Accepts a runnable for immediate execution on the scheduler thread.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Runnable task to execute.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Runnable task type.
+    /// * `E` - Error type returned by the runnable.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the task was accepted.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if the service has stopped
+    /// accepting tasks.
     fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
@@ -247,6 +277,25 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution on the scheduler thread.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Callable task to execute.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    ///
+    /// # Returns
+    ///
+    /// A standard result handle for the accepted task.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if the service has stopped
+    /// accepting tasks.
     fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -257,6 +306,25 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Accepts a callable for immediate execution with a scheduled task handle.
+    ///
+    /// # Parameters
+    ///
+    /// * `task` - Callable task to execute.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    ///
+    /// # Returns
+    ///
+    /// A tracked handle that can cancel the task before it starts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if the service has stopped
+    /// accepting tasks.
     fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -267,6 +335,12 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     }
 
     /// Requests graceful shutdown and drains accepted scheduled work.
+    ///
+    /// Queued tasks retain their original deadlines after shutdown. Termination
+    /// may therefore remain pending even when no task is currently running.
+    /// Use [`ExecutorService::stop`] to cancel entries still queued, or cancel
+    /// individual tracked handles before they start. A termination-wait timeout
+    /// does not itself stop the service.
     #[inline]
     fn shutdown(&self) {
         self.inner.shutdown();
@@ -327,6 +401,11 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     /// Returns `true` when the worker publishes the service's termination
     /// condition. This does not join the OS thread or wait for cleanup running
     /// in a concurrent cancellation call.
+    ///
+    /// # Parameters
+    ///
+    /// * `timeout` - Maximum time to wait for the service termination
+    ///   condition.
     #[inline]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool {
         self.inner.wait_for_termination_timeout(timeout)
@@ -335,6 +414,26 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
 
 impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
     /// Schedules a callable task to start at a monotonic instant.
+    ///
+    /// # Parameters
+    ///
+    /// * `instant` - Monotonic instant when the task may start.
+    /// * `task` - Callable task to execute.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    ///
+    /// # Returns
+    ///
+    /// A tracked handle for observing or cancelling the task.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubmissionError::Shutdown`] if the service has stopped
+    /// accepting tasks.
     fn schedule_callable_at<C, R, E>(
         &self,
         instant: Instant,

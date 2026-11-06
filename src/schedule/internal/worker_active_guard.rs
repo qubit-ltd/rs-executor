@@ -22,6 +22,10 @@ pub(crate) struct WorkerActiveGuard<'a> {
 
 impl<'a> WorkerActiveGuard<'a> {
     /// Creates a guard for an entry already marked active by the scheduler.
+    ///
+    /// # Parameters
+    ///
+    /// * `core` - Scheduler state containing the active marker.
     pub(crate) fn new(core: &'a SchedulerCore) -> Self {
         Self { core }
     }

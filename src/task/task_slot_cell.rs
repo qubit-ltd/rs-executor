@@ -33,6 +33,11 @@ use super::task_slot::TaskSlot;
 /// assert!(cell.take().is_some());
 /// assert!(cell.take().is_none());
 /// ```
+///
+/// # Type Parameters
+///
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
 pub struct TaskSlotCell<R, E> {
     /// The pending runner endpoint guarded against concurrent consumption.
     slot: Mutex<Option<TaskSlot<R, E>>>,
@@ -42,6 +47,10 @@ impl<R, E> TaskSlotCell<R, E> {
     /// Wraps one runner-side task slot in shared storage.
     ///
     /// The slot remains pending until a caller starts, takes, or cancels it.
+    ///
+    /// # Parameters
+    ///
+    /// * `slot` - Runner endpoint to store.
     #[must_use]
     #[inline]
     pub fn new(slot: TaskSlot<R, E>) -> Self {

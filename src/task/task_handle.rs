@@ -150,7 +150,9 @@ where
 }
 
 impl<R, E> IntoFuture for TaskHandle<R, E> {
+    /// Result produced by awaiting this handle.
     type Output = TaskResult<R, E>;
+    /// Future that receives the task result asynchronously.
     type IntoFuture = TaskHandleFuture<R, E>;
 
     /// Converts this handle into a future resolving to the task result.

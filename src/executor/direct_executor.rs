@@ -83,6 +83,12 @@ impl Executor for DirectExecutor {
     /// # Returns
     ///
     /// An already completed tracked task carrying the callable result.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     #[inline]
     fn call<C, R, E>(&self, task: C) -> Result<TrackedTask<R, E>, SubmissionError>
     where

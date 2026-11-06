@@ -151,8 +151,8 @@ Use `lifecycle()`, `is_running()`, `is_shutting_down()`, `is_stopping()`, and `i
 ## Troubleshooting
 
 - **A submission is rejected:** inspect `lifecycle()` and the returned `SubmissionError`; do not submit after `shutdown()` or `stop()`.
-- **A result is not ready:** `get()` blocks. Use `try_get()` for polling or `is_done()` for a completion check; avoid waiting on the same service thread that must run the task.
-- **Termination does not return:** locate accepted tasks that are still running, especially blocking calls or OS-thread work that cannot be interrupted.
+- **A result is not ready:** `get()` blocks. Use `try_get()` for non-blocking retrieval. `is_done()` observes a terminal task state, not result availability: result publication may still be in progress, so `try_get()` can return `Pending` and `get()` can still block after `is_done()` returns `true`. Retain the handle returned in `Pending` to poll or await later, and avoid waiting on the same service thread that must run the task.
+- **Termination does not return:** locate accepted tasks that are still running, especially blocking calls or OS-thread work that cannot be interrupted. A scheduled service also retains accepted tasks' original deadlines after `shutdown()`; a far-future queued task can therefore keep termination pending even when no task is currently running, including after the service handle is dropped. Wait when those tasks should be preserved, cancel individual tracked handles before they start, or call `stop()` to cancel entries still queued. A `wait_termination_timeout()` timeout only means termination has not yet been reported; it does not stop the service. `stop()` still cannot interrupt running tasks, and a worker-claimed scheduled task may start after `stop()` returns.
 - **A scheduled task is rejected:** reduce the delay or use an `Instant` in the target platform's representable range.
 - **A worker cannot start:** inspect the inner error in `WorkerSpawnFailed` and the configured thread name or stack size on the builder.
 

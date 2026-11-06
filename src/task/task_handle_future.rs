@@ -77,6 +77,7 @@ impl<R, E> TaskHandleFuture<R, E> {
 }
 
 impl<R, E> Future for TaskHandleFuture<R, E> {
+    /// Final task result, or a dropped-result error if the sender is gone.
     type Output = TaskResult<R, E>;
 
     /// Polls the result receiver for the final task result.

@@ -43,6 +43,10 @@ impl PendingTaskWait {
     ///
     /// Long waits are split into one-hour intervals so very large durations
     /// do not need to be converted to an overflowing absolute deadline.
+    ///
+    /// # Parameters
+    ///
+    /// * `delay` - Duration to wait unless cancellation is observed.
     pub(crate) fn wait_for(&self, delay: Duration) -> bool {
         self.wait_for_with_waiter(delay, |changed, cancelled, interval| {
             changed.wait_for(cancelled, interval);
@@ -55,6 +59,15 @@ impl PendingTaskWait {
     /// The waiter is called while `cancelled` is locked and must release and
     /// reacquire that lock as part of waiting. The method returns `false` when
     /// cancellation is observed and `true` when the delay has elapsed.
+    ///
+    /// # Parameters
+    ///
+    /// * `delay` - Duration to wait unless cancellation is observed.
+    /// * `waiter` - Condition-variable wait operation used for each interval.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `F` - Wait operation that releases and reacquires the mutex guard.
     fn wait_for_with_waiter<F>(&self, delay: Duration, mut waiter: F) -> bool
     where
         F: for<'a, 'b> FnMut(&Condvar, &'a mut MutexGuard<'b, bool>, Duration),

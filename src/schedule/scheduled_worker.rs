@@ -27,6 +27,10 @@ impl ScheduledWorker {
     /// Ordinary panics from starting or running one entry are contained for
     /// that entry; its active marker is restored before the worker continues.
     /// Aborting panics cannot be recovered.
+    ///
+    /// # Parameters
+    ///
+    /// * `core` - Shared state for the scheduled service.
     pub(crate) fn run(core: Arc<SchedulerCore>) {
         Self::run_with_waiter(core, |state, delay| {
             state.wait_for(delay).map(|_| ()).map_err(|error| {
@@ -47,6 +51,15 @@ impl ScheduledWorker {
     /// `SchedulerState::can_terminate()` is true, so an existing stop drain
     /// remains responsible for its own cleanup and is not bypassed. This stop
     /// request does not guarantee that all task work ends immediately.
+    ///
+    /// # Parameters
+    ///
+    /// * `core` - Shared state for the scheduled service.
+    /// * `waiter` - Wait operation used until the next task deadline.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `F` - Wait operation that can report a worker wait failure.
     fn run_with_waiter<F>(core: Arc<SchedulerCore>, mut waiter: F)
     where
         F: for<'a, 'b> FnMut(&'a mut ParkingLotMonitorGuard<'b, SchedulerState>, Duration) -> Result<(), ()>,
@@ -77,6 +90,10 @@ impl ScheduledWorker {
 }
 
 /// Stops queued work after the worker loop fails and contains stop panics.
+///
+/// # Parameters
+///
+/// * `core` - Shared scheduler state to stop.
 fn stop_after_worker_failure(core: &SchedulerCore) {
     if let Err(payload) = catch_unwind(AssertUnwindSafe(|| core.stop())) {
         crate::internal::discard_panic_payload(payload);
@@ -84,6 +101,15 @@ fn stop_after_worker_failure(core: &SchedulerCore) {
 }
 
 /// Obtains the next due task without retaining the monitor during task work.
+///
+/// # Parameters
+///
+/// * `core` - Shared scheduler state containing the deadline queue.
+/// * `waiter` - Wait operation used while the earliest task is not due.
+///
+/// # Type Parameters
+///
+/// * `F` - Wait operation that can report a worker wait failure.
 fn next_ready_task<F>(core: &SchedulerCore, waiter: &mut F) -> Result<Option<StartedScheduledTask>, ()>
 where
     F: for<'a, 'b> FnMut(&'a mut ParkingLotMonitorGuard<'b, SchedulerState>, Duration) -> Result<(), ()>,

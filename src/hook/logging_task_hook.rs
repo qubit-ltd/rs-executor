@@ -33,24 +33,41 @@ pub struct LoggingTaskHook;
 
 impl TaskHook for LoggingTaskHook {
     /// Logs task acceptance.
+    ///
+    /// # Parameters
+    ///
+    /// * `task_id` - Identifier assigned to the accepted task.
     #[inline]
     fn on_accepted(&self, task_id: TaskId) {
         log::debug!("task {} accepted", task_id.get());
     }
 
     /// Logs task rejection.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - Submission error returned for the rejected task.
     #[inline]
     fn on_rejected(&self, error: &SubmissionError) {
         log::debug!("task rejected: {error}");
     }
 
     /// Logs task start.
+    ///
+    /// # Parameters
+    ///
+    /// * `task_id` - Identifier assigned to the started task.
     #[inline]
     fn on_started(&self, task_id: TaskId) {
         log::debug!("task {} started", task_id.get());
     }
 
     /// Logs task completion.
+    ///
+    /// # Parameters
+    ///
+    /// * `task_id` - Identifier assigned to the completed task.
+    /// * `status` - Terminal status recorded for the task.
     #[inline]
     fn on_finished(&self, task_id: TaskId, status: TaskStatus) {
         log::debug!("task {} finished with status {:?}", task_id.get(), status);

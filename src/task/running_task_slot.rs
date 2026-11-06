@@ -99,6 +99,10 @@ impl<R, E> RunningTaskSlot<R, E> {
     ///
     /// `true` if the callable result was published, or `false` if completion
     /// was no longer possible.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
     #[inline]
     pub fn run<C>(self, task: C) -> bool
     where

@@ -14,6 +14,11 @@ use crate::task::spi::TaskRunner;
 use crate::task::spi::TaskSlot;
 
 /// Callable task paired with a standard task completion endpoint.
+///
+/// # Type Parameters
+///
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
 pub(crate) struct CompletableScheduledTask<R, E> {
     /// Callable to run after the scheduled instant.
     task: Box<dyn FnOnce(RunningTaskSlot<R, E>) + Send + 'static>,
@@ -28,6 +33,12 @@ impl<R, E> CompletableScheduledTask<R, E> {
     ///
     /// * `task` - Callable to run after the scheduled instant.
     /// * `slot` - Runner-side task completion endpoint.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
     ///
     /// # Returns
     ///
