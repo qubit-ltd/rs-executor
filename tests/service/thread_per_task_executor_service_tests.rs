@@ -309,15 +309,26 @@ fn test_thread_per_task_executor_service_wait_termination_timeout_handles_max_du
 
 #[test]
 fn test_thread_per_task_service_max_timeout_waits_for_shutdown() {
-    let service = ThreadPerTaskExecutorService::new();
-    let shutdown_service = service.clone();
-    let shutdown_thread = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(20));
-        shutdown_service.shutdown();
-    });
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_thread_per_task_service_max_timeout_waits_for_shutdown",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "thread-per-task-max-timeout",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = ThreadPerTaskExecutorService::new();
+            let shutdown_service = service.clone();
+            let shutdown_thread = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(20));
+                shutdown_service.shutdown();
+            });
 
-    assert!(service.wait_termination_timeout(Duration::MAX));
-    shutdown_thread.join().expect("shutdown thread should not panic");
+            assert!(service.wait_termination_timeout(Duration::MAX));
+            shutdown_thread.join().expect("shutdown thread should not panic");
+        },
+    )
+    .expect("watchdog should observe the thread-per-task max-timeout test body finish");
 }
 
 #[test]

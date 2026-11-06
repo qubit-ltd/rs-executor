@@ -297,17 +297,29 @@ fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handle
 
 #[test]
 fn test_scheduled_service_max_timeout_waits_for_shutdown() {
-    let service = Arc::new(
-        SingleThreadScheduledExecutorService::new("test-max-timeout-running").expect("scheduled service should start"),
-    );
-    let shutdown_service = service.clone();
-    let shutdown_thread = thread::spawn(move || {
-        thread::sleep(Duration::from_millis(20));
-        shutdown_service.shutdown();
-    });
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_service_max_timeout_waits_for_shutdown",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-service-max-timeout",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = Arc::new(
+                SingleThreadScheduledExecutorService::new("test-max-timeout-running")
+                    .expect("scheduled service should start"),
+            );
+            let shutdown_service = service.clone();
+            let shutdown_thread = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(20));
+                shutdown_service.shutdown();
+            });
 
-    assert!(service.wait_termination_timeout(Duration::MAX));
-    shutdown_thread.join().expect("shutdown thread should not panic");
+            assert!(service.wait_termination_timeout(Duration::MAX));
+            shutdown_thread.join().expect("shutdown thread should not panic");
+        },
+    )
+    .expect("watchdog should observe the scheduled-service max-timeout test body finish");
 }
 
 #[test]
