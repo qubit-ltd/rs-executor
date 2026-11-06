@@ -18,34 +18,10 @@ use crate::hook::notify_rejected_optional;
 use crate::service::SubmissionError;
 use crate::task::internal::PendingTaskWait;
 use crate::task::spi::TaskEndpointPair;
-use crate::task::spi::TaskSlot;
 use crate::task::task_admission_gate::TaskAdmissionGate;
 
 /// Type-erased worker executed by a delayed helper thread.
 type Worker = Box<dyn FnOnce() + Send + 'static>;
-
-/// Waits for a delay or cancellation before attempting to run a task.
-///
-/// # Parameters
-///
-/// * `worker_wait` - Cancellation-aware wait associated with the task.
-/// * `delay` - Minimum delay before the task may start.
-/// * `slot` - Runner-side endpoint that arbitrates start and cancellation.
-/// * `task` - Callable to run if cancellation has not won.
-///
-/// # Type Parameters
-///
-/// * `C` - Callable that produces the task result.
-/// * `R` - Successful task result type.
-/// * `E` - Task error type.
-fn wait_then_run<C, R, E>(worker_wait: &PendingTaskWait, delay: Duration, slot: TaskSlot<R, E>, task: C)
-where
-    C: Callable<R, E>,
-{
-    // The wait controls timing; the slot decides whether to run or clean up.
-    let _ = worker_wait.wait_for(delay);
-    slot.run(task);
-}
 
 /// Executor that starts each task after a fixed delay.
 ///
@@ -208,7 +184,7 @@ impl Executor for DelayExecutor {
         let hook = self.hook.clone();
         self.spawn_worker(Box::new(move || {
             worker_gate.wait();
-            wait_then_run(&worker_wait, delay, slot, task);
+            worker_wait.wait_then_run(delay, slot, task);
         }))
         .inspect_err(|error| notify_rejected_optional(hook.as_ref(), error))?;
         handle.accept();
@@ -228,7 +204,6 @@ mod cancellation_cleanup_tests {
     use std::thread;
     use std::time::Duration;
 
-    use super::wait_then_run;
     use crate::CancelResult;
     use crate::TaskExecutionError;
     use crate::task::internal::PendingTaskWait;
@@ -272,7 +247,7 @@ mod cancellation_cleanup_tests {
         let task_calls = Arc::clone(&calls);
         let probe = PanicOnDrop(drop_started_tx);
         let worker = thread::spawn(move || {
-            wait_then_run(&worker_wait, Duration::from_secs(3600), slot, move || {
+            worker_wait.wait_then_run(Duration::from_secs(3600), slot, move || {
                 let _keep = &probe;
                 task_calls.fetch_add(1, Ordering::AcqRel);
                 Ok::<usize, io::Error>(42)
@@ -300,7 +275,7 @@ mod cancellation_cleanup_tests {
             let (stage_tx, stage_rx) = mpsc::channel();
             let probe = PanicWithSecondaryPayload(stage_tx);
             let worker = thread::spawn(move || {
-                wait_then_run(&worker_wait, Duration::from_secs(3600), slot, move || {
+                worker_wait.wait_then_run(Duration::from_secs(3600), slot, move || {
                     let _keep = &probe;
                     Ok::<(), io::Error>(())
                 });

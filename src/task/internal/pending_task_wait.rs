@@ -12,6 +12,9 @@ use std::time::Instant;
 use parking_lot::Condvar;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
+use qubit_function::Callable;
+
+use crate::task::spi::TaskSlot;
 
 /// A private, cancellation-aware delay used by per-task delayed workers.
 ///
@@ -51,6 +54,32 @@ impl PendingTaskWait {
         self.wait_for_with_waiter(delay, |changed, cancelled, interval| {
             changed.wait_for(cancelled, interval);
         })
+    }
+
+    /// Waits for a delay or cancellation, then lets the task slot arbitrate
+    /// whether the callable runs or is cleaned up.
+    ///
+    /// The wait result does not replace the slot's start/cancellation
+    /// arbitration.
+    ///
+    /// # Parameters
+    ///
+    /// * `delay` - Duration to wait unless cancellation is observed.
+    /// * `slot` - Runner-side endpoint that arbitrates task start and
+    ///   cancellation.
+    /// * `task` - Callable to run if cancellation has not won.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable that produces the task result.
+    /// * `R` - Successful task result type.
+    /// * `E` - Task error type.
+    pub(crate) fn wait_then_run<C, R, E>(&self, delay: Duration, slot: TaskSlot<R, E>, task: C)
+    where
+        C: Callable<R, E>,
+    {
+        let _ = self.wait_for(delay);
+        slot.run(task);
     }
 
     /// Runs the delay loop with a replaceable condition-variable wait
