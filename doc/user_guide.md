@@ -91,6 +91,38 @@ Ok(())
 
 Call `shutdown()` when accepted work should drain. Call `stop()` when queued or unstarted work should be cancelled where possible. The returned `StopReport` exposes implementation-observed `queued`, `running`, and `cancelled` counts; they are snapshots and need not match every handle's status during a transition. Stopping is best effort and cannot forcibly interrupt already-running arbitrary Rust code, blocking calls, or OS-thread work. For the single-thread scheduled service, stop drains entries still queued; a worker-claimed task may still start afterward, and the active count can include a task whose handle remains `Pending` briefly. `wait_termination()` waits for the service's termination condition, not a join of every OS thread or thread-local destructor.
 
+## Generic asynchronous waiting
+
+`ExecutorService` guarantees that its result handle supports result observation, but its generic associated type does not promise `IntoFuture`. A generic function that awaits the result therefore states that bound explicitly. Tracked handles use the corresponding bound on `TrackedHandle`:
+
+```rust
+use std::future::IntoFuture;
+use qubit_executor::{ExecutorService, TaskResult};
+
+async fn calculate<S>(service: &S) -> Result<usize, Box<dyn std::error::Error>>
+where
+    S: ExecutorService,
+    S::ResultHandle<usize, std::io::Error>:
+        IntoFuture<Output = TaskResult<usize, std::io::Error>>,
+{
+    let handle = service.submit_callable(|| Ok::<usize, std::io::Error>(42))?;
+    Ok(handle.await?)
+}
+
+async fn tracked<S>(service: &S) -> TaskResult<(), std::io::Error>
+where
+    S: ExecutorService,
+    S::TrackedHandle<(), std::io::Error>:
+        IntoFuture<Output = TaskResult<(), std::io::Error>>,
+{
+    service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted").await
+}
+
+fn main() {}
+```
+
+`.await` suspends an async task while it waits. `get()` is synchronous and blocks the current thread, so use it in synchronous code rather than inside async work. `IntoFuture` does not guarantee a `Send` future; add a `Send` bound for the future only when the calling context, such as a multithreaded task spawn, requires it.
+
 ## Implement a custom executor
 
 Implement `Executor` when an application already owns a queue or worker and wants to return the crate's standard tracked task handle. The application supplies the scheduling boundary; the SPI supplies completion and cancellation state.

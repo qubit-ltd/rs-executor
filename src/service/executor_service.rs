@@ -104,6 +104,46 @@ use crate::task::spi::TrackedTaskHandle;
 /// service.shutdown();
 /// service.wait_termination();
 /// ```
+///
+/// ## Awaiting handles through a generic service
+///
+/// The trait's associated handle types guarantee result observation, but do
+/// not guarantee asynchronous waiting. Add an `IntoFuture` bound when a
+/// generic function needs to await a result handle. A tracked handle needs the
+/// corresponding bound on `TrackedHandle`:
+///
+/// ```rust
+/// use std::future::IntoFuture;
+/// use qubit_executor::{ExecutorService, TaskResult};
+///
+/// async fn calculate<S>(service: &S) -> Result<usize, Box<dyn std::error::Error>>
+/// where
+///     S: ExecutorService,
+///     S::ResultHandle<usize, std::io::Error>:
+///         IntoFuture<Output = TaskResult<usize, std::io::Error>>,
+/// {
+///     let handle = service.submit_callable(|| Ok::<usize, std::io::Error>(42))?;
+///     Ok(handle.await?)
+/// }
+///
+/// async fn tracked<S>(service: &S) -> TaskResult<(), std::io::Error>
+/// where
+///     S: ExecutorService,
+///     S::TrackedHandle<(), std::io::Error>:
+///         IntoFuture<Output = TaskResult<(), std::io::Error>>,
+/// {
+///     service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted").await
+/// }
+///
+/// fn main() {}
+/// ```
+///
+/// `.await` is suitable inside async code and does not block the current
+/// thread. `get()` is synchronous and blocks until the result is available;
+/// use it from synchronous code, rather than replacing `.await` inside an
+/// async task. The generic trait does not promise that the returned future is
+/// `Send`; add an `IntoFuture::IntoFuture: Send` bound only when the calling
+/// context, such as a multithreaded task spawn, requires it.
 pub trait ExecutorService: Send + Sync {
     /// Result handle returned for an accepted callable task.
     type ResultHandle<R, E>: TaskResultHandle<R, E>

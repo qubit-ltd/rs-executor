@@ -91,6 +91,38 @@ Ok(())
 
 已接受任务需要排空时调用 `shutdown()`；需要尽力取消排队或尚未开始的任务时调用 `stop()`。返回的 `StopReport` 提供实现观察到的 `queued`、`running` 和 `cancelled` 快照；并发状态转换期间，这些计数不一定与每个 handle 的状态严格一致。`stop()` 不能强制中断已经运行的任意 Rust 代码、阻塞调用或 OS 线程任务。对于单线程定时服务，stop 只排空仍在队列中的条目；worker 已领取的任务之后仍可能启动，活动计数也可能短暂包含状态仍为 `Pending` 的 handle。`wait_termination()` 等待服务定义的终止条件，不代表 join 所有 OS 线程或析构线程局部存储。
 
+## 泛型异步等待
+
+`ExecutorService` 保证结果 handle 支持观察结果，但泛型关联类型并未承诺实现 `IntoFuture`。需要等待结果的泛型函数应明确写出该约束。跟踪 handle 对应地约束 `TrackedHandle`：
+
+```rust
+use std::future::IntoFuture;
+use qubit_executor::{ExecutorService, TaskResult};
+
+async fn calculate<S>(service: &S) -> Result<usize, Box<dyn std::error::Error>>
+where
+    S: ExecutorService,
+    S::ResultHandle<usize, std::io::Error>:
+        IntoFuture<Output = TaskResult<usize, std::io::Error>>,
+{
+    let handle = service.submit_callable(|| Ok::<usize, std::io::Error>(42))?;
+    Ok(handle.await?)
+}
+
+async fn tracked<S>(service: &S) -> TaskResult<(), std::io::Error>
+where
+    S: ExecutorService,
+    S::TrackedHandle<(), std::io::Error>:
+        IntoFuture<Output = TaskResult<(), std::io::Error>>,
+{
+    service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted").await
+}
+
+fn main() {}
+```
+
+`.await` 会在异步任务等待时挂起该任务。`get()` 是同步方法，会阻塞当前线程；应在同步代码中使用，不要在异步任务里用它替代 await。`IntoFuture` 不保证返回的 Future 实现 `Send`；只有调用场景（例如多线程任务 spawn）需要时，才额外约束该 Future 为 `Send`。
+
 ## 实现自定义执行器
 
 如果应用已经拥有队列或工作线程，并希望返回 crate 标准的可跟踪任务句柄，可以实现 `Executor`。应用负责提供调度边界，SPI 负责提供任务完成与取消状态。
