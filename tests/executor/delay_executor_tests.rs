@@ -102,10 +102,10 @@ fn test_delay_executor_returns_callable_value() {
 }
 
 #[test]
-fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
+fn test_delay_executor_cancellation_handle_race_preserves_result_and_callable_effects() {
     crate::internal::process_watchdog::run_test(
         &format!(
-            "{}::test_delay_executor_cancel_race_preserves_result_and_callable_effects",
+            "{}::test_delay_executor_cancellation_handle_race_preserves_result_and_callable_effects",
             module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-race",
@@ -130,7 +130,7 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
                 })
                 .expect("worker thread should spawn");
 
-            let cancellation = handle.cancel();
+            let cancellation = handle.cancellation_handle().cancel();
             let result = handle.get();
             dropped_rx
                 .recv_timeout(Duration::from_secs(5))
@@ -159,10 +159,10 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
 }
 
 #[test]
-fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
+fn test_cancellation_handle_preserves_cancelled_callable_drop_panic_contract() {
     crate::internal::process_watchdog::run_test(
         &format!(
-            "{}::test_cancelled_callable_drop_panic_preserves_cancel_contract",
+            "{}::test_cancellation_handle_preserves_cancelled_callable_drop_panic_contract",
             module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-drop-panic",
@@ -188,7 +188,7 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
                 })
                 .expect("worker thread should spawn");
 
-            let cancellation = handle.cancel();
+            let cancellation = handle.cancellation_handle().cancel();
             let result = handle.get();
             drop_started_rx
                 .recv_timeout(Duration::from_secs(5))
@@ -208,10 +208,10 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
 }
 
 #[test]
-fn test_delay_executor_cancel_releases_long_delayed_callable() {
+fn test_delay_executor_cancellation_handle_releases_long_delayed_callable() {
     crate::internal::process_watchdog::run_test(
         &format!(
-            "{}::test_delay_executor_cancel_releases_long_delayed_callable",
+            "{}::test_delay_executor_cancellation_handle_releases_long_delayed_callable",
             module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-long-release",
@@ -237,7 +237,7 @@ fn test_delay_executor_cancel_releases_long_delayed_callable() {
                 })
                 .expect("worker thread should spawn");
 
-            let cancellation = handle.cancel();
+            let cancellation = handle.cancellation_handle().cancel();
             let result = handle.get();
             let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
             let finished = finished_rx.recv_timeout(Duration::from_secs(5)).is_ok();

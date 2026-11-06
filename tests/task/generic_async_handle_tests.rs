@@ -98,3 +98,44 @@ async fn test_generic_tracked_handle_preserves_cancellation() {
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }
+
+#[tokio::test]
+async fn test_cancellation_handle_after_async_timeout() {
+    let service = SingleThreadScheduledExecutorService::new("cancel-after-timeout").unwrap();
+    let task = service
+        .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
+        .unwrap();
+    let cancellation = task.cancellation_handle();
+    let mut result = Box::pin(task.into_future());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), result.as_mut())
+            .await
+            .is_err()
+    );
+    assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
+    let other = service
+        .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(7))
+        .unwrap();
+    assert_eq!(other.await.unwrap(), 7);
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+}
+
+#[tokio::test]
+async fn test_cancellation_handle_remains_usable_after_future_drop() {
+    let service =
+        SingleThreadScheduledExecutorService::new("drop-future-with-cancel-endpoint").unwrap();
+    let task = service
+        .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
+        .unwrap();
+    let cancellation = task.cancellation_handle();
+    drop(task.into_future());
+
+    assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+}

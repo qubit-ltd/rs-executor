@@ -178,6 +178,35 @@ impl<R, E> ScheduledTaskHandle<R, E> {
         self.cancel_inner()
     }
 
+    /// Creates an independent endpoint for cancelling this task.
+    ///
+    /// The endpoint remains usable after this handle is consumed to create a
+    /// future. It preserves scheduled executor cleanup when cancellation wins;
+    /// dropping it does not cancel the task. Cancellation cannot stop a task
+    /// that has already started. The endpoint may keep shared task and
+    /// scheduler state alive until its final clone is dropped.
+    ///
+    /// # Panics
+    ///
+    /// Panics if destruction of the removed task's captured values panics.
+    /// Such a panic does not roll back the cancellation state already
+    /// published.
+    pub fn cancellation_handle(&self) -> crate::TaskCancellationHandle
+    where
+        R: Send + 'static,
+        E: Send + 'static,
+    {
+        let inner = self.inner.cancellation_handle();
+        let on_cancelled = Arc::clone(&self.on_cancelled);
+        crate::TaskCancellationHandle::new(move || {
+            let result = inner.cancel();
+            if result == CancelResult::Cancelled {
+                (on_cancelled)();
+            }
+            result
+        })
+    }
+
     /// Performs cancellation and wakes the scheduler if this handle won.
     ///
     /// # Returns

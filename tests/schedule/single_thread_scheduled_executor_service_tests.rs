@@ -26,6 +26,7 @@ use qubit_executor::ExecutorServiceLifecycle;
 use qubit_executor::ScheduledExecutorService;
 use qubit_executor::SingleThreadScheduledExecutorService;
 use qubit_executor::SubmissionError;
+use qubit_executor::TaskCancellationHandle;
 use qubit_executor::TaskExecutionError;
 use qubit_executor::TaskStatus;
 use qubit_executor::TryGet;
@@ -662,6 +663,140 @@ fn test_single_thread_scheduled_executor_service_cancel_releases_queued_entry() 
         service.wait_termination_timeout(Duration::from_secs(5)),
         "test_single_thread_scheduled_executor_service_cancel_releases_queued_entry service should terminate within five seconds"
     );
+}
+
+#[test]
+fn test_scheduled_cancellation_handle_releases_capacity_and_future_observes_cancel() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_cancellation_handle_releases_capacity_and_future_observes_cancel",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-endpoint-capacity",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::builder("scheduled-endpoint-capacity")
+                .queue_capacity(1)
+                .build()
+                .expect("bounded service should start");
+            let task = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
+                .expect("task fits");
+            let cancellation = task.cancellation_handle();
+            let result = Box::pin(task.into_future());
+            assert_eq!(service.queued_count(), 1);
+            assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+            assert_eq!(service.queued_count(), 0);
+            let other = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(7))
+                .expect("capacity is available");
+            assert_eq!(service.queued_count(), 1);
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("runtime builds");
+            assert!(matches!(runtime.block_on(result), Err(TaskExecutionError::Cancelled)));
+            drop(other);
+            let _ = service.stop();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("watchdog should observe the endpoint capacity test finish");
+}
+
+#[test]
+fn test_scheduled_cancellation_handle_adapter_accounts_only_once() {
+    let service = SingleThreadScheduledExecutorService::new("scheduled-endpoint-adapter")
+        .expect("service starts");
+    let task = service
+        .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
+        .expect("task schedules");
+    let inner = task.cancellation_handle();
+    let queued = Arc::new(AtomicUsize::new(1));
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let queued_for_callback = Arc::clone(&queued);
+    let callbacks_for_callback = Arc::clone(&callbacks);
+    let adapter = TaskCancellationHandle::new(move || {
+        let result = inner.cancel();
+        if result == CancelResult::Cancelled {
+            queued_for_callback.fetch_sub(1, Ordering::AcqRel);
+            callbacks_for_callback.fetch_add(1, Ordering::AcqRel);
+        }
+        result
+    });
+    let clone = adapter.clone();
+    let barrier = Arc::new(Barrier::new(3));
+    let first_barrier = Arc::clone(&barrier);
+    let first = thread::spawn(move || {
+        first_barrier.wait();
+        adapter.cancel()
+    });
+    let second_barrier = Arc::clone(&barrier);
+    let second = thread::spawn(move || {
+        second_barrier.wait();
+        clone.cancel()
+    });
+    barrier.wait();
+    let results = [
+        first.join().expect("first cancellation returns"),
+        second.join().expect("second cancellation returns"),
+    ];
+    assert_eq!(
+        results
+            .iter()
+            .filter(|&&result| result == CancelResult::Cancelled)
+            .count(),
+        1
+    );
+    assert_eq!(queued.load(Ordering::Acquire), 0);
+    assert_eq!(callbacks.load(Ordering::Acquire), 1);
+    assert_eq!(service.queued_count(), 0);
+    drop(task);
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+}
+
+#[test]
+fn test_scheduled_cancellation_handle_preserves_drop_panic_contract() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_scheduled_cancellation_handle_preserves_drop_panic_contract",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-endpoint-drop-panic",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::new("scheduled-endpoint-drop-panic")
+                .expect("service starts");
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let probe = BlockingPanicOnDrop {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+            };
+            let task = service
+                .schedule_callable(Duration::from_secs(3600), move || {
+                    let _ = &probe;
+                    Ok::<(), ()>(())
+                })
+                .expect("task schedules");
+            let cancellation = task.cancellation_handle();
+            let cancel_thread = thread::spawn(move || {
+                std::panic::catch_unwind(AssertUnwindSafe(|| cancellation.cancel()))
+            });
+            entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("endpoint cancellation should enter captured-value cleanup");
+            release_tx.send(()).expect("release captured-value cleanup");
+            assert!(cancel_thread.join().expect("cancel thread returns").is_err());
+            assert_eq!(task.status(), TaskStatus::Cancelled);
+            assert_eq!(service.queued_count(), 0);
+            drop(task);
+            let _ = service.stop();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("watchdog should observe the endpoint drop-panic test finish");
 }
 
 #[test]
