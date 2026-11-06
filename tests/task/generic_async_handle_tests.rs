@@ -113,9 +113,7 @@ async fn test_cancellation_handle_after_async_timeout() {
             .is_err()
     );
     assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
-    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
-        .await
-        .unwrap();
+    let outcome = tokio::time::timeout(Duration::from_secs(5), result).await.unwrap();
     assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
     let other = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(7))
@@ -127,8 +125,7 @@ async fn test_cancellation_handle_after_async_timeout() {
 
 #[tokio::test]
 async fn test_cancellation_handle_remains_usable_after_future_drop() {
-    let service =
-        SingleThreadScheduledExecutorService::new("drop-future-with-cancel-endpoint").unwrap();
+    let service = SingleThreadScheduledExecutorService::new("drop-future-with-cancel-endpoint").unwrap();
     let task = service
         .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
         .unwrap();

@@ -706,8 +706,7 @@ fn test_scheduled_cancellation_handle_releases_capacity_and_future_observes_canc
 
 #[test]
 fn test_scheduled_cancellation_handle_adapter_accounts_only_once() {
-    let service = SingleThreadScheduledExecutorService::new("scheduled-endpoint-adapter")
-        .expect("service starts");
+    let service = SingleThreadScheduledExecutorService::new("scheduled-endpoint-adapter").expect("service starts");
     let task = service
         .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
         .expect("task schedules");
@@ -766,8 +765,8 @@ fn test_scheduled_cancellation_handle_preserves_drop_panic_contract() {
         "scheduled-endpoint-drop-panic",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
         || {
-            let service = SingleThreadScheduledExecutorService::new("scheduled-endpoint-drop-panic")
-                .expect("service starts");
+            let service =
+                SingleThreadScheduledExecutorService::new("scheduled-endpoint-drop-panic").expect("service starts");
             let (entered_tx, entered_rx) = mpsc::channel();
             let (release_tx, release_rx) = mpsc::channel();
             let probe = BlockingPanicOnDrop {
@@ -781,9 +780,8 @@ fn test_scheduled_cancellation_handle_preserves_drop_panic_contract() {
                 })
                 .expect("task schedules");
             let cancellation = task.cancellation_handle();
-            let cancel_thread = thread::spawn(move || {
-                std::panic::catch_unwind(AssertUnwindSafe(|| cancellation.cancel()))
-            });
+            let cancel_thread =
+                thread::spawn(move || std::panic::catch_unwind(AssertUnwindSafe(|| cancellation.cancel())));
             entered_rx
                 .recv_timeout(Duration::from_secs(5))
                 .expect("endpoint cancellation should enter captured-value cleanup");
