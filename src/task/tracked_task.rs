@@ -196,8 +196,9 @@ impl<R, E> TrackedTask<R, E> {
     /// Creates an independent endpoint for cancelling this task while pending.
     ///
     /// The endpoint can be retained after this result handle is consumed into a
-    /// future. Cloning or dropping it does not cancel the task. Holding it keeps
-    /// the shared task state alive, and cancellation cannot stop a running task.
+    /// future. Cloning or dropping it does not cancel the task. Holding it
+    /// keeps the shared task state alive, and cancellation cannot stop a
+    /// running task.
     pub fn cancellation_handle(&self) -> super::TaskCancellationHandle
     where
         R: Send + 'static,
@@ -268,10 +269,22 @@ impl<R, E> IntoFuture for TrackedTask<R, E> {
     }
 }
 
-fn cancel_pending<R, E>(
-    state: &TaskState<R, E>,
-    pending_wait: &Option<Arc<PendingTaskWait>>,
-) -> CancelResult {
+/// Attempts to cancel a pending task and interrupts its optional delay wait.
+///
+/// # Type Parameters
+///
+/// * `R` - Successful task result type.
+/// * `E` - Task error type.
+///
+/// # Parameters
+///
+/// * `state` - Shared state whose pending status is atomically transitioned.
+/// * `pending_wait` - Optional executor wait to wake after cancellation wins.
+///
+/// # Returns
+///
+/// The outcome of the cancellation attempt.
+fn cancel_pending<R, E>(state: &TaskState<R, E>, pending_wait: &Option<Arc<PendingTaskWait>>) -> CancelResult {
     if state.try_cancel_pending() {
         if let Some(wait) = pending_wait {
             wait.cancel();

@@ -24,11 +24,21 @@ use crate::CancelResult;
 /// and must perform all executor-specific cleanup when it wins cancellation.
 #[derive(Clone)]
 pub struct TaskCancellationHandle {
+    /// Cancellation action shared by all endpoint clones.
     cancel: Arc<dyn Fn() -> CancelResult + Send + Sync + 'static>,
 }
 
 impl TaskCancellationHandle {
     /// Creates a cancellation endpoint from a provider-supplied action.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `F` - Thread-safe callback that attempts cancellation.
+    ///
+    /// # Parameters
+    ///
+    /// * `cancel` - Provider cancellation action, including executor-specific
+    ///   cleanup.
     ///
     /// The callback is not run during construction or when the endpoint is
     /// dropped. It may be called concurrently through cloned endpoints, so it

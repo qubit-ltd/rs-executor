@@ -5,19 +5,22 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::sync::{
-    Arc, Barrier,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::Arc;
+use std::sync::Barrier;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::thread;
 
+use qubit_executor::CancelResult;
+use qubit_executor::TaskCancellationHandle;
+use qubit_executor::TaskExecutionError;
+use qubit_executor::TaskStatus;
 use qubit_executor::task::spi::TaskEndpointPair;
-use qubit_executor::{CancelResult, TaskCancellationHandle, TaskExecutionError, TaskStatus};
 
 fn assert_send_sync_clone<T: Send + Sync + Clone>() {}
 
 #[test]
-fn cancellation_handle_is_send_sync_and_clone() {
+fn test_cancellation_handle_is_send_sync_and_clone() {
     assert_send_sync_clone::<TaskCancellationHandle>();
 }
 
@@ -33,7 +36,7 @@ fn test_cancellation_handle_cancels_pending_task() {
 }
 
 #[test]
-fn cancellation_handle_reports_running_and_finished_tasks() {
+fn test_cancellation_handle_reports_running_and_finished_tasks() {
     let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     let cancellation = task.cancellation_handle();
     let running = match slot.try_start() {
@@ -47,7 +50,7 @@ fn cancellation_handle_reports_running_and_finished_tasks() {
 }
 
 #[test]
-fn dropping_cancellation_handle_does_not_cancel() {
+fn test_dropping_cancellation_handle_does_not_cancel() {
     let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
     drop(task.cancellation_handle());
     assert_eq!(task.status(), TaskStatus::Pending);
@@ -56,9 +59,8 @@ fn dropping_cancellation_handle_does_not_cancel() {
 }
 
 #[test]
-fn cancellation_handle_and_legacy_cancel_have_one_winner() {
+fn test_cancellation_handle_and_legacy_cancel_have_one_winner() {
     let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let task = Arc::new(task);
     let endpoint = task.cancellation_handle();
     let endpoint_clone = endpoint.clone();
     let barrier = Arc::new(Barrier::new(3));
@@ -75,25 +77,16 @@ fn cancellation_handle_and_legacy_cancel_have_one_winner() {
     barrier.wait();
     let legacy = task.cancel();
     let results = [first.join().unwrap(), second.join().unwrap(), legacy];
+    assert_eq!(results.iter().filter(|&&r| r == CancelResult::Cancelled).count(), 1);
     assert_eq!(
-        results
-            .iter()
-            .filter(|&&r| r == CancelResult::Cancelled)
-            .count(),
-        1
-    );
-    assert_eq!(
-        results
-            .iter()
-            .filter(|&&r| r == CancelResult::AlreadyFinished)
-            .count(),
+        results.iter().filter(|&&r| r == CancelResult::AlreadyFinished).count(),
         2
     );
     assert!(!slot.run(|| Ok(42)));
 }
 
 #[test]
-fn cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
+fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
     struct DropSignal(Arc<AtomicUsize>);
     impl Drop for DropSignal {
         fn drop(&mut self) {
@@ -102,7 +95,6 @@ fn cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
     }
 
     let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let task = Arc::new(task);
     let inner = task.cancellation_handle();
     let cleanup_count = Arc::new(AtomicUsize::new(0));
     let drops = Arc::new(AtomicUsize::new(0));
@@ -141,4 +133,11 @@ fn cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
     assert_eq!(cleanup_count.load(Ordering::SeqCst), 1);
     assert!(!slot.run(|| Ok(42)));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn test_cancellation_callback_panic_propagates_to_caller() {
+    let cancellation = TaskCancellationHandle::new(|| -> CancelResult { panic!("cancellation callback panic") });
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| cancellation.cancel()));
+    assert!(matches!(result, Err(payload) if payload.downcast_ref::<&str>() == Some(&"cancellation callback panic")));
 }
