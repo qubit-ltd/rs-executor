@@ -106,9 +106,7 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_delay_executor_cancel_race_preserves_result_and_callable_effects",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-race",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -119,8 +117,7 @@ fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
                 signal: finished_tx,
                 started: AtomicUsize::new(0),
             });
-            let executor = DelayExecutor::new(Duration::ZERO)
-                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
             let calls = Arc::new(AtomicUsize::new(0));
             let calls_for_task = Arc::clone(&calls);
             let (dropped_tx, dropped_rx) = mpsc::channel();
@@ -166,9 +163,7 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_cancelled_callable_drop_panic_preserves_cancel_contract",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-drop-panic",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -179,8 +174,8 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
                 signal: finished_tx,
                 started: AtomicUsize::new(0),
             });
-            let executor = DelayExecutor::new(Duration::from_secs(3600))
-                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let executor =
+                DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
             let calls = Arc::new(AtomicUsize::new(0));
             let task_calls = Arc::clone(&calls);
             let (drop_started_tx, drop_started_rx) = mpsc::channel();
@@ -217,9 +212,7 @@ fn test_delay_executor_cancel_releases_long_delayed_callable() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_delay_executor_cancel_releases_long_delayed_callable",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-long-release",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -230,8 +223,8 @@ fn test_delay_executor_cancel_releases_long_delayed_callable() {
                 signal: finished_tx,
                 started: AtomicUsize::new(0),
             });
-            let executor = DelayExecutor::new(Duration::from_secs(3600))
-                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let executor =
+                DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
             let calls = Arc::new(AtomicUsize::new(0));
             let calls_for_task = Arc::clone(&calls);
             let (dropped_tx, dropped_rx) = mpsc::channel();
@@ -255,10 +248,7 @@ fn test_delay_executor_cancel_releases_long_delayed_callable() {
             assert_eq!(cancellation, CancelResult::Cancelled);
             assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
             assert_eq!(executions, 0);
-            assert!(
-                released,
-                "cancelled callable capture should be released promptly"
-            );
+            assert!(released, "cancelled callable capture should be released promptly");
             assert!(finished, "task should emit its finished event");
             assert_eq!(started, 0);
             assert_eq!(finished_count, 1);
@@ -272,9 +262,7 @@ fn test_delay_executor_cancel_after_start_preserves_running_task() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_delay_executor_cancel_after_start_preserves_running_task",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-after-start",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -285,8 +273,7 @@ fn test_delay_executor_cancel_after_start_preserves_running_task() {
                 signal: finished_tx,
                 started: AtomicUsize::new(0),
             });
-            let executor = DelayExecutor::new(Duration::ZERO)
-                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
             let calls = Arc::new(AtomicUsize::new(0));
             let task_calls = Arc::clone(&calls);
             let (entered_tx, entered_rx) = mpsc::channel();
@@ -330,9 +317,7 @@ fn test_delay_executor_cancel_after_try_get_releases_callable() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_delay_executor_cancel_after_try_get_releases_callable",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "delay-cancel-after-try-get",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -357,10 +342,7 @@ fn test_delay_executor_cancel_after_try_get_releases_callable() {
 
             assert_eq!(cancellation, CancelResult::Cancelled);
             assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-            assert!(
-                released,
-                "cancelled callable capture should be released promptly"
-            );
+            assert!(released, "cancelled callable capture should be released promptly");
         },
     )
     .expect("watchdog should observe cancellation test finish");
@@ -374,8 +356,5 @@ fn test_delay_executor_reports_worker_spawn_failure() {
 
     let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
 
-    assert!(matches!(
-        result,
-        Err(SubmissionError::WorkerSpawnFailed { .. }),
-    ));
+    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. }),));
 }

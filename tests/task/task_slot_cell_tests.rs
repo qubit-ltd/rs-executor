@@ -63,9 +63,7 @@ fn test_task_slot_cell_take_races_with_cancel() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_task_slot_cell_take_races_with_cancel",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "task-slot-take-cancel-race",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -118,9 +116,7 @@ fn test_task_slot_cell_start_races_with_cancel() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_task_slot_cell_start_races_with_cancel",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "task-slot-start-cancel-race",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,

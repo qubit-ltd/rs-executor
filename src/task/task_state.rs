@@ -230,17 +230,13 @@ mod tests {
 
     #[test]
     fn test_terminal_state_can_precede_result_publication() {
-        crate::internal::test_watchdog::run_test(
+        crate::internal::test_watchdog_tests::run_test(
             "task::task_state::tests::test_terminal_state_can_precede_result_publication",
             "task-state-terminal-before-publication",
             std::time::Duration::from_secs(15),
             || {
                 let (sender, receiver) = channel();
-                let state = Arc::new(TaskState::<usize, io::Error>::new(
-                    next_task_id(),
-                    sender,
-                    None,
-                ));
+                let state = Arc::new(TaskState::<usize, io::Error>::new(next_task_id(), sender, None));
                 assert!(state.try_start(false));
                 let handle = TaskHandle::new(Arc::clone(&state), receiver);
                 thread::scope(|scope| {

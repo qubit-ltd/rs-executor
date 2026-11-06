@@ -31,12 +31,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 static NEXT_LOG_ID: AtomicU64 = AtomicU64::new(0);
 
 /// Runs `body` in a supervised copy of the current lib-test binary.
-pub(crate) fn run_test(
-    test_name: &str,
-    marker: &str,
-    timeout: Duration,
-    body: impl FnOnce(),
-) -> Result<(), String> {
+pub(crate) fn run_test(test_name: &str, marker: &str, timeout: Duration, body: impl FnOnce()) -> Result<(), String> {
     if env::var(CHILD_MARKER_ENV).as_deref() == Ok(marker) {
         println!("{LOG_PREFIX}{marker}");
         io::stdout()
@@ -51,41 +46,35 @@ pub(crate) fn run_test(
 
 fn supervise(test_name: &str, marker: &str, timeout: Duration) -> Result<(), String> {
     let log = TempLog::create().map_err(|error| format!("create watchdog log: {error}"))?;
-    let child =
-        Command::new(env::current_exe().map_err(|error| format!("locate test binary: {error}"))?)
-            .arg("--exact")
-            .arg(test_name)
-            .arg("--nocapture")
-            .arg("--test-threads=1")
-            .env(CHILD_MARKER_ENV, marker)
-            .stdout(Stdio::from(
-                log.file
-                    .as_ref()
-                    .expect("watchdog log handle is open")
-                    .try_clone()
-                    .map_err(|error| format!("clone watchdog log: {error}"))?,
-            ))
-            .stderr(Stdio::from(
-                log.file
-                    .as_ref()
-                    .expect("watchdog log handle is open")
-                    .try_clone()
-                    .map_err(|error| format!("clone watchdog log: {error}"))?,
-            ))
-            .spawn()
-            .map_err(|error| format!("start child for {test_name}: {error}"))?;
+    let child = Command::new(env::current_exe().map_err(|error| format!("locate test binary: {error}"))?)
+        .arg("--exact")
+        .arg(test_name)
+        .arg("--nocapture")
+        .arg("--test-threads=1")
+        .env(CHILD_MARKER_ENV, marker)
+        .stdout(Stdio::from(
+            log.file
+                .as_ref()
+                .expect("watchdog log handle is open")
+                .try_clone()
+                .map_err(|error| format!("clone watchdog log: {error}"))?,
+        ))
+        .stderr(Stdio::from(
+            log.file
+                .as_ref()
+                .expect("watchdog log handle is open")
+                .try_clone()
+                .map_err(|error| format!("clone watchdog log: {error}"))?,
+        ))
+        .spawn()
+        .map_err(|error| format!("start child for {test_name}: {error}"))?;
     let mut child_guard = ChildGuard::new(child);
     let deadline = Instant::now()
         .checked_add(timeout)
         .ok_or_else(|| format!("watchdog deadline is not representable for {test_name}"))?;
 
     loop {
-        match child_guard
-            .child
-            .as_mut()
-            .expect("child guard owns child")
-            .try_wait()
-        {
+        match child_guard.child.as_mut().expect("child guard owns child").try_wait() {
             Ok(Some(status)) => {
                 child_guard.disarm();
                 let output = log
@@ -113,12 +102,7 @@ fn supervise(test_name: &str, marker: &str, timeout: Duration) -> Result<(), Str
     }
 }
 
-fn validate_exit(
-    test_name: &str,
-    marker: &str,
-    status: ExitStatus,
-    output: &str,
-) -> Result<(), String> {
+fn validate_exit(test_name: &str, marker: &str, status: ExitStatus, output: &str) -> Result<(), String> {
     if !status.success() {
         return Err(format!(
             "test child {test_name} exited with {status}; output:\n{output}"
@@ -178,17 +162,9 @@ impl TempLog {
                 "executor-lib-test-watchdog-{}-{since_epoch}-{id}.log",
                 std::process::id()
             ));
-            match File::options()
-                .write(true)
-                .read(true)
-                .create_new(true)
-                .open(&path)
-            {
+            match File::options().write(true).read(true).create_new(true).open(&path) {
                 Ok(file) => {
-                    return Ok(Self {
-                        path,
-                        file: Some(file),
-                    });
+                    return Ok(Self { path, file: Some(file) });
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error),
@@ -224,7 +200,7 @@ mod tests {
     fn test_watchdog_success() {
         let marker = "watchdog-success";
         let result = run_test(
-            "internal::test_watchdog::tests::test_watchdog_success",
+            "internal::test_watchdog_tests::tests::test_watchdog_success",
             marker,
             Duration::from_secs(5),
             || {
@@ -240,7 +216,7 @@ mod tests {
     #[test]
     fn test_watchdog_missing_handshake() {
         let missing = run_test(
-            "internal::test_watchdog::tests::no_such_exact_test",
+            "internal::test_watchdog_tests::tests::no_such_exact_test",
             "missing-handshake",
             Duration::from_secs(5),
             || {},
@@ -255,7 +231,7 @@ mod tests {
     fn test_watchdog_panic_diagnostic() {
         let marker = "watchdog-panic";
         let panic = run_test(
-            "internal::test_watchdog::tests::test_watchdog_panic_diagnostic",
+            "internal::test_watchdog_tests::tests::test_watchdog_panic_diagnostic",
             marker,
             Duration::from_secs(5),
             || panic!("watchdog panic diagnostic"),
@@ -269,7 +245,7 @@ mod tests {
     #[test]
     fn test_watchdog_kills_and_reaps_blocked_child() {
         let result = run_test(
-            "internal::test_watchdog::tests::test_watchdog_blocking_child_helper",
+            "internal::test_watchdog_tests::tests::test_watchdog_blocking_child_helper",
             "watchdog-timeout-outer",
             Duration::from_secs(5),
             || {},
@@ -284,7 +260,7 @@ mod tests {
                 println!("{LOG_PREFIX}watchdog-timeout-outer");
                 std::io::stdout().flush().expect("flush outer helper handshake");
                 let result = run_test(
-                    "internal::test_watchdog::tests::test_watchdog_blocking_child_helper",
+                    "internal::test_watchdog_tests::tests::test_watchdog_blocking_child_helper",
                     "watchdog-timeout-inner",
                     Duration::from_millis(250),
                     || loop {
@@ -298,7 +274,7 @@ mod tests {
             }
             Ok("watchdog-timeout-inner") => {
                 run_test(
-                    "internal::test_watchdog::tests::test_watchdog_blocking_child_helper",
+                    "internal::test_watchdog_tests::tests::test_watchdog_blocking_child_helper",
                     "watchdog-timeout-inner",
                     Duration::from_millis(250),
                     || loop {

@@ -146,9 +146,7 @@ fn test_schedule_executor_cancel_releases_long_scheduled_callable() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_schedule_executor_cancel_releases_long_scheduled_callable",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "schedule-cancel-long-release",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -174,10 +172,7 @@ fn test_schedule_executor_cancel_releases_long_scheduled_callable() {
             assert_eq!(cancellation, CancelResult::Cancelled);
             assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
             assert_eq!(executions, 0);
-            assert!(
-                released,
-                "cancelled callable capture should be released promptly"
-            );
+            assert!(released, "cancelled callable capture should be released promptly");
         },
     )
     .expect("watchdog should observe cancellation test finish");
@@ -188,9 +183,7 @@ fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_cancelled_callable_drop_panic_preserves_cancel_contract",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "schedule-cancel-drop-panic",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -231,9 +224,7 @@ fn test_schedule_executor_cancel_after_try_get_releases_callable() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_schedule_executor_cancel_after_try_get_releases_callable",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "schedule-cancel-after-try-get",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -260,10 +251,7 @@ fn test_schedule_executor_cancel_after_try_get_releases_callable() {
 
             assert_eq!(cancellation, CancelResult::Cancelled);
             assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-            assert!(
-                released,
-                "cancelled callable capture should be released promptly"
-            );
+            assert!(released, "cancelled callable capture should be released promptly");
         },
     )
     .expect("watchdog should observe cancellation test finish");
