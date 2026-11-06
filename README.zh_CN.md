@@ -58,6 +58,7 @@ Ok(())
 - `ThreadPerTaskExecutorService` 提供基础托管服务；`ScheduledExecutorService` 与 `SingleThreadScheduledExecutorService` 支持延迟或基于 `Instant` 的任务提交。
 - `SingleThreadScheduledExecutorService::builder` 可选限制排队任务数；队列满时以 `SubmissionError::Saturated` 拒绝提交。详见[用户指南](doc/user_guide.zh_CN.md)。
 - `TaskHandle`、`TrackedTask`、`TaskExecutionError` 和 `TaskResult` 统一表示完成、状态、取消、panic、失败和完成端点丢失。
+- `CancellableTaskHandle` 允许泛型代码在将 tracked handle 消费为 future 前保留独立取消端点。
 - `TaskHook`、`ExecutorServiceLifecycle`、`SubmissionError` 和 `StopReport` 用于事件观察和生命周期报告。
 
 本 crate 不提供有界线程池、异步运行时，也不能强制中断任意 Rust 代码。应用需要这些具体集成时，可使用 `qubit-thread-pool`、`qubit-tokio-executor`、`qubit-rayon-executor` 或 `qubit-execution-services`。

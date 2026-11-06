@@ -21,6 +21,11 @@ use super::tracked_task_handle::TrackedTaskHandle;
 /// block or panic. Cancellation is best effort and cannot interrupt arbitrary
 /// code that is already running.
 ///
+/// # Type Parameters
+///
+/// - `R`: The task's successful result type.
+/// - `E`: The task's error type.
+///
 /// # Examples
 ///
 /// ```no_run

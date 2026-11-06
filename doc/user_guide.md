@@ -93,11 +93,11 @@ Call `shutdown()` when accepted work should drain. Call `stop()` when queued or 
 
 ## Generic asynchronous waiting
 
-`ExecutorService` guarantees that its result handle supports result observation, but its generic associated type does not promise `IntoFuture`. A generic function that awaits the result therefore states that bound explicitly. Tracked handles use the corresponding bound on `TrackedHandle`:
+`ExecutorService` guarantees that its result handle supports result observation, but its generic associated type does not promise `IntoFuture`. A generic function that awaits the result therefore states that bound explicitly. Tracked handles use the corresponding bound on `TrackedHandle`. Add `CancellableTaskHandle` when generic code must preserve the independent cancellation endpoint before consuming the handle:
 
 ```rust
 use std::future::IntoFuture;
-use qubit_executor::{ExecutorService, TaskResult};
+use qubit_executor::{CancellableTaskHandle, ExecutorService, TaskResult};
 
 async fn calculate<S>(service: &S) -> Result<usize, Box<dyn std::error::Error>>
 where
@@ -116,6 +116,19 @@ where
         IntoFuture<Output = TaskResult<(), std::io::Error>>,
 {
     service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted").await
+}
+
+async fn tracked_with_cancellation<S>(service: &S) -> TaskResult<(), std::io::Error>
+where
+    S: ExecutorService,
+    S::TrackedHandle<(), std::io::Error>: CancellableTaskHandle<(), std::io::Error>
+        + IntoFuture<Output = TaskResult<(), std::io::Error>>,
+{
+    let handle = service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted");
+    let cancellation = CancellableTaskHandle::cancellation_handle(&handle);
+    let result = handle.into_future().await;
+    drop(cancellation);
+    result
 }
 
 fn main() {}
@@ -220,7 +233,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 The endpoint must be obtained before consuming the handle. Dropping the result future or cancellation endpoint does not cancel the task. Cancellation only wins while the task is pending; it cannot stop arbitrary code that is already running, and callers should handle `AlreadyRunning`, `AlreadyFinished`, and `Unsupported` where applicable. Calling `cancel()` may synchronously clean up executor state or captured values, so it can block or panic. Retaining an endpoint extends the lifetime of the shared task state and any state captured by its cancellation callback; drop it when it is no longer needed.
 
-`TaskCancellationHandle::new` is an adapter entry point for executor providers. Its callback must preserve the provider's complete cancellation path and accounting. For example, a Rayon adapter must retain job cleanup and `finish_cancelling`; a Tokio blocking adapter must retain queued-task accounting and `AbortHandle::abort`. The legacy generic executor traits do not guarantee a cancellation-handle method, so generic code needs a concrete handle type or its own extension bound. Releases through `qubit-rayon-executor 0.9.0` and `qubit-tokio-executor 0.11.0` do not expose the concrete handle methods. Availability starts with a later release that includes this change; check the resolved crate version and its release contents before depending on them.
+`TaskCancellationHandle::new` is an adapter entry point for executor providers. Its callback must preserve the provider's complete cancellation path and accounting. For example, a Rayon adapter must retain job cleanup and `finish_cancelling`; a Tokio blocking adapter must retain queued-task accounting and `AbortHandle::abort`. `CancellableTaskHandle` is an opt-in extension trait available from `qubit-executor 0.9.1`; existing `TrackedTaskHandle` implementations do not need to implement it unless callers require the endpoint. Adapter releases that implement this extension trait must depend on at least `qubit-executor 0.9.1`. The trait does not change the legacy generic executor contracts.
 
 ## Implement a custom executor
 

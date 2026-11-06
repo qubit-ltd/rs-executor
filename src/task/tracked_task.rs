@@ -262,6 +262,7 @@ where
     R: Send + 'static,
     E: Send + 'static,
 {
+    /// Creates an endpoint using the tracked task's cancellation path.
     fn cancellation_handle(&self) -> super::TaskCancellationHandle {
         TrackedTask::cancellation_handle(self)
     }

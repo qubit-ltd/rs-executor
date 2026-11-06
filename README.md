@@ -58,6 +58,7 @@ Execution strategy, task completion, and managed-service lifecycle have differen
 - `ThreadPerTaskExecutorService` plus `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for delayed or `Instant`-based submission.
 - `SingleThreadScheduledExecutorService::builder` can optionally bound queued tasks; a full configured queue rejects submissions with `SubmissionError::Saturated`. See the [user guide](doc/user_guide.md).
 - `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for completion, status, cancellation, panic, failure, and dropped-endpoint semantics.
+- `CancellableTaskHandle` lets generic code retain an independent cancellation endpoint before consuming a tracked handle as a future.
 - `TaskHook`, `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport` for observation and lifecycle reporting.
 
 The crate does not provide a bounded thread pool, an async runtime, or forced interruption of arbitrary Rust code. Use `qubit-thread-pool`, `qubit-tokio-executor`, `qubit-rayon-executor`, or `qubit-execution-services` when an application needs those concrete integrations.

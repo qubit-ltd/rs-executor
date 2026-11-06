@@ -273,6 +273,7 @@ where
     R: Send + 'static,
     E: Send + 'static,
 {
+    /// Creates an endpoint that wakes the scheduler when cancellation wins.
     fn cancellation_handle(&self) -> crate::TaskCancellationHandle {
         ScheduledTaskHandle::cancellation_handle(self)
     }

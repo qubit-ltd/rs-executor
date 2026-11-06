@@ -93,11 +93,11 @@ Ok(())
 
 ## 泛型异步等待
 
-`ExecutorService` 保证结果 handle 支持观察结果，但泛型关联类型并未承诺实现 `IntoFuture`。需要等待结果的泛型函数应明确写出该约束。跟踪 handle 对应地约束 `TrackedHandle`：
+`ExecutorService` 保证结果 handle 支持观察结果，但泛型关联类型并未承诺实现 `IntoFuture`。需要等待结果的泛型函数应明确写出该约束。跟踪 handle 对应地约束 `TrackedHandle`。如果泛型代码需要在消费 handle 前保留独立取消端点，可额外约束 `CancellableTaskHandle`：
 
 ```rust
 use std::future::IntoFuture;
-use qubit_executor::{ExecutorService, TaskResult};
+use qubit_executor::{CancellableTaskHandle, ExecutorService, TaskResult};
 
 async fn calculate<S>(service: &S) -> Result<usize, Box<dyn std::error::Error>>
 where
@@ -116,6 +116,19 @@ where
         IntoFuture<Output = TaskResult<(), std::io::Error>>,
 {
     service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted").await
+}
+
+async fn tracked_with_cancellation<S>(service: &S) -> TaskResult<(), std::io::Error>
+where
+    S: ExecutorService,
+    S::TrackedHandle<(), std::io::Error>: CancellableTaskHandle<(), std::io::Error>
+        + IntoFuture<Output = TaskResult<(), std::io::Error>>,
+{
+    let handle = service.submit_tracked(|| Ok::<(), std::io::Error>(())).expect("accepted");
+    let cancellation = CancellableTaskHandle::cancellation_handle(&handle);
+    let result = handle.into_future().await;
+    drop(cancellation);
+    result
 }
 
 fn main() {}
@@ -220,7 +233,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 必须在消费 handle 前获取端点。丢弃结果 future 或取消端点都不会取消任务。只有任务仍处于 Pending 时取消才能获胜；它不能停止已经运行的任意代码。适用时应处理 `AlreadyRunning`、`AlreadyFinished` 和 `Unsupported`。调用 `cancel()` 可能同步清理执行器状态或析构捕获值，因此可能阻塞或 panic。保留端点会延长共享任务状态及取消回调所捕获状态的寿命；不再需要时应及时释放。
 
-`TaskCancellationHandle::new` 是供执行器提供者使用的适配入口。回调必须保留提供者完整的取消路径和记账。例如，Rayon 适配器必须保留 job 清理和 `finish_cancelling`；Tokio blocking 适配器必须保留排队任务记账及 `AbortHandle::abort`。旧的通用执行器 trait 不保证存在取消 handle 方法，因此泛型代码需要使用具体 handle 类型或定义自己的扩展约束。`qubit-rayon-executor 0.9.0` 及更早版本、`qubit-tokio-executor 0.11.0` 及更早版本均没有具体 handle 取消方法。包含本次改动的后续版本才提供这些方法；依赖前请核对实际解析的 crate 版本及其发布内容。
+`TaskCancellationHandle::new` 是供执行器提供者使用的适配入口。回调必须保留提供者完整的取消路径和记账。例如，Rayon 适配器必须保留 job 清理和 `finish_cancelling`；Tokio blocking 适配器必须保留排队任务记账及 `AbortHandle::abort`。`qubit-executor 0.9.1` 起提供可选扩展 trait `CancellableTaskHandle`；既有 `TrackedTaskHandle` 实现无需实现它，只有需要该端点的泛型调用方才添加相应约束。实现此扩展 trait 的适配器版本必须依赖至少 `qubit-executor 0.9.1`。该接口不会改变旧的通用执行器 trait 契约。
 
 ## 实现自定义执行器
 
