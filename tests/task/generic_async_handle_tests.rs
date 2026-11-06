@@ -79,6 +79,15 @@ where
     ));
 }
 
+async fn drop_future_then_cancel<H>(task: H)
+where
+    H: CancellableTaskHandle<usize, ()> + IntoFuture<Output = TaskResult<usize, ()>>,
+{
+    let cancellation = CancellableTaskHandle::cancellation_handle(&task);
+    drop(task.into_future());
+    assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+}
+
 async fn result_of<S>(service: &S) -> TaskResult<usize, ()>
 where
     S: ExecutorService,
@@ -208,10 +217,7 @@ async fn test_cancellation_handle_remains_usable_after_future_drop() {
     let task = service
         .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
         .unwrap();
-    let cancellation = task.cancellation_handle();
-    drop(task.into_future());
-
-    assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    drop_future_then_cancel(task).await;
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }
