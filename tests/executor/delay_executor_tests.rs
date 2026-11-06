@@ -103,190 +103,267 @@ fn test_delay_executor_returns_callable_value() {
 
 #[test]
 fn test_delay_executor_cancel_race_preserves_result_and_callable_effects() {
-    let (finished_tx, finished_rx) = mpsc::channel();
-    let hook = Arc::new(FinishedCount {
-        count: AtomicUsize::new(0),
-        signal: finished_tx,
-        started: AtomicUsize::new(0),
-    });
-    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
-    let calls = Arc::new(AtomicUsize::new(0));
-    let calls_for_task = Arc::clone(&calls);
-    let (dropped_tx, dropped_rx) = mpsc::channel();
-    let probe = DropSignal(dropped_tx);
-    let handle = executor
-        .call(move || {
-            let _ = &probe;
-            calls_for_task.fetch_add(1, Ordering::AcqRel);
-            Ok::<usize, io::Error>(42)
-        })
-        .expect("worker thread should spawn");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_delay_executor_cancel_race_preserves_result_and_callable_effects",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "delay-cancel-race",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let (finished_tx, finished_rx) = mpsc::channel();
+            let hook = Arc::new(FinishedCount {
+                count: AtomicUsize::new(0),
+                signal: finished_tx,
+                started: AtomicUsize::new(0),
+            });
+            let executor = DelayExecutor::new(Duration::ZERO)
+                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let calls_for_task = Arc::clone(&calls);
+            let (dropped_tx, dropped_rx) = mpsc::channel();
+            let probe = DropSignal(dropped_tx);
+            let handle = executor
+                .call(move || {
+                    let _ = &probe;
+                    calls_for_task.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
 
-    let cancellation = handle.cancel();
-    let result = handle.get();
-    dropped_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("callable capture should be released");
+            let cancellation = handle.cancel();
+            let result = handle.get();
+            dropped_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("callable capture should be released");
 
-    match cancellation {
-        CancelResult::Cancelled => {
-            assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-            assert_eq!(calls.load(Ordering::Acquire), 0);
-        }
-        CancelResult::AlreadyRunning | CancelResult::AlreadyFinished => {
-            assert!(matches!(result, Ok(42)));
-            assert_eq!(calls.load(Ordering::Acquire), 1);
-        }
-        CancelResult::Unsupported => panic!("tracked delay task cancellation should be supported"),
-    }
-    finished_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("task should emit its finished event");
-    assert_eq!(hook.count.load(Ordering::Acquire), 1);
+            match cancellation {
+                CancelResult::Cancelled => {
+                    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+                    assert_eq!(calls.load(Ordering::Acquire), 0);
+                }
+                CancelResult::AlreadyRunning | CancelResult::AlreadyFinished => {
+                    assert!(matches!(result, Ok(42)));
+                    assert_eq!(calls.load(Ordering::Acquire), 1);
+                }
+                CancelResult::Unsupported => {
+                    panic!("tracked delay task cancellation should be supported")
+                }
+            }
+            finished_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("task should emit its finished event");
+            assert_eq!(hook.count.load(Ordering::Acquire), 1);
+        },
+    )
+    .expect("watchdog should observe cancellation test finish");
 }
 
 #[test]
 fn test_cancelled_callable_drop_panic_preserves_cancel_contract() {
-    let (finished_tx, finished_rx) = mpsc::channel();
-    let hook = Arc::new(FinishedCount {
-        count: AtomicUsize::new(0),
-        signal: finished_tx,
-        started: AtomicUsize::new(0),
-    });
-    let executor = DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
-    let calls = Arc::new(AtomicUsize::new(0));
-    let task_calls = Arc::clone(&calls);
-    let (drop_started_tx, drop_started_rx) = mpsc::channel();
-    let probe = PanicOnDrop(drop_started_tx);
-    let handle = executor
-        .call(move || {
-            let _keep = &probe;
-            task_calls.fetch_add(1, Ordering::AcqRel);
-            Ok::<usize, io::Error>(42)
-        })
-        .expect("worker thread should spawn");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_cancelled_callable_drop_panic_preserves_cancel_contract",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "delay-cancel-drop-panic",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let (finished_tx, finished_rx) = mpsc::channel();
+            let hook = Arc::new(FinishedCount {
+                count: AtomicUsize::new(0),
+                signal: finished_tx,
+                started: AtomicUsize::new(0),
+            });
+            let executor = DelayExecutor::new(Duration::from_secs(3600))
+                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let task_calls = Arc::clone(&calls);
+            let (drop_started_tx, drop_started_rx) = mpsc::channel();
+            let probe = PanicOnDrop(drop_started_tx);
+            let handle = executor
+                .call(move || {
+                    let _keep = &probe;
+                    task_calls.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
 
-    let cancellation = handle.cancel();
-    let result = handle.get();
-    drop_started_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("cancelled callable cleanup should begin");
-    finished_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("task should emit its finished event");
+            let cancellation = handle.cancel();
+            let result = handle.get();
+            drop_started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("cancelled callable cleanup should begin");
+            finished_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("task should emit its finished event");
 
-    assert_eq!(cancellation, CancelResult::Cancelled);
-    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-    assert_eq!(calls.load(Ordering::Acquire), 0);
-    assert_eq!(hook.started.load(Ordering::Acquire), 0);
-    assert_eq!(hook.count.load(Ordering::Acquire), 1);
+            assert_eq!(cancellation, CancelResult::Cancelled);
+            assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+            assert_eq!(calls.load(Ordering::Acquire), 0);
+            assert_eq!(hook.started.load(Ordering::Acquire), 0);
+            assert_eq!(hook.count.load(Ordering::Acquire), 1);
+        },
+    )
+    .expect("watchdog should observe cancellation test finish");
 }
 
 #[test]
 fn test_delay_executor_cancel_releases_long_delayed_callable() {
-    let (finished_tx, finished_rx) = mpsc::channel();
-    let hook = Arc::new(FinishedCount {
-        count: AtomicUsize::new(0),
-        signal: finished_tx,
-        started: AtomicUsize::new(0),
-    });
-    let executor = DelayExecutor::new(Duration::from_secs(3600)).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
-    let calls = Arc::new(AtomicUsize::new(0));
-    let calls_for_task = Arc::clone(&calls);
-    let (dropped_tx, dropped_rx) = mpsc::channel();
-    let probe = DropSignal(dropped_tx);
-    let handle = executor
-        .call(move || {
-            let _ = &probe;
-            calls_for_task.fetch_add(1, Ordering::AcqRel);
-            Ok::<usize, io::Error>(42)
-        })
-        .expect("worker thread should spawn");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_delay_executor_cancel_releases_long_delayed_callable",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "delay-cancel-long-release",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let (finished_tx, finished_rx) = mpsc::channel();
+            let hook = Arc::new(FinishedCount {
+                count: AtomicUsize::new(0),
+                signal: finished_tx,
+                started: AtomicUsize::new(0),
+            });
+            let executor = DelayExecutor::new(Duration::from_secs(3600))
+                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let calls_for_task = Arc::clone(&calls);
+            let (dropped_tx, dropped_rx) = mpsc::channel();
+            let probe = DropSignal(dropped_tx);
+            let handle = executor
+                .call(move || {
+                    let _ = &probe;
+                    calls_for_task.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
 
-    let cancellation = handle.cancel();
-    let result = handle.get();
-    let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-    let finished = finished_rx.recv_timeout(Duration::from_secs(5)).is_ok();
-    let executions = calls.load(Ordering::Acquire);
-    let started = hook.started.load(Ordering::Acquire);
-    let finished_count = hook.count.load(Ordering::Acquire);
+            let cancellation = handle.cancel();
+            let result = handle.get();
+            let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+            let finished = finished_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+            let executions = calls.load(Ordering::Acquire);
+            let started = hook.started.load(Ordering::Acquire);
+            let finished_count = hook.count.load(Ordering::Acquire);
 
-    assert_eq!(cancellation, CancelResult::Cancelled);
-    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-    assert_eq!(executions, 0);
-    assert!(released, "cancelled callable capture should be released promptly");
-    assert!(finished, "task should emit its finished event");
-    assert_eq!(started, 0);
-    assert_eq!(finished_count, 1);
+            assert_eq!(cancellation, CancelResult::Cancelled);
+            assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+            assert_eq!(executions, 0);
+            assert!(
+                released,
+                "cancelled callable capture should be released promptly"
+            );
+            assert!(finished, "task should emit its finished event");
+            assert_eq!(started, 0);
+            assert_eq!(finished_count, 1);
+        },
+    )
+    .expect("watchdog should observe cancellation test finish");
 }
 
 #[test]
 fn test_delay_executor_cancel_after_start_preserves_running_task() {
-    let (finished_tx, finished_rx) = mpsc::channel();
-    let hook = Arc::new(FinishedCount {
-        count: AtomicUsize::new(0),
-        signal: finished_tx,
-        started: AtomicUsize::new(0),
-    });
-    let executor = DelayExecutor::new(Duration::ZERO).with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
-    let calls = Arc::new(AtomicUsize::new(0));
-    let task_calls = Arc::clone(&calls);
-    let (entered_tx, entered_rx) = mpsc::channel();
-    let (release_tx, release_rx) = mpsc::channel();
-    let (value_tx, value_rx) = mpsc::channel();
-    let handle = executor
-        .call(move || {
-            entered_tx.send(()).expect("observer exists");
-            release_rx
-                .recv_timeout(Duration::from_secs(5))
-                .expect("task should be released");
-            task_calls.fetch_add(1, Ordering::AcqRel);
-            Ok::<usize, io::Error>(42)
-        })
-        .expect("worker should spawn");
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_delay_executor_cancel_after_start_preserves_running_task",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "delay-cancel-after-start",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let (finished_tx, finished_rx) = mpsc::channel();
+            let hook = Arc::new(FinishedCount {
+                count: AtomicUsize::new(0),
+                signal: finished_tx,
+                started: AtomicUsize::new(0),
+            });
+            let executor = DelayExecutor::new(Duration::ZERO)
+                .with_hook(Arc::clone(&hook) as Arc<dyn TaskHook>);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let task_calls = Arc::clone(&calls);
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let (value_tx, value_rx) = mpsc::channel();
+            let handle = executor
+                .call(move || {
+                    entered_tx.send(()).expect("observer exists");
+                    release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("task should be released");
+                    task_calls.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker should spawn");
 
-    let entered = entered_rx.recv_timeout(Duration::from_secs(5));
-    let cancellation = handle.cancel();
-    let _ = release_tx.send(());
-    // Collect get on an observer thread so this test's waiting remains bounded.
-    std::thread::spawn(move || {
-        let _ = value_tx.send(handle.get());
-    });
-    let result = value_rx.recv_timeout(Duration::from_secs(5));
-    let finished = finished_rx.recv_timeout(Duration::from_secs(5));
+            let entered = entered_rx.recv_timeout(Duration::from_secs(5));
+            let cancellation = handle.cancel();
+            let _ = release_tx.send(());
+            // Collect get on an observer thread so this test's waiting remains bounded.
+            std::thread::spawn(move || {
+                let _ = value_tx.send(handle.get());
+            });
+            let result = value_rx.recv_timeout(Duration::from_secs(5));
+            let finished = finished_rx.recv_timeout(Duration::from_secs(5));
 
-    assert!(entered.is_ok(), "task must enter before cancellation");
-    assert_eq!(cancellation, CancelResult::AlreadyRunning);
-    assert!(matches!(result, Ok(Ok(42))));
-    assert!(finished.is_ok(), "finished event should arrive");
-    assert_eq!(calls.load(Ordering::Acquire), 1);
-    assert_eq!(hook.started.load(Ordering::Acquire), 1);
-    assert_eq!(hook.count.load(Ordering::Acquire), 1);
+            assert!(entered.is_ok(), "task must enter before cancellation");
+            assert_eq!(cancellation, CancelResult::AlreadyRunning);
+            assert!(matches!(result, Ok(Ok(42))));
+            assert!(finished.is_ok(), "finished event should arrive");
+            assert_eq!(calls.load(Ordering::Acquire), 1);
+            assert_eq!(hook.started.load(Ordering::Acquire), 1);
+            assert_eq!(hook.count.load(Ordering::Acquire), 1);
+        },
+    )
+    .expect("watchdog should observe cancellation test finish");
 }
 
 #[test]
 fn test_delay_executor_cancel_after_try_get_releases_callable() {
-    let executor = DelayExecutor::new(Duration::from_secs(3600));
-    let (dropped_tx, dropped_rx) = mpsc::channel();
-    let probe = DropSignal(dropped_tx);
-    let handle = executor
-        .call(move || {
-            let _ = &probe;
-            Ok::<usize, io::Error>(42)
-        })
-        .expect("worker thread should spawn");
-    let handle = match TaskResultHandle::try_get(handle) {
-        qubit_executor::TryGet::Pending(handle) => handle,
-        qubit_executor::TryGet::Ready(_) => panic!("long-delay task should remain pending"),
-    };
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_delay_executor_cancel_after_try_get_releases_callable",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "delay-cancel-after-try-get",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let executor = DelayExecutor::new(Duration::from_secs(3600));
+            let (dropped_tx, dropped_rx) = mpsc::channel();
+            let probe = DropSignal(dropped_tx);
+            let handle = executor
+                .call(move || {
+                    let _ = &probe;
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
+            let handle = match TaskResultHandle::try_get(handle) {
+                qubit_executor::TryGet::Pending(handle) => handle,
+                qubit_executor::TryGet::Ready(_) => panic!("long-delay task should remain pending"),
+            };
 
-    let cancellation = handle.cancel();
-    let result = handle.get();
-    let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+            let cancellation = handle.cancel();
+            let result = handle.get();
+            let released = dropped_rx.recv_timeout(Duration::from_secs(5)).is_ok();
 
-    assert_eq!(cancellation, CancelResult::Cancelled);
-    assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
-    assert!(released, "cancelled callable capture should be released promptly");
+            assert_eq!(cancellation, CancelResult::Cancelled);
+            assert!(matches!(result, Err(TaskExecutionError::Cancelled)));
+            assert!(
+                released,
+                "cancelled callable capture should be released promptly"
+            );
+        },
+    )
+    .expect("watchdog should observe cancellation test finish");
 }
 
 #[test]
@@ -297,5 +374,8 @@ fn test_delay_executor_reports_worker_spawn_failure() {
 
     let result = executor.call(delayed_value_task as fn() -> Result<usize, io::Error>);
 
-    assert!(matches!(result, Err(SubmissionError::WorkerSpawnFailed { .. }),));
+    assert!(matches!(
+        result,
+        Err(SubmissionError::WorkerSpawnFailed { .. }),
+    ));
 }

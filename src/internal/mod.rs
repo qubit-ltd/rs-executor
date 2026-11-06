@@ -7,4 +7,7 @@
 // =============================================================================
 mod panic_payload;
 
+#[cfg(test)]
+pub(crate) mod test_watchdog;
+
 pub(crate) use panic_payload::discard_panic_payload;

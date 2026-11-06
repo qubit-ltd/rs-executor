@@ -230,25 +230,37 @@ mod tests {
 
     #[test]
     fn test_terminal_state_can_precede_result_publication() {
-        let (sender, receiver) = channel();
-        let state = Arc::new(TaskState::<usize, io::Error>::new(next_task_id(), sender, None));
-        assert!(state.try_start(false));
-        let handle = TaskHandle::new(Arc::clone(&state), receiver);
-        thread::scope(|scope| {
-            let sender_guard = state.sender.lock();
-            let writer_state = Arc::clone(&state);
-            let writer = scope.spawn(move || writer_state.try_complete(Ok(42), false));
-            while !state.is_done() {
-                thread::yield_now();
-            }
-            let handle = match handle.try_get() {
-                TryGet::Pending(handle) => handle,
-                TryGet::Ready(_) => panic!("sender lock must hold back publication"),
-            };
-            drop(sender_guard);
-            assert!(writer.join().expect("publisher thread"));
-            assert_eq!(handle.get().expect("published result"), 42);
-        });
+        crate::internal::test_watchdog::run_test(
+            "task::task_state::tests::test_terminal_state_can_precede_result_publication",
+            "task-state-terminal-before-publication",
+            std::time::Duration::from_secs(15),
+            || {
+                let (sender, receiver) = channel();
+                let state = Arc::new(TaskState::<usize, io::Error>::new(
+                    next_task_id(),
+                    sender,
+                    None,
+                ));
+                assert!(state.try_start(false));
+                let handle = TaskHandle::new(Arc::clone(&state), receiver);
+                thread::scope(|scope| {
+                    let sender_guard = state.sender.lock();
+                    let writer_state = Arc::clone(&state);
+                    let writer = scope.spawn(move || writer_state.try_complete(Ok(42), false));
+                    while !state.is_done() {
+                        thread::yield_now();
+                    }
+                    let handle = match handle.try_get() {
+                        TryGet::Pending(handle) => handle,
+                        TryGet::Ready(_) => panic!("sender lock must hold back publication"),
+                    };
+                    drop(sender_guard);
+                    assert!(writer.join().expect("publisher thread"));
+                    assert_eq!(handle.get().expect("published result"), 42);
+                });
+            },
+        )
+        .expect("watchdog should observe terminal publication test finish");
     }
 
     #[test]
