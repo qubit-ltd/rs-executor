@@ -10,6 +10,32 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[test]
+fn test_markdown_checker_unit_tests() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new("python3")
+        .args([
+            "-B",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests/internal",
+            "-p",
+            "check_markdown_examples_tests.py",
+        ])
+        .current_dir(&root)
+        .output()
+        .expect("Python 3 must be available to run Markdown checker unit tests");
+
+    assert!(
+        output.status.success(),
+        "Markdown checker unit tests failed:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+#[test]
 fn test_markdown_rust_examples_compile() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let output = Command::new("python3")

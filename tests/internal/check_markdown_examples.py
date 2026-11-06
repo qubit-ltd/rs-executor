@@ -125,7 +125,7 @@ def main() -> int:
             display_path = document.relative_to(root) if document.is_relative_to(root) else document
             print(f"Checking {display_path} Rust block {index} (fence line {line}, edition {edition})")
 
-        target_dir = fixture / "cargo-target"
+        target_dir = build_root / "cargo-target"
         environment = os.environ.copy()
         environment["CARGO_TARGET_DIR"] = str(target_dir)
         command = ["cargo", "check", "--offline", "--bins", "--manifest-path", str(manifest)]
