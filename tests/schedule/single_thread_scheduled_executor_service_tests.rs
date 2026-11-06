@@ -757,9 +757,7 @@ fn test_bounded_scheduled_service_rejects_full_queue_and_recovers_after_cancel()
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_bounded_scheduled_service_rejects_full_queue_and_recovers_after_cancel",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "bounded-scheduled-capacity-one",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -793,9 +791,7 @@ fn test_bounded_scheduled_service_excludes_running_task_from_capacity() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_bounded_scheduled_service_excludes_running_task_from_capacity",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "bounded-scheduled-running-exclusion",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -836,13 +832,81 @@ fn test_bounded_scheduled_service_excludes_running_task_from_capacity() {
 }
 
 #[test]
+fn test_bounded_scheduled_claim_releases_capacity_while_task_runs() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_bounded_scheduled_claim_releases_capacity_while_task_runs",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "bounded-scheduled-claim-releases-capacity",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::builder("bounded-claim-release")
+                .queue_capacity(1)
+                .build()
+                .expect("bounded service should start");
+            let (blocker_entered_tx, blocker_entered_rx) = mpsc::channel();
+            let (blocker_release_tx, blocker_release_rx) = mpsc::channel();
+            service
+                .schedule_callable(Duration::ZERO, move || {
+                    blocker_entered_tx.send(()).expect("signal initial worker blocker");
+                    blocker_release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("release initial worker blocker");
+                    Ok::<(), ()>(())
+                })
+                .expect("initial blocker should be accepted");
+            blocker_entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker should enter initial blocker");
+
+            let (claimed_entered_tx, claimed_entered_rx) = mpsc::channel();
+            let (claimed_release_tx, claimed_release_rx) = mpsc::channel();
+            let _claimed_task = service
+                .schedule_callable(Duration::ZERO, move || {
+                    claimed_entered_tx.send(()).expect("signal claimed task start");
+                    claimed_release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("release claimed running task");
+                    Ok::<(), ()>(())
+                })
+                .expect("queued task should fill the available slot");
+            assert_eq!(service.queued_count(), 1);
+
+            blocker_release_tx
+                .send(())
+                .expect("release initial blocker so worker can claim queued task");
+            claimed_entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker should claim and start the queued task");
+            assert_eq!(service.running_count(), 1);
+            assert_eq!(service.queued_count(), 0);
+
+            let _next_queued = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                .expect("claimed task should release its queue slot while still running");
+            assert_eq!(service.queued_count(), 1);
+            assert!(matches!(
+                service.schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(())),
+                Err(SubmissionError::Saturated)
+            ));
+
+            let _ = service.stop();
+            claimed_release_tx
+                .send(())
+                .expect("release claimed task after stop drains queued work");
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("claim capacity recovery test should finish under watchdog");
+}
+
+#[test]
 fn test_bounded_scheduled_service_concurrent_submissions_never_exceed_capacity() {
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_bounded_scheduled_service_concurrent_submissions_never_exceed_capacity",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "bounded-scheduled-concurrent-submit",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -907,9 +971,7 @@ fn test_bounded_scheduled_service_rejects_with_shutdown_and_drops_outside_lock()
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_bounded_scheduled_service_rejects_with_shutdown_and_drops_outside_lock",
-            module_path!()
-                .strip_prefix("r#mod::")
-                .unwrap_or(module_path!())
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
         ),
         "bounded-scheduled-reject-drop",
         crate::internal::process_watchdog::DEFAULT_TIMEOUT,
@@ -992,8 +1054,7 @@ fn test_scheduled_builder_defaults_and_validates_configuration() {
     let _ = service.stop();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 
-    let legacy =
-        SingleThreadScheduledExecutorService::new("legacy-unbounded").expect("legacy constructor");
+    let legacy = SingleThreadScheduledExecutorService::new("legacy-unbounded").expect("legacy constructor");
     legacy
         .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
         .expect("legacy first");
@@ -1004,10 +1065,9 @@ fn test_scheduled_builder_defaults_and_validates_configuration() {
     let _ = legacy.stop();
     assert!(legacy.wait_termination_timeout(Duration::from_secs(5)));
 
-    let builder_default =
-        SingleThreadScheduledExecutorService::builder("builder-default-unbounded")
-            .build()
-            .expect("default builder should start");
+    let builder_default = SingleThreadScheduledExecutorService::builder("builder-default-unbounded")
+        .build()
+        .expect("default builder should start");
     builder_default
         .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
         .expect("first default task");
@@ -1018,11 +1078,9 @@ fn test_scheduled_builder_defaults_and_validates_configuration() {
     let _ = builder_default.stop();
     assert!(builder_default.wait_termination_timeout(Duration::from_secs(5)));
 
-    let legacy_stack = SingleThreadScheduledExecutorService::with_stack_size(
-        "legacy-stack-unbounded",
-        Some(2 * 1024 * 1024),
-    )
-    .expect("legacy stack-size constructor should start");
+    let legacy_stack =
+        SingleThreadScheduledExecutorService::with_stack_size("legacy-stack-unbounded", Some(2 * 1024 * 1024))
+            .expect("legacy stack-size constructor should start");
     legacy_stack
         .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
         .expect("first legacy task");

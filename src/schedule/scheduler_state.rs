@@ -37,6 +37,15 @@ impl SchedulerState {
     }
 
     /// Creates an empty running state with an optional queue limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `queue_capacity` - Maximum number of queued entries, or `None` for no
+    ///   queue limit.
+    ///
+    /// # Returns
+    ///
+    /// A running state with an empty task map and the configured capacity.
     #[must_use]
     pub(crate) fn with_queue_capacity(queue_capacity: Option<usize>) -> Self {
         Self {

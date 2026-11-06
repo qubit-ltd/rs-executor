@@ -26,13 +26,25 @@ use crate::service::ExecutorServiceBuilderError;
 /// service.wait_termination();
 /// ```
 pub struct SingleThreadScheduledExecutorServiceBuilder {
+    /// Name for the scheduler thread.
     thread_name: String,
+    /// Optional scheduler thread stack size.
     stack_size: Option<usize>,
+    /// Maximum number of queued tasks, or `None` for an unbounded queue.
     queue_capacity: Option<usize>,
 }
 
 impl SingleThreadScheduledExecutorServiceBuilder {
     /// Creates a builder for a scheduler thread with the given name.
+    ///
+    /// # Parameters
+    ///
+    /// * `thread_name` - Name for the scheduler thread; must not contain a NUL
+    ///   byte.
+    ///
+    /// # Returns
+    ///
+    /// A builder with default thread stack and unbounded queue settings.
     pub(super) fn new(thread_name: &str) -> Self {
         Self {
             thread_name: thread_name.to_owned(),
@@ -45,7 +57,8 @@ impl SingleThreadScheduledExecutorServiceBuilder {
     ///
     /// # Parameters
     ///
-    /// * `stack_size` - Requested stack size in bytes; must be greater than zero.
+    /// * `stack_size` - Requested stack size in bytes; must be greater than
+    ///   zero.
     ///
     /// # Returns
     ///
@@ -64,7 +77,8 @@ impl SingleThreadScheduledExecutorServiceBuilder {
     ///
     /// # Parameters
     ///
-    /// * `queue_capacity` - Maximum queued task count; must be greater than zero.
+    /// * `queue_capacity` - Maximum queued task count; must be greater than
+    ///   zero.
     ///
     /// # Returns
     ///
@@ -87,19 +101,13 @@ impl SingleThreadScheduledExecutorServiceBuilder {
     /// # Panics
     ///
     /// Panics if the thread name contains a NUL byte.
-    pub fn build(
-        self,
-    ) -> Result<SingleThreadScheduledExecutorService, ExecutorServiceBuilderError> {
+    pub fn build(self) -> Result<SingleThreadScheduledExecutorService, ExecutorServiceBuilderError> {
         if self.stack_size == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroStackSize);
         }
         if self.queue_capacity == Some(0) {
             return Err(ExecutorServiceBuilderError::ZeroQueueCapacity);
         }
-        SingleThreadScheduledExecutorService::with_config(
-            &self.thread_name,
-            self.stack_size,
-            self.queue_capacity,
-        )
+        SingleThreadScheduledExecutorService::with_config(&self.thread_name, self.stack_size, self.queue_capacity)
     }
 }

@@ -47,6 +47,15 @@ impl SchedulerCore {
     }
 
     /// Creates an empty scheduler coordinator with an optional queue limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `queue_capacity` - Maximum number of queued entries, or `None` for no
+    ///   queue limit.
+    ///
+    /// # Returns
+    ///
+    /// A coordinator with no queued tasks and a running lifecycle.
     #[must_use]
     pub(crate) fn with_queue_capacity(queue_capacity: Option<usize>) -> Self {
         Self {
@@ -185,10 +194,7 @@ impl SchedulerCore {
             drop(state);
             return Err(SubmissionError::Shutdown);
         }
-        if state
-            .queue_capacity
-            .is_some_and(|limit| state.tasks.len() >= limit)
-        {
+        if state.queue_capacity.is_some_and(|limit| state.tasks.len() >= limit) {
             drop(state);
             return Err(SubmissionError::Saturated);
         }

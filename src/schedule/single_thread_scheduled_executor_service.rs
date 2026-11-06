@@ -138,6 +138,27 @@ impl SingleThreadScheduledExecutorService {
     }
 
     /// Starts a scheduler using explicit thread and queue configuration.
+    ///
+    /// # Parameters
+    ///
+    /// * `thread_name` - Name for the scheduler thread; must not contain a NUL
+    ///   byte.
+    /// * `stack_size` - Optional scheduler thread stack size.
+    /// * `queue_capacity` - Maximum number of queued entries, or `None` for an
+    ///   unbounded queue.
+    ///
+    /// # Returns
+    ///
+    /// A started scheduled executor service.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutorServiceBuilderError::SpawnWorker`] if the scheduler
+    /// thread cannot be created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `thread_name` contains a NUL byte.
     pub(super) fn with_config(
         thread_name: &str,
         stack_size: Option<usize>,
