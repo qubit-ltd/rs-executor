@@ -123,6 +123,47 @@ fn main() {}
 
 `.await` suspends an async task while it waits. `get()` is synchronous and blocks the current thread, so use it in synchronous code rather than inside async work. `IntoFuture` does not guarantee a `Send` future; add a `Send` bound for the future only when the calling context, such as a multithreaded task spawn, requires it.
 
+## Cancel after an async timeout
+
+A concrete scheduled handle can provide a `TaskCancellationHandle` before the original handle is consumed by `into_future()`. This keeps cancellation available while the result future is being polled:
+
+```rust
+use std::future::IntoFuture;
+use std::time::Duration;
+
+use qubit_executor::{
+    CancelResult, ExecutorService, ScheduledExecutorService,
+    SingleThreadScheduledExecutorService, TaskExecutionError,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = SingleThreadScheduledExecutorService::new("cancel-after-timeout")?;
+    let task = service.schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))?;
+    let cancellation = task.cancellation_handle();
+    let mut result = Box::pin(task.into_future());
+
+    if tokio::time::timeout(Duration::from_millis(10), result.as_mut())
+        .await
+        .is_err()
+    {
+        assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    }
+    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
+        .await
+        .expect("cancelled task should finish within five seconds");
+    assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
+
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    Ok(())
+}
+```
+
+The endpoint must be obtained before consuming the handle. Dropping the result future or cancellation endpoint does not cancel the task. Cancellation only wins while the task is pending; it cannot stop arbitrary code that is already running, and callers should handle `AlreadyRunning`, `AlreadyFinished`, and `Unsupported` where applicable. Calling `cancel()` may synchronously clean up executor state or captured values, so it can block or panic. Retaining an endpoint extends the lifetime of the shared task state and any state captured by its cancellation callback; drop it when it is no longer needed.
+
+`TaskCancellationHandle::new` is an adapter entry point for executor providers. Its callback must preserve the provider's complete cancellation path and accounting. For example, a Rayon adapter must retain job cleanup and `finish_cancelling`; a Tokio blocking adapter must retain queued-task accounting and `AbortHandle::abort`. The legacy generic executor traits do not guarantee a cancellation-handle method, so generic code needs a concrete handle type or its own extension bound. These external integrations are guidance only; the Rayon and Tokio downstream handle types have not been adapted here.
+
 ## Implement a custom executor
 
 Implement `Executor` when an application already owns a queue or worker and wants to return the crate's standard tracked task handle. The application supplies the scheduling boundary; the SPI supplies completion and cancellation state.

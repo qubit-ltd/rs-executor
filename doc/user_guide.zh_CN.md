@@ -123,6 +123,47 @@ fn main() {}
 
 `.await` 会在异步任务等待时挂起该任务。`get()` 是同步方法，会阻塞当前线程；应在同步代码中使用，不要在异步任务里用它替代 await。`IntoFuture` 不保证返回的 Future 实现 `Send`；只有调用场景（例如多线程任务 spawn）需要时，才额外约束该 Future 为 `Send`。
 
+## 异步超时后取消
+
+具体的定时任务 handle 可以在原 handle 被 `into_future()` 消费前提供 `TaskCancellationHandle`。这样轮询结果 future 期间仍可取消任务：
+
+```rust
+use std::future::IntoFuture;
+use std::time::Duration;
+
+use qubit_executor::{
+    CancelResult, ExecutorService, ScheduledExecutorService,
+    SingleThreadScheduledExecutorService, TaskExecutionError,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = SingleThreadScheduledExecutorService::new("cancel-after-timeout")?;
+    let task = service.schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))?;
+    let cancellation = task.cancellation_handle();
+    let mut result = Box::pin(task.into_future());
+
+    if tokio::time::timeout(Duration::from_millis(10), result.as_mut())
+        .await
+        .is_err()
+    {
+        assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    }
+    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
+        .await
+        .expect("cancelled task should finish within five seconds");
+    assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
+
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    Ok(())
+}
+```
+
+必须在消费 handle 前获取端点。丢弃结果 future 或取消端点都不会取消任务。只有任务仍处于 Pending 时取消才能获胜；它不能停止已经运行的任意代码。适用时应处理 `AlreadyRunning`、`AlreadyFinished` 和 `Unsupported`。调用 `cancel()` 可能同步清理执行器状态或析构捕获值，因此可能阻塞或 panic。保留端点会延长共享任务状态及取消回调所捕获状态的寿命；不再需要时应及时释放。
+
+`TaskCancellationHandle::new` 是供执行器提供者使用的适配入口。回调必须保留提供者完整的取消路径和记账。例如，Rayon 适配器必须保留 job 清理和 `finish_cancelling`；Tokio blocking 适配器必须保留排队任务记账及 `AbortHandle::abort`。旧的通用执行器 trait 不保证存在取消 handle 方法，因此泛型代码需要使用具体 handle 类型或定义自己的扩展约束。这些外部集成说明仅供迁移参考；Rayon 和 Tokio 下游 handle 类型尚未完成适配。
+
 ## 实现自定义执行器
 
 如果应用已经拥有队列或工作线程，并希望返回 crate 标准的可跟踪任务句柄，可以实现 `Executor`。应用负责提供调度边界，SPI 负责提供任务完成与取消状态。

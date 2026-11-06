@@ -45,6 +45,8 @@ Ok(())
 
 `submit_callable` returning `Ok(handle)` means only that the service accepted the task. After `shutdown()` or `stop()`, new submissions are rejected; call `wait_termination()` when the service must quiesce before cleanup.
 
+When async waiting needs a timeout followed by cancellation, obtain a cancellation endpoint before consuming the task handle. The [user guide](doc/user_guide.md#cancel-after-an-async-timeout) shows the complete flow and its limits.
+
 ## Why This Project Exists
 
 Execution strategy, task completion, and managed-service lifecycle have different consumers. A reusable library often needs the first two without choosing an application runtime, while an application also needs admission control, shutdown, cancellation, and termination observation. Qubit Executor keeps these boundaries explicit so libraries can depend on stable task semantics and applications can select a concrete implementation.
