@@ -19,6 +19,8 @@ pub(crate) struct SchedulerState {
     pub(crate) lifecycle: ExecutorServiceLifecycle,
     /// Tasks addressable by id and ordered stably by deadline.
     pub(crate) tasks: OrderedIndexMap<TaskId, Instant, Box<dyn ScheduledTaskEntry>>,
+    /// Maximum number of queued tasks, when bounded.
+    pub(crate) queue_capacity: Option<usize>,
     /// Whether the worker has exited.
     pub(crate) terminated: bool,
     /// Whether the worker owns an entry outside the monitor.
@@ -31,9 +33,16 @@ impl SchedulerState {
     /// Creates an empty running scheduler state.
     #[must_use]
     pub(crate) fn new() -> Self {
+        Self::with_queue_capacity(None)
+    }
+
+    /// Creates an empty running state with an optional queue limit.
+    #[must_use]
+    pub(crate) fn with_queue_capacity(queue_capacity: Option<usize>) -> Self {
         Self {
             lifecycle: ExecutorServiceLifecycle::Running,
             tasks: OrderedIndexMap::new(),
+            queue_capacity,
             terminated: false,
             worker_active: false,
             stop_draining: false,

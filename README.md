@@ -54,6 +54,7 @@ Execution strategy, task completion, and managed-service lifecycle have differen
 - `Executor` for one-shot fallible tasks, with `DirectExecutor`, `DelayExecutor`, `ScheduleExecutor`, and `ThreadPerTaskExecutor`.
 - `ExecutorService` for accepted-task tracking, graceful `shutdown()`, best-effort `stop()`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` plus `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for delayed or `Instant`-based submission.
+- `SingleThreadScheduledExecutorService::builder` can optionally bound queued tasks; a full configured queue rejects submissions with `SubmissionError::Saturated`. See the [user guide](doc/user_guide.md).
 - `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for completion, status, cancellation, panic, failure, and dropped-endpoint semantics.
 - `TaskHook`, `ExecutorServiceLifecycle`, `SubmissionError`, and `StopReport` for observation and lifecycle reporting.
 

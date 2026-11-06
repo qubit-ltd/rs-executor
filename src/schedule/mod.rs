@@ -16,7 +16,9 @@ mod scheduled_worker;
 mod scheduler_core;
 mod scheduler_state;
 mod single_thread_scheduled_executor_service;
+mod single_thread_scheduled_executor_service_builder;
 
 pub use scheduled_executor_service::ScheduledExecutorService;
 pub use scheduled_task_handle::ScheduledTaskHandle;
 pub use single_thread_scheduled_executor_service::SingleThreadScheduledExecutorService;
+pub use single_thread_scheduled_executor_service_builder::SingleThreadScheduledExecutorServiceBuilder;

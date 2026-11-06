@@ -10,6 +10,8 @@
 use std::future::IntoFuture;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::sync::Barrier;
+use std::sync::Weak;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
@@ -37,6 +39,21 @@ impl Drop for DropProbe {
     /// Records destruction of the captured resource.
     fn drop(&mut self) {
         self.0.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
+struct RejectedDropProbe {
+    service: Weak<SingleThreadScheduledExecutorService>,
+    queued_count_tx: mpsc::Sender<usize>,
+    drop_count: Arc<AtomicUsize>,
+}
+
+impl Drop for RejectedDropProbe {
+    fn drop(&mut self) {
+        if let Some(service) = self.service.upgrade() {
+            let _ = self.queued_count_tx.send(service.queued_count());
+        }
+        self.drop_count.fetch_add(1, Ordering::AcqRel);
     }
 }
 
@@ -733,4 +750,286 @@ fn test_single_thread_scheduled_executor_service_reports_spawn_failure() {
         SingleThreadScheduledExecutorService::with_stack_size("test-scheduled-spawn-failure", Some(usize::MAX));
 
     assert!(matches!(result, Err(ExecutorServiceBuilderError::SpawnWorker { .. })));
+}
+
+#[test]
+fn test_bounded_scheduled_service_rejects_full_queue_and_recovers_after_cancel() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_bounded_scheduled_service_rejects_full_queue_and_recovers_after_cancel",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "bounded-scheduled-capacity-one",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::builder("bounded-scheduled")
+                .queue_capacity(1)
+                .build()
+                .expect("bounded service should start");
+            let first = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                .expect("first task should fit");
+            assert_eq!(service.queued_count(), 1);
+            assert!(matches!(
+                service.schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(())),
+                Err(SubmissionError::Saturated)
+            ));
+            assert_eq!(first.cancel(), CancelResult::Cancelled);
+            let _replacement = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                .expect("cancelled task should free capacity");
+            assert_eq!(service.queued_count(), 1);
+            let _ = service.stop();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("capacity test should finish under watchdog");
+}
+
+#[test]
+fn test_bounded_scheduled_service_excludes_running_task_from_capacity() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_bounded_scheduled_service_excludes_running_task_from_capacity",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "bounded-scheduled-running-exclusion",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::builder("bounded-running")
+                .queue_capacity(1)
+                .build()
+                .expect("bounded service should start");
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            service
+                .schedule_callable(Duration::ZERO, move || {
+                    entered_tx.send(()).expect("signal worker start");
+                    release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("release running task");
+                    Ok::<(), ()>(())
+                })
+                .expect("running task should be accepted");
+            entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker should be occupied");
+            service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                .expect("one queued task should fit while worker is running");
+            assert_eq!(service.running_count(), 1);
+            assert_eq!(service.queued_count(), 1);
+            assert!(matches!(
+                service.schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(())),
+                Err(SubmissionError::Saturated)
+            ));
+            release_tx.send(()).expect("release worker");
+            let _ = service.stop();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("running exclusion test should finish under watchdog");
+}
+
+#[test]
+fn test_bounded_scheduled_service_concurrent_submissions_never_exceed_capacity() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_bounded_scheduled_service_concurrent_submissions_never_exceed_capacity",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "bounded-scheduled-concurrent-submit",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = Arc::new(
+                SingleThreadScheduledExecutorService::builder("bounded-concurrent")
+                    .queue_capacity(3)
+                    .build()
+                    .expect("bounded service should start"),
+            );
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            service
+                .schedule_callable(Duration::ZERO, move || {
+                    entered_tx.send(()).expect("signal blocked worker");
+                    release_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("release blocked worker");
+                    Ok::<(), ()>(())
+                })
+                .expect("blocking task should start");
+            entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker should enter blocker before competing submissions");
+            let count = 12;
+            let barrier = Arc::new(Barrier::new(count + 1));
+            let mut workers = Vec::new();
+            for _ in 0..count {
+                let service = Arc::clone(&service);
+                let barrier = Arc::clone(&barrier);
+                workers.push(thread::spawn(move || {
+                    barrier.wait();
+                    service
+                        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                        .map(|_| ())
+                }));
+            }
+            barrier.wait();
+            let results: Vec<_> = workers
+                .into_iter()
+                .map(|worker| worker.join().expect("submitter should finish"))
+                .collect();
+            assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 3);
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|result| matches!(result, Err(SubmissionError::Saturated)))
+                    .count(),
+                count - 3
+            );
+            assert_eq!(service.queued_count(), 3);
+            let _ = service.stop();
+            release_tx.send(()).expect("release worker after contention");
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("concurrent capacity test should finish under watchdog");
+}
+
+#[test]
+fn test_bounded_scheduled_service_rejects_with_shutdown_and_drops_outside_lock() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_bounded_scheduled_service_rejects_with_shutdown_and_drops_outside_lock",
+            module_path!()
+                .strip_prefix("r#mod::")
+                .unwrap_or(module_path!())
+        ),
+        "bounded-scheduled-reject-drop",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = Arc::new(
+                SingleThreadScheduledExecutorService::builder("bounded-reject-drop")
+                    .queue_capacity(1)
+                    .build()
+                    .expect("bounded service should start"),
+            );
+            let _queued = service
+                .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+                .expect("queue should fill");
+            let (drop_tx, drop_rx) = mpsc::channel();
+            let drop_count = Arc::new(AtomicUsize::new(0));
+            let body_runs = Arc::new(AtomicUsize::new(0));
+            let mut probe = Some(RejectedDropProbe {
+                service: Arc::downgrade(&service),
+                queued_count_tx: drop_tx,
+                drop_count: Arc::clone(&drop_count),
+            });
+            let body_runs_for_task = Arc::clone(&body_runs);
+            let result = service.schedule_callable(Duration::from_secs(3600), move || {
+                let _probe = probe.take();
+                body_runs_for_task.fetch_add(1, Ordering::AcqRel);
+                Ok::<(), ()>(())
+            });
+            assert!(matches!(result, Err(SubmissionError::Saturated)));
+            assert_eq!(
+                drop_rx
+                    .recv_timeout(Duration::from_secs(2))
+                    .expect("drop should query queue without deadlock"),
+                1
+            );
+            assert_eq!(drop_count.load(Ordering::Acquire), 1);
+            assert_eq!(body_runs.load(Ordering::Acquire), 0);
+            service.shutdown();
+            assert!(matches!(
+                service.schedule_callable(Duration::ZERO, || Ok::<(), ()>(())),
+                Err(SubmissionError::Shutdown)
+            ));
+            assert!(matches!(
+                service.schedule_callable(Duration::MAX, || Ok::<(), ()>(())),
+                Err(SubmissionError::InvalidDeadline)
+            ));
+            let _ = service.stop();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("rejection behavior test should finish under watchdog");
+}
+
+#[test]
+fn test_scheduled_builder_defaults_and_validates_configuration() {
+    assert!(matches!(
+        SingleThreadScheduledExecutorService::builder("zero-capacity")
+            .queue_capacity(0)
+            .build(),
+        Err(ExecutorServiceBuilderError::ZeroQueueCapacity)
+    ));
+    assert!(matches!(
+        SingleThreadScheduledExecutorService::builder("zero-stack")
+            .stack_size(0)
+            .build(),
+        Err(ExecutorServiceBuilderError::ZeroStackSize)
+    ));
+    let service = SingleThreadScheduledExecutorService::builder("builder-unbounded")
+        .queue_capacity(1)
+        .queue_capacity(2)
+        .stack_size(2 * 1024 * 1024)
+        .build()
+        .expect("last capacity should replace earlier setting and stack size should be applied");
+    service
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("first task");
+    service
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("second task");
+    assert_eq!(service.queued_count(), 2);
+    let _ = service.stop();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+
+    let legacy =
+        SingleThreadScheduledExecutorService::new("legacy-unbounded").expect("legacy constructor");
+    legacy
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("legacy first");
+    legacy
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("legacy second");
+    assert_eq!(legacy.queued_count(), 2);
+    let _ = legacy.stop();
+    assert!(legacy.wait_termination_timeout(Duration::from_secs(5)));
+
+    let builder_default =
+        SingleThreadScheduledExecutorService::builder("builder-default-unbounded")
+            .build()
+            .expect("default builder should start");
+    builder_default
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("first default task");
+    builder_default
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("second default task");
+    assert_eq!(builder_default.queued_count(), 2);
+    let _ = builder_default.stop();
+    assert!(builder_default.wait_termination_timeout(Duration::from_secs(5)));
+
+    let legacy_stack = SingleThreadScheduledExecutorService::with_stack_size(
+        "legacy-stack-unbounded",
+        Some(2 * 1024 * 1024),
+    )
+    .expect("legacy stack-size constructor should start");
+    legacy_stack
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("first legacy task");
+    legacy_stack
+        .schedule_callable(Duration::from_secs(3600), || Ok::<(), ()>(()))
+        .expect("second legacy task");
+    assert_eq!(legacy_stack.queued_count(), 2);
+    let _ = legacy_stack.stop();
+    assert!(legacy_stack.wait_termination_timeout(Duration::from_secs(5)));
 }

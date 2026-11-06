@@ -46,6 +46,14 @@ impl SchedulerCore {
         }
     }
 
+    /// Creates an empty scheduler coordinator with an optional queue limit.
+    #[must_use]
+    pub(crate) fn with_queue_capacity(queue_capacity: Option<usize>) -> Self {
+        Self {
+            state: ParkingLotMonitor::new(SchedulerState::with_queue_capacity(queue_capacity)),
+        }
+    }
+
     /// Returns the queued entry count.
     ///
     /// # Returns
@@ -174,7 +182,15 @@ impl SchedulerCore {
     ) -> Result<(), SubmissionError> {
         let mut state = self.state.lock();
         if state.lifecycle != ExecutorServiceLifecycle::Running {
+            drop(state);
             return Err(SubmissionError::Shutdown);
+        }
+        if state
+            .queue_capacity
+            .is_some_and(|limit| state.tasks.len() >= limit)
+        {
+            drop(state);
+            return Err(SubmissionError::Saturated);
         }
         if state.tasks.try_insert(task_id, deadline, entry).is_err() {
             panic!("task identifiers must be unique while scheduled");

@@ -19,6 +19,7 @@ use super::scheduled_task_entry::ScheduledTaskEntry;
 use super::scheduled_task_handle::ScheduledTaskHandle;
 use super::scheduled_worker::ScheduledWorker;
 use super::scheduler_core::SchedulerCore;
+use super::single_thread_scheduled_executor_service_builder::SingleThreadScheduledExecutorServiceBuilder;
 use crate::TaskHandle;
 use crate::service::ExecutorService;
 use crate::service::ExecutorServiceBuilderError;
@@ -91,6 +92,26 @@ impl SingleThreadScheduledExecutorService {
         Self::with_stack_size(thread_name, None)
     }
 
+    /// Creates a builder for a scheduled service.
+    ///
+    /// The builder defaults to an unbounded queue. Configure
+    /// [`SingleThreadScheduledExecutorServiceBuilder::queue_capacity`] to
+    /// reject submissions with [`SubmissionError::Saturated`] when the
+    /// configured number of queued entries has been reached.
+    ///
+    /// # Parameters
+    ///
+    /// * `thread_name` - Name for the scheduler thread; must not contain a NUL
+    ///   byte.
+    ///
+    /// # Returns
+    ///
+    /// A builder with no stack-size or queue-capacity limit configured.
+    #[must_use]
+    pub fn builder(thread_name: &str) -> SingleThreadScheduledExecutorServiceBuilder {
+        SingleThreadScheduledExecutorServiceBuilder::new(thread_name)
+    }
+
     /// Starts a new scheduled service with an optional scheduler thread stack
     /// size.
     ///
@@ -113,7 +134,16 @@ impl SingleThreadScheduledExecutorService {
     ///
     /// Panics if `thread_name` contains a NUL byte.
     pub fn with_stack_size(thread_name: &str, stack_size: Option<usize>) -> Result<Self, ExecutorServiceBuilderError> {
-        let inner = Arc::new(SchedulerCore::new());
+        Self::with_config(thread_name, stack_size, None)
+    }
+
+    /// Starts a scheduler using explicit thread and queue configuration.
+    pub(super) fn with_config(
+        thread_name: &str,
+        stack_size: Option<usize>,
+        queue_capacity: Option<usize>,
+    ) -> Result<Self, ExecutorServiceBuilderError> {
+        let inner = Arc::new(SchedulerCore::with_queue_capacity(queue_capacity));
         let worker_inner = Arc::clone(&inner);
         let mut builder = thread::Builder::new().name(thread_name.to_string());
         if let Some(stack_size) = stack_size {
@@ -181,6 +211,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
+    /// Returns [`SubmissionError::Saturated`] when a configured queue is full.
     fn schedule_entry(
         &self,
         task_id: crate::hook::TaskId,
@@ -204,6 +235,7 @@ impl SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] after shutdown or stop starts.
+    /// Returns [`SubmissionError::Saturated`] when a configured queue is full.
     ///
     /// # Type Parameters
     ///
@@ -264,7 +296,8 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] if the service has stopped
-    /// accepting tasks.
+    /// accepting tasks, or [`SubmissionError::Saturated`] when a configured
+    /// queue is full.
     fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
     where
         T: Runnable<E> + Send + 'static,
@@ -295,7 +328,8 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] if the service has stopped
-    /// accepting tasks.
+    /// accepting tasks, or [`SubmissionError::Saturated`] when a configured
+    /// queue is full.
     fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -324,7 +358,8 @@ impl ExecutorService for SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] if the service has stopped
-    /// accepting tasks.
+    /// accepting tasks, or [`SubmissionError::Saturated`] when a configured
+    /// queue is full.
     fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
         C: Callable<R, E> + Send + 'static,
@@ -433,7 +468,8 @@ impl ScheduledExecutorService for SingleThreadScheduledExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError::Shutdown`] if the service has stopped
-    /// accepting tasks.
+    /// accepting tasks, or [`SubmissionError::Saturated`] when a configured
+    /// queue is full.
     fn schedule_callable_at<C, R, E>(
         &self,
         instant: Instant,

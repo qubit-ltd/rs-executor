@@ -66,7 +66,8 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
-    /// accepting it.
+    /// accepting it, including [`SubmissionError::Saturated`] for a full
+    /// configured queue.
     #[inline]
     fn schedule<T, E>(&self, delay: Duration, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
@@ -97,7 +98,9 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
-    /// accepting it.
+    /// accepting it, including [`SubmissionError::Saturated`] for a full
+    /// configured queue. An unrepresentable deadline returns
+    /// [`SubmissionError::InvalidDeadline`].
     #[inline]
     fn schedule_callable<C, R, E>(&self, delay: Duration, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
     where
@@ -130,7 +133,8 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
-    /// accepting it.
+    /// accepting it, including [`SubmissionError::Saturated`] for a full
+    /// configured queue.
     #[inline]
     fn schedule_at<T, E>(&self, instant: Instant, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
@@ -161,7 +165,8 @@ pub trait ScheduledExecutorService: ExecutorService {
     /// # Errors
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
-    /// accepting it.
+    /// accepting it, including [`SubmissionError::Saturated`] for a full
+    /// configured queue.
     fn schedule_callable_at<C, R, E>(
         &self,
         instant: Instant,
