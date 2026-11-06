@@ -109,6 +109,7 @@ fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
         result
     });
     let clone = adapted.clone();
+    let main_thread_clone = adapted.clone();
     let barrier = Arc::new(Barrier::new(3));
     let first_barrier = Arc::clone(&barrier);
     let first = thread::spawn(move || {
@@ -121,8 +122,13 @@ fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
         clone.cancel()
     });
     barrier.wait();
-    let legacy = task.cancel();
-    let results = [first.join().unwrap(), second.join().unwrap(), legacy];
+    let main_thread_result = main_thread_clone.cancel();
+    drop(main_thread_clone);
+    let results = [
+        first.join().unwrap(),
+        second.join().unwrap(),
+        main_thread_result,
+    ];
     assert_eq!(
         results
             .iter()
@@ -133,6 +139,26 @@ fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
     assert_eq!(cleanup_count.load(Ordering::SeqCst), 1);
     assert!(!slot.run(|| Ok(42)));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn test_cancellation_adapter_cleanup_is_skipped_when_raw_cancel_wins_first() {
+    let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let inner = task.cancellation_handle();
+    let cleanup_count = Arc::new(AtomicUsize::new(0));
+    let cleanup = Arc::clone(&cleanup_count);
+    let adapted = TaskCancellationHandle::new(move || {
+        let result = inner.cancel();
+        if result == CancelResult::Cancelled {
+            cleanup.fetch_add(1, Ordering::SeqCst);
+        }
+        result
+    });
+
+    assert_eq!(task.cancel(), CancelResult::Cancelled);
+    assert_eq!(adapted.cancel(), CancelResult::AlreadyFinished);
+    assert_eq!(cleanup_count.load(Ordering::SeqCst), 0);
+    assert!(!slot.run(|| Ok(42)));
 }
 
 #[test]

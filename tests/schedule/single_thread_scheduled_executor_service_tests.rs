@@ -588,7 +588,10 @@ async fn test_single_thread_scheduled_executor_service_handle_await_returns_resu
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("task should schedule");
 
-    assert_eq!(handle.into_future().await.expect("task should succeed"), 42);
+    let result = tokio::time::timeout(Duration::from_secs(5), handle.into_future())
+        .await
+        .expect("scheduled task result should arrive within five seconds");
+    assert_eq!(result.expect("task should succeed"), 42);
     service.shutdown();
     assert!(
         service.wait_termination_timeout(Duration::from_secs(5)),
