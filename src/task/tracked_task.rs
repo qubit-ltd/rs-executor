@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use super::TaskResult;
 use super::cancel_result::CancelResult;
+use super::cancellable_task_handle::CancellableTaskHandle;
 use super::internal::PendingTaskWait;
 use super::task_handle::TaskHandle;
 use super::task_handle_future::TaskHandleFuture;
@@ -253,6 +254,16 @@ where
     #[inline]
     fn cancel(&self) -> CancelResult {
         self.cancel_inner()
+    }
+}
+
+impl<R, E> CancellableTaskHandle<R, E> for TrackedTask<R, E>
+where
+    R: Send + 'static,
+    E: Send + 'static,
+{
+    fn cancellation_handle(&self) -> super::TaskCancellationHandle {
+        TrackedTask::cancellation_handle(self)
     }
 }
 

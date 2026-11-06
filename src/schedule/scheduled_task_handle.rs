@@ -9,6 +9,7 @@ use std::future::IntoFuture;
 use std::sync::Arc;
 
 use crate::CancelResult;
+use crate::CancellableTaskHandle;
 use crate::TaskResult;
 use crate::TaskStatus;
 use crate::TrackedTask;
@@ -264,6 +265,16 @@ where
     #[inline]
     fn cancel(&self) -> CancelResult {
         self.cancel_inner()
+    }
+}
+
+impl<R, E> CancellableTaskHandle<R, E> for ScheduledTaskHandle<R, E>
+where
+    R: Send + 'static,
+    E: Send + 'static,
+{
+    fn cancellation_handle(&self) -> crate::TaskCancellationHandle {
+        ScheduledTaskHandle::cancellation_handle(self)
     }
 }
 

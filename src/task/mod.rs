@@ -9,6 +9,7 @@
 
 mod atomic_task_status;
 mod cancel_result;
+mod cancellable_task_handle;
 pub(crate) mod internal;
 mod running_task_slot;
 pub(crate) mod task_admission_gate;
@@ -30,6 +31,7 @@ mod tracked_task_handle;
 mod try_get;
 
 pub use cancel_result::CancelResult;
+pub use cancellable_task_handle::CancellableTaskHandle;
 pub use task_cancellation_handle::TaskCancellationHandle;
 pub use task_execution_error::TaskExecutionError;
 pub use task_execution_error::TaskResult;
