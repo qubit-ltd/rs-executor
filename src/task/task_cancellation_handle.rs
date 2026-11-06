@@ -22,6 +22,33 @@ use crate::CancelResult;
 /// Executor providers can use [`TaskCancellationHandle::new`] to adapt their
 /// own cancellation path. The callback must be safe for concurrent invocation
 /// and must perform all executor-specific cleanup when it wins cancellation.
+///
+/// # Examples
+///
+/// Obtain the cancellation endpoint before consuming the task handle. The
+/// endpoint remains usable while the result future is held:
+///
+/// ```
+/// use std::future::IntoFuture;
+///
+/// use qubit_executor::task::spi::TaskEndpointPair;
+/// use qubit_executor::{CancelResult, TaskExecutionError};
+///
+/// let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+/// slot.accept();
+/// let cancellation = task.cancellation_handle();
+/// let result = task.into_future();
+/// assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+/// assert!(!slot.run(|| Ok(42)));
+/// // The result future remains available to await after cancellation.
+/// drop(result);
+///
+/// let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+/// slot.accept();
+/// assert_eq!(task.cancellation_handle().cancel(), CancelResult::Cancelled);
+/// assert!(!slot.run(|| Ok(42)));
+/// assert!(matches!(task.get(), Err(TaskExecutionError::Cancelled)));
+/// ```
 #[derive(Clone)]
 pub struct TaskCancellationHandle {
     /// Cancellation action shared by all endpoint clones.

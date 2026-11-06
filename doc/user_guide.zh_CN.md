@@ -220,7 +220,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 必须在消费 handle 前获取端点。丢弃结果 future 或取消端点都不会取消任务。只有任务仍处于 Pending 时取消才能获胜；它不能停止已经运行的任意代码。适用时应处理 `AlreadyRunning`、`AlreadyFinished` 和 `Unsupported`。调用 `cancel()` 可能同步清理执行器状态或析构捕获值，因此可能阻塞或 panic。保留端点会延长共享任务状态及取消回调所捕获状态的寿命；不再需要时应及时释放。
 
-`TaskCancellationHandle::new` 是供执行器提供者使用的适配入口。回调必须保留提供者完整的取消路径和记账。例如，Rayon 适配器必须保留 job 清理和 `finish_cancelling`；Tokio blocking 适配器必须保留排队任务记账及 `AbortHandle::abort`。旧的通用执行器 trait 不保证存在取消 handle 方法，因此泛型代码需要使用具体 handle 类型或定义自己的扩展约束。这些外部集成说明仅供迁移参考；Rayon 和 Tokio 下游 handle 类型尚未完成适配。
+`TaskCancellationHandle::new` 是供执行器提供者使用的适配入口。回调必须保留提供者完整的取消路径和记账。例如，Rayon 适配器必须保留 job 清理和 `finish_cancelling`；Tokio blocking 适配器必须保留排队任务记账及 `AbortHandle::abort`。旧的通用执行器 trait 不保证存在取消 handle 方法，因此泛型代码需要使用具体 handle 类型或定义自己的扩展约束。`qubit-rayon-executor 0.9.0` 及更早版本、`qubit-tokio-executor 0.11.0` 及更早版本均没有具体 handle 取消方法。包含本次改动的后续版本才提供这些方法；依赖前请核对实际解析的 crate 版本及其发布内容。
 
 ## 实现自定义执行器
 
@@ -259,6 +259,8 @@ Ok(())
 ```
 
 如需限制队列，可通过 `SingleThreadScheduledExecutorService::builder("bounded-scheduler").queue_capacity(128).build()?` 构建服务。容量只统计仍在队列中的条目；worker 已领取的一个任务不计入，因此队列最多等待 128 个任务，另加该活动任务。默认仍为无界队列。取消并移除条目或 worker 领取条目后会释放队列位置。队列满时提交返回 `SubmissionError::Saturated`；shutdown 或 stop 后提交返回 `Shutdown`。
+
+提交方法会按值消费 callable。`SubmissionError` 会说明任务被拒绝的原因，但不会返还 callable；因此，应用若要在 `Saturated` 后重试，必须在每次按值提交前自行保留任务所有权。`qubit-execution-services` facade 提供容量等待方法，可在重试期间保留同一个一次性任务。我们比较了三种 API 路径：修改现有 trait 的返回类型会破坏所有实现和调用方；新增可选的可恢复提交 trait 兼容性较好，但仍须分别定义队列准入、工作线程创建失败、任务移入类型擦除闭包后的回收规则，并在各适配器及 facade 中实现；保留现有 API 并使用 facade 的 `OwnedWaitTask` 不增加公共概念或迁移成本，但保留了现有锁和分配开销。本 crate 选择第三种。若第二个独立消费者也需要复制保留任务包装器，或测量发现其锁与分配成本影响目标负载，再重新评估；届时先定义任务何时算作未接纳，以及所有权如何返还。
 
 该实现会在唯一的调度线程上运行到期任务，因此定时任务应保持短小；较重的工作应视情况转交给其他服务。
 
