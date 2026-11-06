@@ -9,7 +9,8 @@
 
 use std::future::IntoFuture;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -121,8 +122,7 @@ async fn test_generic_result_handle_can_be_awaited() {
 
 #[tokio::test]
 async fn test_generic_tracked_handle_can_be_awaited() {
-    let service = SingleThreadScheduledExecutorService::new("generic-async-tracked")
-        .expect("scheduled service starts");
+    let service = SingleThreadScheduledExecutorService::new("generic-async-tracked").expect("scheduled service starts");
     let handle = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .expect("task schedules");
@@ -155,21 +155,15 @@ async fn test_generic_tracked_handle_preserves_task_failure() {
 #[tokio::test]
 async fn test_legacy_tracked_handle_needs_no_cancellation_extension() {
     let service = ThreadPerTaskExecutorService::new();
-    let handle = service
-        .submit_tracked_callable(|| Ok::<usize, ()>(42))
-        .unwrap();
-    assert_eq!(
-        tracked_result(LegacyTrackedHandle(handle)).await.unwrap(),
-        42
-    );
+    let handle = service.submit_tracked_callable(|| Ok::<usize, ()>(42)).unwrap();
+    assert_eq!(tracked_result(LegacyTrackedHandle(handle)).await.unwrap(), 42);
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }
 
 #[tokio::test]
 async fn test_generic_tracked_handle_preserves_cancellation() {
-    let service = SingleThreadScheduledExecutorService::new("generic-async-cancel")
-        .expect("scheduled service starts");
+    let service = SingleThreadScheduledExecutorService::new("generic-async-cancel").expect("scheduled service starts");
     let handle = service
         .schedule_callable(Duration::from_secs(60), || Ok::<usize, ()>(42))
         .expect("task schedules");
@@ -198,9 +192,7 @@ async fn test_cancellation_handle_after_async_timeout() {
             .is_err()
     );
     assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
-    let outcome = tokio::time::timeout(Duration::from_secs(5), result)
-        .await
-        .unwrap();
+    let outcome = tokio::time::timeout(Duration::from_secs(5), result).await.unwrap();
     assert!(matches!(outcome, Err(TaskExecutionError::Cancelled)));
     let other = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(7))
@@ -212,8 +204,7 @@ async fn test_cancellation_handle_after_async_timeout() {
 
 #[tokio::test]
 async fn test_cancellation_handle_remains_usable_after_future_drop() {
-    let service =
-        SingleThreadScheduledExecutorService::new("drop-future-with-cancel-endpoint").unwrap();
+    let service = SingleThreadScheduledExecutorService::new("drop-future-with-cancel-endpoint").unwrap();
     let task = service
         .schedule_callable(Duration::from_secs(3600), || Ok::<usize, ()>(42))
         .unwrap();
@@ -224,8 +215,7 @@ async fn test_cancellation_handle_remains_usable_after_future_drop() {
 
 #[tokio::test]
 async fn test_generic_cancellation_handle_cancels_after_timeout() {
-    let service =
-        SingleThreadScheduledExecutorService::new("generic-cancel-after-timeout").unwrap();
+    let service = SingleThreadScheduledExecutorService::new("generic-cancel-after-timeout").unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
     let task_calls = Arc::clone(&calls);
     let task = service
@@ -243,8 +233,7 @@ async fn test_generic_cancellation_handle_cancels_after_timeout() {
 
 #[tokio::test]
 async fn test_generic_cancellation_endpoint_drop_does_not_cancel() {
-    let service =
-        SingleThreadScheduledExecutorService::new("generic-drop-cancel-endpoint").unwrap();
+    let service = SingleThreadScheduledExecutorService::new("generic-drop-cancel-endpoint").unwrap();
     let task = service
         .schedule_callable(Duration::ZERO, || Ok::<usize, ()>(42))
         .unwrap();
