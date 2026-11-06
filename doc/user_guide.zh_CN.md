@@ -159,6 +159,8 @@ Ok(())
 }
 ```
 
+如需限制队列，可通过 `SingleThreadScheduledExecutorService::builder("bounded-scheduler").queue_capacity(128).build()?` 构建服务。容量只统计仍在队列中的条目；worker 已领取的一个任务不计入，因此队列最多等待 128 个任务，另加该活动任务。默认仍为无界队列。取消并移除条目或 worker 领取条目后会释放队列位置。队列满时提交返回 `SubmissionError::Saturated`；shutdown 或 stop 后提交返回 `Shutdown`。
+
 该实现会在唯一的调度线程上运行到期任务，因此定时任务应保持短小；较重的工作应视情况转交给其他服务。
 
 ### 跟踪、取消与任务钩子
@@ -176,7 +178,14 @@ Ok(())
 - `SubmissionError::InvalidDeadline`：定时延迟超出目标平台 `Instant` 可以表示的范围。
 - `SubmissionError::WorkerSpawnFailed`：创建工作线程失败，并携带底层错误。
 
-任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。`Dropped` 表示已接受任务的 completion endpoint 在没有显式结果的情况下被放弃；`Cancelled` 表示任务开始前取消胜出。对于已经启动的任务，TaskRunner 会将 callable 的普通 unwind（包括捕获值析构）转换为 Panicked。若取消在启动前胜出，清理未执行 callable 时的普通 unwind 会被隔离，结果仍为 Cancelled。这些保证不能恢复 aborting panic、展开期间的双重 panic 或进程终止。
+任务接受后，应从 handle 读取结果，而不是继续看提交结果。`TaskExecutionError::Failed(E)` 是任务自己的错误；`Panicked`、`Cancelled` 和 `Dropped` 分别表示执行或完成阶段的对应状态。`Dropped` 表示已接受任务的 completion endpoint 在没有显式结果的情况下被放弃；`Cancelled` 表示任务开始前取消。不同清理路径的 unwind 行为如下：
+
+- TaskRunner 发现任务在开始前已取消并丢弃 callable 时，普通清理 unwind 会被隔离，结果仍为 Cancelled；这不覆盖 aborting panic 或展开期间的双重 panic。
+- 对于已经启动的任务，TaskRunner 会将 callable 的普通 unwind（包括捕获值析构）转换为 Panicked；这不覆盖 aborting panic 或展开期间的双重 panic。
+- [`ScheduledTaskHandle::cancel`](https://docs.rs/qubit-executor/latest/qubit_executor/schedule/struct.ScheduledTaskHandle.html#method.cancel) 会先发布取消状态，再同步销毁被移除的排队任务。捕获值析构 panic 可以传播给调用方；已发布的取消状态不会回滚。
+- [`ExecutorService::stop`](https://docs.rs/qubit-executor/latest/qubit_executor/service/trait.ExecutorService.html#tymethod.stop) 会 drain 定时任务队列，尽力处理其余条目并恢复 drain 记账，然后恢复首个清理 panic。取消结果与 panic 是否传播是两个独立结果。
+
+如果 worker 已经领取定时任务，取消清理由 worker 的 unwind 边界处理；不能据此推断调用方执行取消清理时也会隔离 panic。
 
 可使用 `lifecycle()`、`is_running()`、`is_shutting_down()`、`is_stopping()` 和 `is_terminated()` 检查服务状态。如果 `SingleThreadScheduledExecutorService` 的后台计时等待失败，服务会停止、取消尚未开始的任务，并以 `Shutdown` 拒绝新提交。
 

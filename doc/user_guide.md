@@ -159,6 +159,8 @@ Ok(())
 }
 ```
 
+For an optional queue limit, build the service with `SingleThreadScheduledExecutorService::builder("bounded-scheduler").queue_capacity(128).build()?`. The capacity counts queued entries only; one worker-claimed task is outside the limit, so at most 128 tasks wait in the queue in addition to that task. The default remains unbounded. Cancelling and removing an entry or having the worker claim it frees a queue slot. A full queue rejects a submission with `SubmissionError::Saturated`; after shutdown or stop, submissions return `Shutdown`.
+
 Keep scheduled task bodies short. This implementation runs due tasks on its single scheduler thread; hand heavier work to another service when appropriate.
 
 ### Tracking, cancellation, and hooks
@@ -176,7 +178,14 @@ Submission errors are returned before a task is accepted:
 - `SubmissionError::InvalidDeadline` means a scheduled delay cannot be represented by the target platform's `Instant` range.
 - `SubmissionError::WorkerSpawnFailed` contains the worker creation error.
 
-After acceptance, inspect the handle rather than the submission result. `TaskExecutionError::Failed(E)` is the task's own error; `Panicked`, `Cancelled`, and `Dropped` describe execution or completion conditions. `Dropped` means an accepted completion endpoint was abandoned without an explicit result; `Cancelled` means cancellation won before execution started. For a task that starts, TaskRunner converts ordinary callable unwinding, including capture destruction, into Panicked. If cancellation wins before start, unwinding while the unexecuted callable is discarded is contained and the result remains Cancelled. These guarantees cannot recover from aborting panics, a double panic during unwinding, or process termination.
+After acceptance, inspect the handle rather than the submission result. `TaskExecutionError::Failed(E)` is the task's own error; `Panicked`, `Cancelled`, and `Dropped` describe execution or completion conditions. `Dropped` means an accepted completion endpoint was abandoned without an explicit result; `Cancelled` means cancellation won before execution started. The unwind behavior depends on the cleanup path:
+
+- When TaskRunner observes that cancellation won before start and discards the callable, ordinary cleanup unwinding is contained and the result remains Cancelled. This does not cover aborting panics or a double panic during unwinding.
+- For a task that starts, TaskRunner converts ordinary callable unwinding, including captured-value destruction, into Panicked. This does not cover aborting panics or a double panic during unwinding.
+- [`ScheduledTaskHandle::cancel`](https://docs.rs/qubit-executor/latest/qubit_executor/schedule/struct.ScheduledTaskHandle.html#method.cancel) publishes cancellation before synchronously destroying a removed queued task. A panic from captured-value destruction can propagate to the caller; the published cancellation is not rolled back.
+- [`ExecutorService::stop`](https://docs.rs/qubit-executor/latest/qubit_executor/service/trait.ExecutorService.html#tymethod.stop) drains queued scheduled tasks, attempts to process the remaining entries and restore drain bookkeeping, then resumes the first cleanup panic. The cancellation result and whether a panic propagates are separate outcomes.
+
+When a worker has already claimed a scheduled task, cancellation cleanup follows the worker's unwind boundary; that does not imply that caller-side cancellation cleanup is also contained.
 
 Use `lifecycle()`, `is_running()`, `is_shutting_down()`, `is_stopping()`, and `is_terminated()` to diagnose service state. If the background timer wait in `SingleThreadScheduledExecutorService` fails, that service stops, cancels work that has not started, and rejects new submissions with `Shutdown`.
 
