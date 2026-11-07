@@ -370,11 +370,13 @@ impl ExecutorService for ThreadPerTaskExecutorService {
 
     /// Waits at most `timeout` for the service to report termination.
     ///
-    /// This does not join worker OS threads or wait for thread-local destructors.
+    /// This does not join worker OS threads or wait for thread-local
+    /// destructors.
     ///
     /// # Parameters
     ///
-    /// * `timeout` - Maximum duration to wait for the service termination condition.
+    /// * `timeout` - Maximum duration to wait for the service termination
+    ///   condition.
     #[inline]
     fn wait_termination_timeout(&self, timeout: Duration) -> bool {
         self.state.wait_for_termination_timeout(timeout)

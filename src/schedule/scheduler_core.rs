@@ -148,7 +148,10 @@ impl SchedulerCore {
     #[must_use]
     pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
         self.wait_for_termination_timeout_with_waiter(timeout, |slice| {
-            match self.state.wait_until_ready_with_total_timeout(slice, |state| state.terminated) {
+            match self
+                .state
+                .wait_until_ready_with_total_timeout(slice, |state| state.terminated)
+            {
                 Ok(WaitTimeoutResult::Ready(())) => true,
                 Ok(WaitTimeoutResult::TimedOut) => false,
                 Err(error) => panic!("scheduler termination wait failed: {error}"),
@@ -156,9 +159,19 @@ impl SchedulerCore {
         })
     }
 
-    /// Waits for termination, passing bounded remaining-time slices to `waiter`.
+    /// Waits for termination, passing bounded remaining-time slices to
+    /// `waiter`.
     ///
     /// A `true` waiter result reports termination; `false` continues waiting.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `F` - Wait operation receiving the bounded remaining-time slice.
+    ///
+    /// # Parameters
+    ///
+    /// * `timeout` - Maximum duration to wait for termination.
+    /// * `waiter` - Operation that waits for one slice and reports termination.
     fn wait_for_termination_timeout_with_waiter<F>(&self, timeout: Duration, mut waiter: F) -> bool
     where
         F: FnMut(Duration) -> bool,
@@ -450,9 +463,7 @@ mod tests {
     #[test]
     fn test_zero_termination_timeout_does_not_wait() {
         let core = SchedulerCore::new();
-        assert!(!core.wait_for_termination_timeout_with_waiter(Duration::ZERO, |_| {
-            panic!("must not wait")
-        }));
+        assert!(!core.wait_for_termination_timeout_with_waiter(Duration::ZERO, |_| { panic!("must not wait") }));
     }
 
     #[test]
@@ -463,9 +474,7 @@ mod tests {
             assert!(state.can_terminate());
             state.terminated = true;
         });
-        assert!(core.wait_for_termination_timeout_with_waiter(Duration::MAX, |_| {
-            panic!("must not wait")
-        }));
+        assert!(core.wait_for_termination_timeout_with_waiter(Duration::MAX, |_| { panic!("must not wait") }));
     }
 
     #[test]

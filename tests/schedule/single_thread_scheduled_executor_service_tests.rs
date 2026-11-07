@@ -346,7 +346,8 @@ fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handle
 
 #[test]
 fn test_scheduled_service_max_timeout_waits_for_shutdown() {
-    // This remains a real-monitor smoke test; its sleep coordination does not provide deterministic branch coverage.
+    // This remains a real-monitor smoke test; its sleep coordination does not
+    // provide deterministic branch coverage.
     crate::internal::process_watchdog::run_test(
         &format!(
             "{}::test_scheduled_service_max_timeout_waits_for_shutdown",
