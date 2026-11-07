@@ -147,6 +147,22 @@ impl SchedulerCore {
     /// Panics if the monitor reports an error while waiting.
     #[must_use]
     pub(crate) fn wait_for_termination_timeout(&self, timeout: Duration) -> bool {
+        self.wait_for_termination_timeout_with_waiter(timeout, |slice| {
+            match self.state.wait_until_ready_with_total_timeout(slice, |state| state.terminated) {
+                Ok(WaitTimeoutResult::Ready(())) => true,
+                Ok(WaitTimeoutResult::TimedOut) => false,
+                Err(error) => panic!("scheduler termination wait failed: {error}"),
+            }
+        })
+    }
+
+    /// Waits for termination, passing bounded remaining-time slices to `waiter`.
+    ///
+    /// A `true` waiter result reports termination; `false` continues waiting.
+    fn wait_for_termination_timeout_with_waiter<F>(&self, timeout: Duration, mut waiter: F) -> bool
+    where
+        F: FnMut(Duration) -> bool,
+    {
         let started = Instant::now();
         loop {
             if self.is_terminated() {
@@ -156,14 +172,8 @@ impl SchedulerCore {
             if remaining.is_zero() {
                 return false;
             }
-            let slice = remaining.min(Duration::from_secs(3600));
-            match self
-                .state
-                .wait_until_ready_with_total_timeout(slice, |state| state.terminated)
-            {
-                Ok(WaitTimeoutResult::Ready(())) => return true,
-                Ok(WaitTimeoutResult::TimedOut) => {}
-                Err(error) => panic!("scheduler termination wait failed: {error}"),
+            if waiter(remaining.min(Duration::from_secs(3600))) {
+                return true;
             }
         }
     }
@@ -396,6 +406,66 @@ mod tests {
         assert!(core.is_terminated());
         assert_eq!(first.cancelled, 1);
         assert_eq!(second.queued, 0);
+    }
+
+    #[test]
+    fn test_max_termination_timeout_dispatches_bounded_wait() {
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduler_core::tests::test_max_termination_timeout_dispatches_bounded_wait",
+            "scheduler-core-max-timeout-dispatch",
+            Duration::from_secs(15),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (entered_tx, entered_rx) = mpsc::channel();
+                let (finished_tx, finished_rx) = mpsc::channel();
+                let worker_core = Arc::clone(&core);
+                let coordinator = thread::spawn(move || {
+                    entered_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("waiter should be entered");
+                    worker_core.shutdown();
+                    worker_core.state.with_write_notify_all(|state| {
+                        assert!(state.can_terminate());
+                        state.terminated = true;
+                    });
+                    finished_tx.send(()).expect("wait observer exists");
+                });
+
+                assert!(core.wait_for_termination_timeout_with_waiter(Duration::MAX, |slice| {
+                    assert_eq!(slice, Duration::from_secs(3600));
+                    assert!(!core.is_terminated());
+                    entered_tx.send(()).expect("termination coordinator exists");
+                    finished_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("coordinator should publish termination");
+                    assert!(core.is_terminated());
+                    true
+                }));
+                coordinator.join().expect("termination coordinator thread");
+            },
+        )
+        .expect("watchdog should observe max-timeout dispatch test finish");
+    }
+
+    #[test]
+    fn test_zero_termination_timeout_does_not_wait() {
+        let core = SchedulerCore::new();
+        assert!(!core.wait_for_termination_timeout_with_waiter(Duration::ZERO, |_| {
+            panic!("must not wait")
+        }));
+    }
+
+    #[test]
+    fn test_terminated_core_does_not_wait() {
+        let core = SchedulerCore::new();
+        core.shutdown();
+        core.state.with_write_notify_all(|state| {
+            assert!(state.can_terminate());
+            state.terminated = true;
+        });
+        assert!(core.wait_for_termination_timeout_with_waiter(Duration::MAX, |_| {
+            panic!("must not wait")
+        }));
     }
 
     #[test]
