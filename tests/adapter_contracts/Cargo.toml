@@ -11,6 +11,7 @@ autotests = false
 [dev-dependencies]
 qubit-executor = { path = "../.." }
 qubit-rayon-executor = { path = "../../../rs-rayon-executor" }
+qubit-thread-pool = { path = "../../../rs-thread-pool" }
 qubit-tokio-executor = { path = "../../../rs-tokio-executor" }
 tokio = { version = "^1.54", features = ["rt-multi-thread", "sync", "time"] }
 

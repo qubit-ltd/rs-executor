@@ -7,4 +7,5 @@
 // =============================================================================
 mod internal;
 mod rayon_contract_tests;
+mod thread_pool_contract_tests;
 mod tokio_contract_tests;
