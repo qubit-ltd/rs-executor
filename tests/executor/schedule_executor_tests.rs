@@ -78,24 +78,57 @@ fn test_schedule_executor_runs_task_at_instant() {
 
 #[test]
 fn test_schedule_executor_runs_past_instant_promptly() {
-    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1));
-
-    let handle = executor
-        .call(|| Ok::<usize, io::Error>(42))
-        .expect("worker thread should spawn");
-
-    assert_eq!(handle.get().expect("callable should complete"), 42);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_schedule_executor_runs_past_instant_promptly",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "past-instant-plain",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1));
+            let (started_tx, started_rx) = mpsc::channel();
+            let handle = executor
+                .call(move || {
+                    started_tx.send(()).expect("observer should exist");
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
+            started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("past deadline task should start within five seconds");
+            assert_eq!(handle.get().expect("callable should complete"), 42);
+        },
+    )
+    .expect("watchdog should observe past-instant test finish");
 }
 
 #[test]
 fn test_schedule_executor_with_hook_runs_past_instant_promptly() {
-    let executor = ScheduleExecutor::at(Instant::now() - Duration::from_millis(1)).with_hook(Arc::new(NoopTaskHook));
-
-    let handle = executor
-        .call(|| Ok::<usize, io::Error>(42))
-        .expect("worker thread should spawn");
-
-    assert_eq!(handle.get().expect("callable should complete"), 42);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_schedule_executor_with_hook_runs_past_instant_promptly",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "past-instant-hook",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let executor =
+                ScheduleExecutor::at(Instant::now() - Duration::from_millis(1)).with_hook(Arc::new(NoopTaskHook));
+            let (started_tx, started_rx) = mpsc::channel();
+            let handle = executor
+                .call(move || {
+                    started_tx.send(()).expect("observer should exist");
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("worker thread should spawn");
+            started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("past deadline task should start within five seconds");
+            assert_eq!(handle.get().expect("callable should complete"), 42);
+        },
+    )
+    .expect("watchdog should observe past-instant test finish");
 }
 
 #[test]
