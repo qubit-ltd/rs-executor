@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::future::Future;
 use std::future::IntoFuture;
 use std::io;
 use std::time::Duration;
@@ -83,6 +84,22 @@ where
     O: FnOnce(),
 {
     drop(task.into_future());
+    release();
+    observe();
+}
+
+pub(crate) async fn assert_runs_after_polled_future_drop<F, O>(task: impl IntoFuture, release: F, observe: O)
+where
+    F: FnOnce(),
+    O: FnOnce(),
+{
+    let mut result = Box::pin(task.into_future());
+    std::future::poll_fn(|cx| {
+        assert!(result.as_mut().poll(cx).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    drop(result);
     release();
     observe();
 }
