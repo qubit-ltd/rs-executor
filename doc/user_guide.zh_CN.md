@@ -273,7 +273,55 @@ Ok(())
 
 如需限制队列，可通过 `SingleThreadScheduledExecutorService::builder("bounded-scheduler").queue_capacity(128).build()?` 构建服务。容量只统计仍在队列中的条目；worker 已领取的一个任务不计入，因此队列最多等待 128 个任务，另加该活动任务。默认仍为无界队列。取消并移除条目或 worker 领取条目后会释放队列位置。队列满时提交返回 `SubmissionError::Saturated`；shutdown 或 stop 后提交返回 `Shutdown`。
 
-提交方法会按值消费 callable。`SubmissionError` 会说明任务被拒绝的原因，但不会返还 callable；因此，应用若要在 `Saturated` 后重试，必须在每次按值提交前自行保留任务所有权。`qubit-execution-services` facade 提供容量等待方法，可在重试期间保留同一个一次性任务。我们比较了三种 API 路径：修改现有 trait 的返回类型会破坏所有实现和调用方；新增可选的可恢复提交 trait 兼容性较好，但仍须分别定义队列准入、工作线程创建失败、任务移入类型擦除闭包后的回收规则，并在各适配器及 facade 中实现；保留现有 API 并使用 facade 的 `OwnedWaitTask` 不增加公共概念或迁移成本，但保留了现有锁和分配开销。本 crate 选择第三种。若第二个独立消费者也需要复制保留任务包装器，或测量发现其锁与分配成本影响目标负载，再重新评估；届时先定义任务何时算作未接纳，以及所有权如何返还。
+提交方法会按值消费 callable。`SubmissionError` 说明拒绝原因，但不会把 callable 还给调用方；如果提交后可能需要重试，应先把一次性业务数据保存在应用可继续访问的状态中。下面用一个占满队列的 filler 确保第一次提交会被拒绝。每次尝试只克隆 `Arc`，只有 callable 真正运行时才会取走数据，因此被拒绝的闭包销毁后，数据仍可用于重试。取消 filler 释放队列位置后再次提交，并检查任务结果和数据确实只消费了一次。其他生产者可能先占用刚释放的位置，所以后续仍要处理 `Saturated` 并继续保留数据；其他提交错误应返回给调用方，不要一概重试。
+
+```rust
+use std::io;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use qubit_executor::CancelResult;
+use qubit_executor::ExecutorService;
+use qubit_executor::ScheduledExecutorService;
+use qubit_executor::SingleThreadScheduledExecutorService;
+use qubit_executor::SubmissionError;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = SingleThreadScheduledExecutorService::builder("retained-job")
+        .queue_capacity(1)
+        .build()?;
+    let filler = service.schedule_callable(Duration::from_secs(3600), || Ok::<_, io::Error>(()))?;
+    let retained = Arc::new(Mutex::new(Some(String::from("report"))));
+    let submit = || {
+        let retained = Arc::clone(&retained);
+        service.schedule_callable(Duration::ZERO, move || {
+            let payload = retained
+                .lock()
+                .expect("payload lock is not poisoned")
+                .take()
+                .ok_or_else(|| io::Error::other("payload already consumed"))?;
+            Ok::<usize, io::Error>(payload.len())
+        })
+    };
+    match submit() {
+        Err(SubmissionError::Saturated) => {
+            assert!(retained.lock().expect("payload lock").is_some());
+        }
+        Err(error) => return Err(error.into()),
+        Ok(_) => panic!("the queue should still contain the far-future filler"),
+    }
+    assert_eq!(filler.cancel(), CancelResult::Cancelled);
+    let handle = submit()?;
+    assert_eq!(handle.get()?, 6);
+    assert!(retained.lock().expect("payload lock").is_none());
+    service.shutdown();
+    service.wait_termination();
+    Ok(())
+}
+```
+
+这里的 filler 和固定容量只是为了同步演示中稳定触发拒绝。实际应用应由容量事件触发下一次尝试、设置有限重试次数，或使用业务队列；不要忙等。任务一旦接纳，就通过 handle 处理执行错误，不要自动重提失败任务，以免重复副作用。示例使用会阻塞的 `get()`，适合同步代码，不要在 async 任务中这样等待。`qubit-execution-services` facade 的容量等待 API 面向 Blocking、CPU 和 TokioBlocking 执行域，不适用于这里的定时调度服务。定时服务保留现有按值消费的提交 API，由调用方负责重试时的数据所有权，因此无需增加新的提交约定。跨尝试保留数据需要应用自行管理状态与同步。
 
 该实现会在唯一的调度线程上运行到期任务，因此定时任务应保持短小；较重的工作应视情况转交给其他服务。
 

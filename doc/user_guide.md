@@ -273,7 +273,55 @@ Ok(())
 
 For an optional queue limit, build the service with `SingleThreadScheduledExecutorService::builder("bounded-scheduler").queue_capacity(128).build()?`. The capacity counts queued entries only; one worker-claimed task is outside the limit, so at most 128 tasks wait in the queue in addition to that task. The default remains unbounded. Cancelling and removing an entry or having the worker claim it frees a queue slot. A full queue rejects a submission with `SubmissionError::Saturated`; after shutdown or stop, submissions return `Shutdown`.
 
-Submission methods consume callables by value. A `SubmissionError` reports why a task was rejected but does not return the callable, so an application that retries after `Saturated` must retain ownership before making each consuming submission. The `qubit-execution-services` facade provides capacity-wait methods that keep a one-shot task across retries. Three API paths were considered: changing the existing trait's return type would break every implementation and caller; adding an optional recoverable-submission trait would preserve compatibility but still needs backend-specific rules for queue admission, worker-spawn failure, and tasks already moved into type-erased closures, plus implementations in each adapter and the facade; keeping the existing API and using the facade's `OwnedWaitTask` avoids a new public concept and migration cost, at the cost of retaining its lock and allocation overhead. This crate keeps the third path. Revisit it if a second independent consumer needs to duplicate the retained-task wrapper or measurements show its lock and allocation cost matters; first define when a task counts as not accepted and how its ownership returns.
+Submission methods consume callables by value. A `SubmissionError` reports why a task was rejected but does not return the callable, so keep the one-shot data in application-owned state before making a submission that may need retrying. In the example below, the queued filler makes the first rejection deterministic. Each attempt clones only an `Arc`; the payload is taken only if the callable actually runs, so rejecting and dropping an attempt leaves the payload available. After cancelling the filler to free the queue slot, the example resubmits and checks both the result and that the payload was consumed. Other producers may take the freed capacity first, so keep handling `Saturated` and retain the payload across further attempts. Return other submission errors to the caller rather than retrying them blindly.
+
+```rust
+use std::io;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use qubit_executor::CancelResult;
+use qubit_executor::ExecutorService;
+use qubit_executor::ScheduledExecutorService;
+use qubit_executor::SingleThreadScheduledExecutorService;
+use qubit_executor::SubmissionError;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = SingleThreadScheduledExecutorService::builder("retained-job")
+        .queue_capacity(1)
+        .build()?;
+    let filler = service.schedule_callable(Duration::from_secs(3600), || Ok::<_, io::Error>(()))?;
+    let retained = Arc::new(Mutex::new(Some(String::from("report"))));
+    let submit = || {
+        let retained = Arc::clone(&retained);
+        service.schedule_callable(Duration::ZERO, move || {
+            let payload = retained
+                .lock()
+                .expect("payload lock is not poisoned")
+                .take()
+                .ok_or_else(|| io::Error::other("payload already consumed"))?;
+            Ok::<usize, io::Error>(payload.len())
+        })
+    };
+    match submit() {
+        Err(SubmissionError::Saturated) => {
+            assert!(retained.lock().expect("payload lock").is_some());
+        }
+        Err(error) => return Err(error.into()),
+        Ok(_) => panic!("the queue should still contain the far-future filler"),
+    }
+    assert_eq!(filler.cancel(), CancelResult::Cancelled);
+    let handle = submit()?;
+    assert_eq!(handle.get()?, 6);
+    assert!(retained.lock().expect("payload lock").is_none());
+    service.shutdown();
+    service.wait_termination();
+    Ok(())
+}
+```
+
+The filler and fixed capacity are for this synchronous demonstration. In an application, trigger another attempt from a capacity event, use a finite retry budget, or place the work in an application queue; do not busy-loop. Once a task is accepted, use its handle to process execution errors and do not automatically resubmit failed work, which could repeat side effects. This example uses blocking `get()` and is for synchronous code, not an async task. The `qubit-execution-services` facade's capacity-wait API applies to Blocking, CPU, and TokioBlocking domains; it is not a wait API for this scheduled service. The scheduled service keeps its existing consuming submission API, so retry ownership stays with the caller; this avoids adding a new submission contract. Retaining data across attempts requires application-managed state and synchronization.
 
 Keep scheduled task bodies short. This implementation runs due tasks on its single scheduler thread; hand heavier work to another service when appropriate.
 
