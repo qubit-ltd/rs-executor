@@ -192,6 +192,19 @@ fn test_task_endpoint_pair_drop_pending_finishes_accepted_task() {
 
 #[test]
 fn test_task_endpoint_pair_start_cancel_race_has_one_result_and_one_finished_hook() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_task_endpoint_pair_start_cancel_race_has_one_result_and_one_finished_hook",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "endpoint-pair-start-cancel-race",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        run_endpoint_pair_start_cancel_race,
+    )
+    .expect("watchdog should observe the start/cancel race finish");
+}
+
+fn run_endpoint_pair_start_cancel_race() {
     for _ in 0..128 {
         let hook = Arc::new(RecordingHook::default());
         let (handle, completion) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
@@ -300,6 +313,19 @@ fn test_spi_acceptance_callback_pause_allows_concurrent_cancel() {
 
 #[test]
 fn test_spi_acceptance_before_handle_publication() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_spi_acceptance_before_handle_publication",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "spi-acceptance-before-publication",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        run_spi_acceptance_before_publication,
+    )
+    .expect("watchdog should observe the SPI acceptance race finish");
+}
+
+fn run_spi_acceptance_before_publication() {
     for _ in 0..64 {
         let hook = Arc::new(RecordingHook::default());
         let (handle, slot) = TaskEndpointPair::<usize, io::Error>::with_hook(hook.clone()).into_tracked_parts();
