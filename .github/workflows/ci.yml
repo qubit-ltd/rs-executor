@@ -43,6 +43,11 @@ jobs:
       - name: Install project Rust toolchain
         working-directory: rs-executor
         run: rustup toolchain install 1.94.0 --profile minimal
+      - name: Check fixture dependency baseline
+        working-directory: rs-executor
+        run: |
+          ln -s ../../.infra tests/adapter_contracts/.infra
+          ./.infra/bin/infra-tool.sh rs-infra-dependency --project tests/adapter_contracts check
       - name: Run adapter contract tests
         working-directory: rs-executor
         run: cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml

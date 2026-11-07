@@ -25,6 +25,10 @@ include = [
     "/tests/**",
 ]
 
+[package.metadata.rs-infra-dependency]
+# The standalone fixture is checked with its sibling adapter checkouts in its own CI job.
+exclude-projects = ["tests/adapter_contracts"]
+
 [lib]
 name = "qubit_executor"
 doctest = true
