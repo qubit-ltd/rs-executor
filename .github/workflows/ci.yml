@@ -18,6 +18,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  adapter-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out executor
+        uses: actions/checkout@v4
+        with:
+          path: rs-executor
+      - name: Check out Rayon adapter
+        uses: actions/checkout@v4
+        with:
+          repository: qubit-ltd/rs-rayon-executor
+          ref: 78b24704fa015ce2373311d4274670554a14e8d5
+          path: rs-rayon-executor
+      - name: Check out Tokio adapter
+        uses: actions/checkout@v4
+        with:
+          repository: qubit-ltd/rs-tokio-executor
+          ref: c73d4f5a03dd5000a1cf70c69ce0a1e176a48202
+          path: rs-tokio-executor
+      - name: Install project Rust toolchain
+        working-directory: rs-executor
+        run: rustup toolchain install 1.94.0 --profile minimal
+      - name: Run adapter contract tests
+        working-directory: rs-executor
+        run: cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml
+
   rust-ci:
     permissions:
       contents: read

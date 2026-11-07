@@ -1,0 +1,22 @@
+[package]
+name = "executor-adapter-contracts"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+autotests = false
+
+[workspace]
+
+[dev-dependencies]
+qubit-executor = { path = "../.." }
+qubit-rayon-executor = { path = "../../../rs-rayon-executor" }
+qubit-tokio-executor = { path = "../../../rs-tokio-executor" }
+tokio = { version = "^1.54", features = ["rt-multi-thread", "sync", "time"] }
+
+[[test]]
+name = "contracts_tests"
+path = "tests/contracts_tests.rs"
+
+[patch.crates-io]
+qubit-executor = { path = "../.." }
