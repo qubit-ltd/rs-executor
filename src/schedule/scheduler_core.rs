@@ -386,39 +386,49 @@ mod tests {
             self.release
                 .take()
                 .expect("cancel release receiver")
-                .recv()
-                .expect("stop test release");
+                .recv_timeout(Duration::from_secs(5))
+                .expect("stop test release should arrive within five seconds");
             true
         }
     }
 
     #[test]
     fn test_concurrent_stop_waits_for_first_drain() {
-        let core = Arc::new(SchedulerCore::new());
-        let (entered_tx, entered_rx) = mpsc::channel();
-        let (release_tx, release_rx) = mpsc::channel();
-        core.schedule(
-            TaskId::new(1),
-            Instant::now() + Duration::from_secs(60),
-            Box::new(BlockingCancelEntry {
-                entered: Some(entered_tx),
-                release: Some(release_rx),
-            }),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduler_core::tests::test_concurrent_stop_waits_for_first_drain",
+            "scheduler-core-concurrent-stop-drain",
+            Duration::from_secs(15),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (entered_tx, entered_rx) = mpsc::channel();
+                let (release_tx, release_rx) = mpsc::channel();
+                core.schedule(
+                    TaskId::new(1),
+                    Instant::now() + Duration::from_secs(60),
+                    Box::new(BlockingCancelEntry {
+                        entered: Some(entered_tx),
+                        release: Some(release_rx),
+                    }),
+                )
+                .expect("entry should schedule");
+
+                let stop_core = Arc::clone(&core);
+                let first_stop = thread::spawn(move || stop_core.stop());
+                entered_rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("first stop should enter cancellation within five seconds");
+                let second = core.stop();
+                let terminated_early = core.is_terminated();
+                release_tx.send(()).expect("first stop should be released");
+                let first = first_stop.join().expect("first stop thread");
+
+                assert!(!terminated_early);
+                assert!(core.is_terminated());
+                assert_eq!(first.cancelled, 1);
+                assert_eq!(second.queued, 0);
+            },
         )
-        .expect("entry should schedule");
-
-        let stop_core = Arc::clone(&core);
-        let first_stop = thread::spawn(move || stop_core.stop());
-        entered_rx.recv().expect("first stop should enter cancellation");
-        let second = core.stop();
-        let terminated_early = core.is_terminated();
-        release_tx.send(()).expect("first stop should be released");
-        let first = first_stop.join().expect("first stop thread");
-
-        assert!(!terminated_early);
-        assert!(core.is_terminated());
-        assert_eq!(first.cancelled, 1);
-        assert_eq!(second.queued, 0);
+        .expect("watchdog should observe concurrent stop test finish");
     }
 
     #[test]
