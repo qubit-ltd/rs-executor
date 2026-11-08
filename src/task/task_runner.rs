@@ -97,7 +97,7 @@ impl<C> TaskRunner<C> {
     ///
     /// # Parameters
     ///
-    /// * `completion` - Completion endpoint that publishes the final result.
+    /// * `slot` - Completion endpoint that publishes the final result.
     ///
     /// # Returns
     ///
