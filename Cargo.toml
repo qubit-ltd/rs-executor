@@ -33,6 +33,10 @@ exclude-projects = ["tests/adapter_contracts"]
 name = "qubit_executor"
 doctest = true
 
+[[bench]]
+name = "scheduled_executor_bench"
+harness = false
+
 [dependencies]
 log = "^0.4"
 oneshot = { version = "^0.2", features = ["async", "std"] }
