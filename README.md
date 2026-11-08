@@ -82,6 +82,8 @@ The crate requires Rust 1.94 or newer.
 - [API documentation](https://docs.rs/qubit-executor)
 - [简体中文 README](README.zh_CN.md)
 
+Cross-adapter contract tests run in a separate Cargo workspace and are not included in the root `cargo test`. With sibling checkouts of `rs-rayon-executor`, `rs-tokio-executor`, and `rs-thread-pool`, run `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml` from this repository root. See [adapter contract tests](tests/adapter_contracts/README.md) for the directory layout and coverage boundaries. CI pins adapter revisions in `.github/workflows/ci.yml`; local results depend on the sibling revisions checked out.
+
 ## Testing
 
 ```bash

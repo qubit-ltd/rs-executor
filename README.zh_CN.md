@@ -82,6 +82,8 @@ qubit-executor = "0.9"
 - [API 文档](https://docs.rs/qubit-executor)
 - [English README](README.md)
 
+下游适配器契约测试位于独立 Cargo workspace，根目录的 `cargo test` 不会运行它。准备好同级目录中的 `rs-rayon-executor`、`rs-tokio-executor` 和 `rs-thread-pool` 后，在本仓库根目录运行 `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml`。目录布局和覆盖边界见[适配器契约测试说明](tests/adapter_contracts/README.md)。CI 在 `.github/workflows/ci.yml` 中固定适配器版本；本地结果取决于各同级仓库当前检出的版本。
+
 ## 测试
 
 ```bash
