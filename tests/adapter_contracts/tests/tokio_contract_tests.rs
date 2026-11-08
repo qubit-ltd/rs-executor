@@ -21,9 +21,11 @@ use crate::internal::contract_assertions::assert_concurrent_pending_cancellation
 use crate::internal::contract_assertions::assert_failure;
 use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
+use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
+use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
 
 struct ReleaseGuard(Option<mpsc::Sender<()>>);
@@ -157,6 +159,55 @@ fn test_tokio_concurrent_pending_cancellation() {
         },
     )
     .expect("watchdog should observe Tokio concurrent cancellation test finish");
+}
+
+#[test]
+fn test_tokio_running_cancellation() {
+    crate::process_watchdog::run_test(
+        "tokio_contract_tests::test_tokio_running_cancellation",
+        "tokio-running-cancel",
+        Duration::from_secs(30),
+        || {
+            let service_runtime = runtime();
+            let service = TokioExecutorService::new(service_runtime.handle().clone());
+            let (started_tx, started_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let task = service
+                .submit_tracked_callable(move || {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(30)).unwrap();
+                    Ok::<usize, io::Error>(42)
+                })
+                .unwrap();
+            started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("Tokio blocking task should start");
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
+            runtime.block_on(assert_running_cancellation(task, move || {
+                let _ = release_tx.send(());
+            }));
+            service.shutdown();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("watchdog should observe Tokio running cancellation");
+}
+
+#[test]
+fn test_tokio_stop_contract() {
+    crate::process_watchdog::run_test(
+        "tokio_contract_tests::test_tokio_stop_contract",
+        "tokio-stop-contract",
+        Duration::from_secs(30),
+        || {
+            let runtime = runtime();
+            assert_stop_contract(TokioExecutorService::new(runtime.handle().clone()));
+        },
+    )
+    .expect("watchdog should observe Tokio stop contract");
 }
 
 #[test]

@@ -25,9 +25,11 @@ use crate::internal::contract_assertions::assert_concurrent_pending_cancellation
 use crate::internal::contract_assertions::assert_failure;
 use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
+use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
+use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
 
 struct ReleaseGuard(Option<mpsc::Sender<()>>);
@@ -105,6 +107,70 @@ fn dynamic_pool_capacity_one() -> ThreadPool {
         .build()
         .expect("dynamic pool with capacity one should build")
 }
+
+macro_rules! lifecycle_contract_tests {
+    ($running:ident, $stop:ident, $provider:ident, $builder:expr) => {
+        #[test]
+        fn $running() {
+            crate::process_watchdog::run_test(
+                concat!("thread_pool_contract_tests::", stringify!($running)),
+                concat!(stringify!($provider), "-running-cancel"),
+                Duration::from_secs(30),
+                || {
+                    let service = $builder;
+                    let (started_tx, started_rx) = mpsc::channel();
+                    let (release_tx, release_rx) = mpsc::channel();
+                    let task = service
+                        .submit_tracked_callable(move || {
+                            started_tx.send(()).unwrap();
+                            release_rx.recv_timeout(Duration::from_secs(30)).unwrap();
+                            Ok::<usize, io::Error>(42)
+                        })
+                        .unwrap();
+                    started_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("pool task should start");
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_time()
+                        .build()
+                        .unwrap();
+                    runtime.block_on(assert_running_cancellation(task, move || {
+                        let _ = release_tx.send(());
+                    }));
+                    service.shutdown();
+                    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+                },
+            )
+            .expect("watchdog should observe running cancellation");
+        }
+
+        #[test]
+        fn $stop() {
+            crate::process_watchdog::run_test(
+                concat!("thread_pool_contract_tests::", stringify!($stop)),
+                concat!(stringify!($provider), "-stop-contract"),
+                Duration::from_secs(30),
+                || {
+                    assert_stop_contract($builder);
+                },
+            )
+            .expect("watchdog should observe stop contract");
+        }
+    };
+}
+
+lifecycle_contract_tests!(
+    test_fixed_pool_running_cancellation,
+    test_fixed_pool_stop_contract,
+    fixed_pool_lifecycle,
+    fixed_pool()
+);
+lifecycle_contract_tests!(
+    test_dynamic_pool_running_cancellation,
+    test_dynamic_pool_stop_contract,
+    dynamic_pool_lifecycle,
+    dynamic_pool()
+);
 
 macro_rules! cancelled_capacity_lifecycle_test {
     ($name:ident, $pool:ident) => {

@@ -19,6 +19,109 @@ use qubit_executor::SubmissionError;
 use qubit_executor::TaskExecutionError;
 use qubit_executor::TaskResult;
 
+pub(crate) async fn assert_running_cancellation<H>(task: H, release: impl FnOnce())
+where
+    H: CancellableTaskHandle<usize, io::Error> + IntoFuture<Output = TaskResult<usize, io::Error>>,
+{
+    let endpoint = CancellableTaskHandle::cancellation_handle(&task);
+    assert_eq!(endpoint.cancel(), CancelResult::AlreadyRunning);
+    release();
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(5), task.into_future())
+            .await
+            .expect("running task result should arrive")
+            .expect("running task should retain its result"),
+        42
+    );
+    assert_eq!(endpoint.cancel(), CancelResult::AlreadyFinished);
+}
+
+pub(crate) fn assert_stop_contract<S>(service: S)
+where
+    S: ExecutorService,
+    S::ResultHandle<(), io::Error>: IntoFuture<Output = TaskResult<(), io::Error>>,
+    S::TrackedHandle<usize, io::Error>:
+        CancellableTaskHandle<usize, io::Error> + IntoFuture<Output = TaskResult<usize, io::Error>>,
+{
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let blocker = service
+        .submit_callable(move || {
+            started_tx.send(()).expect("blocker observer should exist");
+            release_rx
+                .recv_timeout(Duration::from_secs(30))
+                .expect("blocker must be released");
+            Ok::<(), io::Error>(())
+        })
+        .expect("blocker should be accepted");
+    started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("blocker should start");
+    struct Release(Option<mpsc::Sender<()>>);
+    impl Release {
+        fn run(&mut self) {
+            if let Some(tx) = self.0.take() {
+                let _ = tx.send(());
+            }
+        }
+    }
+    impl Drop for Release {
+        fn drop(&mut self) {
+            self.run();
+        }
+    }
+    let mut release = Release(Some(release_tx));
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let queued = service
+        .submit_tracked_callable(move || {
+            task_calls.fetch_add(1, Ordering::AcqRel);
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("queued task should be accepted");
+    let endpoint = CancellableTaskHandle::cancellation_handle(&queued);
+    let report = service.stop();
+    let _ = report; // StopReport fields differ in meaning between providers.
+    assert!(matches!(
+        service.submit_callable(|| Ok::<(), io::Error>(())),
+        Err(SubmissionError::Shutdown)
+    ));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("runtime should build");
+    assert!(matches!(
+        runtime
+            .block_on(async { tokio::time::timeout(Duration::from_secs(5), queued.into_future()).await })
+            .expect("queued cancellation should arrive"),
+        Err(TaskExecutionError::Cancelled)
+    ));
+    assert_eq!(calls.load(Ordering::Acquire), 0);
+    assert!(
+        !service.wait_termination_timeout(Duration::ZERO),
+        "running blocker must keep service alive"
+    );
+    release.run();
+    assert_eq!(
+        runtime
+            .block_on(async { tokio::time::timeout(Duration::from_secs(5), blocker.into_future()).await })
+            .expect("blocker result should arrive")
+            .expect("blocker should succeed"),
+        ()
+    );
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "service should terminate after blocker release"
+    );
+    assert_eq!(endpoint.cancel(), CancelResult::AlreadyFinished);
+    assert_eq!(calls.load(Ordering::Acquire), 0);
+}
+
 pub(crate) async fn assert_pending_cancellation<H>(task: H)
 where
     H: CancellableTaskHandle<usize, io::Error> + IntoFuture<Output = TaskResult<usize, io::Error>>,

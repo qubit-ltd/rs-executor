@@ -19,9 +19,11 @@ use crate::internal::contract_assertions::assert_concurrent_pending_cancellation
 use crate::internal::contract_assertions::assert_failure;
 use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
+use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
+use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
 
 struct ReleaseGuard(Option<mpsc::Sender<()>>);
@@ -160,6 +162,54 @@ fn test_rayon_concurrent_pending_cancellation() {
         },
     )
     .expect("watchdog should observe Rayon concurrent cancellation test finish");
+}
+
+#[test]
+fn test_rayon_running_cancellation() {
+    crate::process_watchdog::run_test(
+        "rayon_contract_tests::test_rayon_running_cancellation",
+        "rayon-running-cancel",
+        Duration::from_secs(30),
+        || {
+            let service = RayonExecutorService::builder().num_threads(1).build().unwrap();
+            let (started_tx, started_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let task = service
+                .submit_tracked_callable(move || {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(30)).unwrap();
+                    Ok::<usize, io::Error>(42)
+                })
+                .unwrap();
+            let started = started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("Rayon task should start");
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
+            runtime.block_on(assert_running_cancellation(task, move || {
+                let _ = release_tx.send(());
+            }));
+            let _ = started;
+            service.shutdown();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        },
+    )
+    .expect("watchdog should observe Rayon running cancellation");
+}
+
+#[test]
+fn test_rayon_stop_contract() {
+    crate::process_watchdog::run_test(
+        "rayon_contract_tests::test_rayon_stop_contract",
+        "rayon-stop-contract",
+        Duration::from_secs(30),
+        || {
+            assert_stop_contract(RayonExecutorService::builder().num_threads(1).build().unwrap());
+        },
+    )
+    .expect("watchdog should observe Rayon stop contract");
 }
 
 #[test]
