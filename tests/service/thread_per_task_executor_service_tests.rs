@@ -561,12 +561,30 @@ fn test_service_admission_close_during_acceptance(stop: bool) {
 
 #[test]
 fn test_service_admission_shutdown_during_acceptance() {
-    test_service_admission_close_during_acceptance(false);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_service_admission_shutdown_during_acceptance",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "admission-shutdown-during-acceptance",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || test_service_admission_close_during_acceptance(false),
+    )
+    .expect("watchdog should observe admission regression test finish");
 }
 
 #[test]
 fn test_service_admission_stop_during_acceptance() {
-    test_service_admission_close_during_acceptance(true);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_service_admission_stop_during_acceptance",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "admission-stop-during-acceptance",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || test_service_admission_close_during_acceptance(true),
+    )
+    .expect("watchdog should observe admission regression test finish");
 }
 
 fn test_service_admission_submitters_race_close(stop: bool) {
@@ -643,10 +661,28 @@ fn test_service_admission_submitters_race_close(stop: bool) {
 
 #[test]
 fn test_service_admission_multiple_submitters_race_shutdown() {
-    test_service_admission_submitters_race_close(false);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_service_admission_multiple_submitters_race_shutdown",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "admission-submitters-race-shutdown",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || test_service_admission_submitters_race_close(false),
+    )
+    .expect("watchdog should observe admission regression test finish");
 }
 
 #[test]
 fn test_service_admission_multiple_submitters_race_stop() {
-    test_service_admission_submitters_race_close(true);
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_service_admission_multiple_submitters_race_stop",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "admission-submitters-race-stop",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || test_service_admission_submitters_race_close(true),
+    )
+    .expect("watchdog should observe admission regression test finish");
 }
