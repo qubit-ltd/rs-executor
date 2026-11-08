@@ -9,6 +9,7 @@
 
 use std::io;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
@@ -53,6 +54,38 @@ struct FinishedCount {
     started: AtomicUsize,
 }
 
+struct BlockingAcceptanceHook {
+    entered: mpsc::Sender<()>,
+    release: Mutex<mpsc::Receiver<()>>,
+}
+
+impl TaskHook for BlockingAcceptanceHook {
+    fn on_accepted(&self, _task_id: TaskId) {
+        self.entered.send(()).expect("test should observe acceptance");
+        self.release
+            .lock()
+            .expect("release receiver lock should not be poisoned")
+            .recv_timeout(Duration::from_secs(5))
+            .expect("test should release acceptance hook");
+    }
+}
+
+struct ReleaseGuard(Option<mpsc::Sender<()>>);
+
+impl ReleaseGuard {
+    fn release(&mut self) {
+        if let Some(sender) = self.0.take() {
+            let _ = sender.send(());
+        }
+    }
+}
+
+impl Drop for ReleaseGuard {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
 impl TaskHook for FinishedCount {
     fn on_started(&self, _task_id: TaskId) {
         self.started.fetch_add(1, Ordering::AcqRel);
@@ -88,6 +121,60 @@ fn test_delay_executor_delays_task_start() {
         started_at.duration_since(start),
         executor.delay(),
     );
+}
+
+#[test]
+fn test_delay_starts_after_acceptance_gate_opens() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_delay_starts_after_acceptance_gate_opens",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "delay-after-acceptance",
+        Duration::from_secs(15),
+        || {
+            const DELAY: Duration = Duration::from_millis(80);
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let mut release = ReleaseGuard(Some(release_tx));
+            let hook = Arc::new(BlockingAcceptanceHook {
+                entered: entered_tx,
+                release: Mutex::new(release_rx),
+            });
+            let executor = DelayExecutor::new(DELAY).with_hook(hook);
+            let (started_tx, started_rx) = mpsc::channel();
+            let submit_executor = executor.clone();
+            let submit = std::thread::spawn(move || {
+                submit_executor.call(move || {
+                    started_tx.send(Instant::now()).expect("test should observe task start");
+                    Ok::<(), io::Error>(())
+                })
+            });
+
+            entered_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("acceptance callback should begin");
+            std::thread::sleep(DELAY * 2);
+            assert!(
+                started_rx.try_recv().is_err(),
+                "task must remain behind the closed admission gate"
+            );
+
+            let released_at = Instant::now();
+            release.release();
+            let started_at = started_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("task should start after the full delay");
+            assert!(started_at.duration_since(released_at) >= DELAY);
+            submit
+                .join()
+                .expect("submit thread should not panic")
+                .expect("worker should spawn")
+                .get()
+                .expect("task should complete");
+        },
+    )
+    .expect("watchdog should observe timing test finish");
 }
 
 #[test]

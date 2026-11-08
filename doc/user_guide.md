@@ -249,6 +249,13 @@ The example does not install hooks. An executor that uses hooks must finish `slo
 
 ### Delayed submission
 
+`DelayExecutor` starts its configured relative delay only after its helper
+thread passes the admission gate. Thread startup, scheduling, and synchronous
+`on_accepted` hook time do not count toward the delay; with a hook, its
+`on_accepted` callback must return before the gate opens. The task may start
+later than the requested delay, with no real-time upper bound. In contrast,
+`ScheduleExecutor` targets an absolute `Instant` deadline.
+
 `SingleThreadScheduledExecutorService` owns one scheduler thread and accepts a `Duration` delay or an `Instant` deadline:
 
 ```rust

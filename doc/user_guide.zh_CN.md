@@ -249,6 +249,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 ### 延迟提交
 
+`DelayExecutor` 仅在辅助线程通过接纳门后开始计算相对延迟。线程启动、调度以及同步执行 `on_accepted` hook 的时间不计入延迟；配置 hook 时，必须等 `on_accepted` 回调返回后才会打开接纳门。任务可能晚于请求的延迟才开始执行，本执行器不提供实时性上界。相比之下，`ScheduleExecutor` 面向绝对 `Instant` 截止时刻。
+
 `SingleThreadScheduledExecutorService` 拥有一个调度线程，支持传入 `Duration` 延迟或 `Instant` 截止时刻：
 
 ```rust

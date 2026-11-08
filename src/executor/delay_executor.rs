@@ -30,7 +30,13 @@ type Worker = Box<dyn FnOnce() + Send + 'static>;
 /// models delayed start, not minimum execution duration.
 ///
 /// Each accepted task gets its own helper OS thread. The helper thread waits
-/// for the configured delay and then runs the task. Cancelling a pending task
+/// for the configured delay after it passes the admission gate, then runs the
+/// task. Thread startup, scheduling, and the synchronous `on_accepted` hook
+/// callback are not counted toward the delay. If a hook is configured, that
+/// callback must return before the gate opens. Actual execution may begin
+/// later; this executor makes no real-time or upper-bound guarantee. Unlike
+/// `ScheduleExecutor`, its delay is relative to the start of the wait rather
+/// than an absolute `Instant` deadline. Cancelling a pending task
 /// wakes this wait so its captured resources can be released early;
 /// cancellation does not join the worker or guarantee that it has exited on
 /// return. This keeps the submitting thread unblocked without requiring a
@@ -68,6 +74,10 @@ pub struct DelayExecutor {
 
 impl DelayExecutor {
     /// Creates an executor that delays task start by the supplied duration.
+    ///
+    /// The duration starts after the helper thread passes its admission gate.
+    /// Thread startup, scheduling, and synchronous acceptance-hook time are
+    /// excluded. Actual execution may occur later than the requested delay.
     ///
     /// # Parameters
     ///
@@ -120,7 +130,7 @@ impl DelayExecutor {
     ///
     /// # Returns
     ///
-    /// The duration waited before each task starts.
+    /// The duration waited after each worker passes its admission gate.
     #[inline]
     pub const fn delay(&self) -> Duration {
         self.delay
@@ -149,7 +159,10 @@ impl Executor for DelayExecutor {
     /// Starts a helper thread that waits and then runs the callable.
     ///
     /// This method returns after the helper thread has been spawned; it does
-    /// not wait for the configured delay or for task completion.
+    /// not wait for the configured delay or for task completion. The delay
+    /// begins when the worker passes its admission gate, after synchronous
+    /// acceptance-hook execution when a hook is configured; startup and hook
+    /// time do not count toward it.
     ///
     /// # Parameters
     ///
