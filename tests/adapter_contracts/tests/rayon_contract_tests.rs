@@ -16,6 +16,7 @@ use qubit_executor::ExecutorService;
 use qubit_rayon_executor::RayonExecutorService;
 
 use crate::internal::contract_assertions::assert_failure;
+use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
@@ -69,6 +70,18 @@ fn test_rayon_successful_callable_returns_its_value() {
         .unwrap();
     let task = service.submit_callable(|| Ok::<usize, io::Error>(42)).unwrap();
     runtime.block_on(assert_success(task));
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+}
+
+#[test]
+fn test_rayon_panic_recovery() {
+    let service = RayonExecutorService::builder().num_threads(1).build().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap();
+    runtime.block_on(assert_panic_recovery(&service));
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }

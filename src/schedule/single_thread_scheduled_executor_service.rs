@@ -30,10 +30,11 @@ use crate::task::spi::TaskEndpointPair;
 
 /// Single-threaded scheduled executor service.
 ///
-/// The service owns one scheduler OS thread. It accepts tasks into a deadline
-/// heap, waits until the earliest task is due, and then runs that task directly
-/// on the scheduler thread. Scheduled tasks should therefore stay short; submit
-/// heavier work to another executor service from the scheduled task body.
+/// The service owns one scheduler OS thread. It accepts tasks into a
+/// deadline-ordered task queue, waits until the earliest task is due, and then
+/// runs that task directly on the scheduler thread. Scheduled tasks should
+/// therefore stay short; submit heavier work to another executor service from
+/// the scheduled task body.
 /// If the background timer wait fails, the service stops automatically, cancels
 /// tasks that have not started, and rejects later submissions with
 /// [`SubmissionError::Shutdown`]. This recovers ordinary unwinding only; it

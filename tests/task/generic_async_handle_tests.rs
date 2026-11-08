@@ -156,7 +156,10 @@ async fn test_generic_tracked_handle_preserves_task_failure() {
 async fn test_legacy_tracked_handle_needs_no_cancellation_extension() {
     let service = ThreadPerTaskExecutorService::new();
     let handle = service.submit_tracked_callable(|| Ok::<usize, ()>(42)).unwrap();
-    assert_eq!(tracked_result(LegacyTrackedHandle(handle)).await.unwrap(), 42);
+    let result = tokio::time::timeout(Duration::from_secs(5), tracked_result(LegacyTrackedHandle(handle)))
+        .await
+        .expect("legacy tracked handle should complete within five seconds");
+    assert_eq!(result.expect("legacy tracked task should succeed"), 42);
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }

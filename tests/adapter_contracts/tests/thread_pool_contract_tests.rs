@@ -17,6 +17,7 @@ use qubit_thread_pool::FixedThreadPool;
 use qubit_thread_pool::ThreadPool;
 
 use crate::internal::contract_assertions::assert_failure;
+use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
@@ -77,7 +78,7 @@ fn dynamic_pool() -> ThreadPool {
 macro_rules! pool_contract_tests {
     (
         $success:ident, $failure:ident, $shutdown:ident, $cancel:ident,
-        $drop:ident, $drop_polled:ident, $pool:ident
+        $drop:ident, $drop_polled:ident, $panic_recovery:ident, $pool:ident
     ) => {
         #[test]
         fn $success() {
@@ -197,6 +198,18 @@ macro_rules! pool_contract_tests {
             assert!(service.wait_termination_timeout(Duration::from_secs(5)));
             assert_eq!(calls.load(Ordering::Acquire), 1);
         }
+
+        #[test]
+        fn $panic_recovery() {
+            let service = $pool();
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
+            runtime.block_on(assert_panic_recovery(&service));
+            service.shutdown();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+        }
     };
 }
 
@@ -207,6 +220,7 @@ pool_contract_tests!(
     test_fixed_pending_callable_can_be_cancelled,
     test_fixed_dropping_future_does_not_cancel_task,
     test_fixed_dropping_polled_future_does_not_cancel_task,
+    test_fixed_panic_recovery,
     fixed_pool
 );
 
@@ -217,5 +231,6 @@ pool_contract_tests!(
     test_dynamic_pending_callable_can_be_cancelled,
     test_dynamic_dropping_future_does_not_cancel_task,
     test_dynamic_dropping_polled_future_does_not_cancel_task,
+    test_dynamic_panic_recovery,
     dynamic_pool
 );

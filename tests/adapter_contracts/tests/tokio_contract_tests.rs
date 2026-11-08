@@ -18,6 +18,7 @@ use qubit_tokio_executor::TokioExecutorService;
 use tokio::runtime::Runtime;
 
 use crate::internal::contract_assertions::assert_failure;
+use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
@@ -77,6 +78,15 @@ fn test_tokio_successful_callable_returns_its_value() {
     let service = TokioExecutorService::new(runtime.handle().clone());
     let task = service.submit_callable(|| Ok::<usize, io::Error>(42)).unwrap();
     runtime.block_on(assert_success(task));
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+}
+
+#[test]
+fn test_tokio_panic_recovery() {
+    let runtime = runtime();
+    let service = TokioExecutorService::new(runtime.handle().clone());
+    runtime.block_on(assert_panic_recovery(&service));
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }

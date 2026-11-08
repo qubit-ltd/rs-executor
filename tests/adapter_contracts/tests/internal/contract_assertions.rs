@@ -50,6 +50,41 @@ where
     );
 }
 
+pub(crate) async fn assert_panic_recovery<S>(service: &S)
+where
+    S: ExecutorService,
+    S::ResultHandle<usize, io::Error>: IntoFuture<Output = TaskResult<usize, io::Error>>,
+    S::TrackedHandle<usize, io::Error>: IntoFuture<Output = TaskResult<usize, io::Error>>,
+{
+    let task = service
+        .submit_callable(|| -> Result<usize, io::Error> { panic!("ordinary callable contract panic") })
+        .expect("panicking callable should be accepted");
+    assert!(matches!(
+        tokio::time::timeout(Duration::from_secs(5), task.into_future())
+            .await
+            .expect("ordinary panic result should arrive"),
+        Err(TaskExecutionError::Panicked)
+    ));
+    let next = service
+        .submit_callable(|| Ok::<usize, io::Error>(42))
+        .expect("ordinary submission after panic should be accepted");
+    assert_success(next).await;
+
+    let task = service
+        .submit_tracked_callable(|| -> Result<usize, io::Error> { panic!("tracked callable contract panic") })
+        .expect("panicking tracked callable should be accepted");
+    assert!(matches!(
+        tokio::time::timeout(Duration::from_secs(5), task.into_future())
+            .await
+            .expect("tracked panic result should arrive"),
+        Err(TaskExecutionError::Panicked)
+    ));
+    let next = service
+        .submit_tracked_callable(|| Ok::<usize, io::Error>(42))
+        .expect("tracked submission after panic should be accepted");
+    assert_success(next).await;
+}
+
 pub(crate) async fn assert_failure<H>(task: H)
 where
     H: IntoFuture<Output = TaskResult<usize, io::Error>>,
