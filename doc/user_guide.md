@@ -4,13 +4,15 @@
 
 ## Purpose and Audience
 
-This guide targets Rust library and application authors using `qubit-executor` 0.9. It explains how to choose between a one-shot `Executor` and a lifecycle-managed `ExecutorService`, observe task results, schedule work, and shut services down without assuming that dropping a handle waits for worker resources.
+This guide targets Rust library and application authors using `qubit-executor` 0.9. It explains how to choose between the execution-strategy abstraction `Executor` and a lifecycle-managed `ExecutorService`, observe task results, schedule work, and shut services down without assuming that dropping a handle waits for worker resources.
 
 The crate is an execution abstraction. It does not select an async runtime, provide a bounded thread pool, or forcibly interrupt arbitrary Rust code.
 
 ## Conceptual Model
 
 `Executor` describes how one accepted task runs. Its `call` and `execute` methods return a `TrackedTask`, and the outer `Result` reports submission failure only.
+
+The concrete strategy defines invocation count and may retry a task. Generic callers must not assume at-most-once invocation from the `Executor` bound alone; check the concrete strategy before submitting work with side effects.
 
 `ExecutorService` manages admission and lifecycle. An accepted `submit_callable` returns a task-result handle; `Ok(handle)` means acceptance, not successful completion. A service moves through these states:
 

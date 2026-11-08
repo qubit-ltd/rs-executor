@@ -11,6 +11,13 @@
 /// pending tasks may have different result and error types, so returning a
 /// strongly typed list of unstarted tasks is not generally meaningful.
 ///
+/// The counters are implementation-specific observations. They need not
+/// share a single sampling instant. See the concrete service's
+/// [`super::ExecutorService::stop`](super::ExecutorService::stop) documentation
+/// for counting boundaries and whether cancellation counts represent requests
+/// or successful pre-start cancellation. These counters do not establish an
+/// individual task's final outcome or completion of resource cleanup.
+///
 /// # Examples
 ///
 /// ```
@@ -23,15 +30,17 @@
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct StopReport {
-    /// Number of tasks that were still queued when stop was requested.
+    /// Queued work reported by the implementation; see the concrete service
+    /// for its sampling or removal boundary.
     pub queued: usize,
 
-    /// Number of tasks the implementation observed as running when stop was
-    /// requested. Implementations may count at a worker-claim boundary, so
-    /// this snapshot need not match each task handle's `TaskStatus` exactly.
+    /// Running work observed by the implementation. Implementations may count
+    /// at a worker-claim boundary, so this need not match each task handle's
+    /// `TaskStatus` exactly or establish that its callable has started.
     pub running: usize,
 
-    /// Number of tasks for which cancellation or abort was requested.
+    /// Cancellations or aborts reported by the implementation; the concrete
+    /// service defines whether this counts requests or successful cancellation.
     pub cancelled: usize,
 }
 
@@ -40,9 +49,13 @@ impl StopReport {
     ///
     /// # Parameters
     ///
-    /// * `queued` - Number of queued tasks observed during stop.
-    /// * `running` - Number of running tasks observed during stop.
-    /// * `cancelled` - Number of tasks cancellation was requested for.
+    /// * `queued` - Queued work reported by the implementation; see the
+    ///   concrete service for its sampling or removal boundary.
+    /// * `running` - Running work observed by the implementation; see the
+    ///   concrete service for its sampling boundary.
+    /// * `cancelled` - Cancellations or aborts reported by the implementation;
+    ///   the concrete service defines whether this counts requests or
+    ///   successful cancellation.
     ///
     /// # Returns
     ///

@@ -53,7 +53,7 @@ Execution strategy, task completion, and managed-service lifecycle have differen
 
 ## What It Provides
 
-- `Executor` for one-shot fallible tasks, with `DirectExecutor`, `DelayExecutor`, `ScheduleExecutor`, and `ThreadPerTaskExecutor`.
+- `Executor` for fallible task execution strategies, with `DirectExecutor`, `DelayExecutor`, `ScheduleExecutor`, and `ThreadPerTaskExecutor`. Invocation count is defined by the concrete strategy, not by the trait.
 - `ExecutorService` for accepted-task tracking, graceful `shutdown()`, best-effort `stop()`, lifecycle inspection, and blocking termination waiting.
 - `ThreadPerTaskExecutorService` plus `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for delayed or `Instant`-based submission.
 - `SingleThreadScheduledExecutorService::builder` can optionally bound queued tasks; a full configured queue rejects submissions with `SubmissionError::Saturated`. See the [user guide](doc/user_guide.md).
