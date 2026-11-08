@@ -16,6 +16,6 @@ From the `rs-executor` repository root, run:
 cargo test --manifest-path tests/adapter_contracts/Cargo.toml
 ```
 
-The fixture checks successful results, business failures, shutdown rejection, cancellation of work known to be pending, and that dropping either an unpolled or polled result future does not cancel queued work. Shared coverage runs against Rayon, Tokio, and the fixed and dynamic thread pools. Its local path patch ensures all providers use this checkout of `qubit-executor`.
+The fixture checks successful results, business failures, shutdown rejection, cancellation of work known to be pending, and that dropping either an unpolled or polled result future does not cancel queued work. It checks concurrent cancellation against pending work across Rayon, Tokio, and the fixed and dynamic thread pools: two cancellation calls race, one must cancel, one must report that the task is already finished, and the cancelled result must arrive. These checks verify the observable contract and task termination; they do not prove every possible thread interleaving. Shared coverage runs against Rayon, Tokio, and the fixed and dynamic thread pools. Its local path patch ensures all providers use this checkout of `qubit-executor`.
 
 The Rayon and Tokio repositories retain their focused provider-specific tests. This fixture adds shared cross-adapter coverage and does not replace those suites.

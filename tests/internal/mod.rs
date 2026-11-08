@@ -5,5 +5,5 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-pub(super) mod process_watchdog;
+pub(super) use qubit_executor_test_watchdog as process_watchdog;
 mod process_watchdog_tests;

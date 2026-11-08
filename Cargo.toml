@@ -48,3 +48,4 @@ qubit-state-machine = { version = "^0.11", default-features = false, features = 
 
 [dev-dependencies]
 tokio = { version = "^1.54", features = ["macros", "rt-multi-thread", "time"] }
+qubit-executor-test-watchdog = { path = "tests/internal/process-watchdog" }

@@ -8,6 +8,8 @@
 use std::future::Future;
 use std::future::IntoFuture;
 use std::io;
+use std::sync::Arc;
+use std::sync::Barrier;
 use std::time::Duration;
 
 use qubit_executor::CancelResult;
@@ -29,6 +31,41 @@ where
             .is_err()
     );
     assert_eq!(cancellation.cancel(), CancelResult::Cancelled);
+    assert!(matches!(
+        tokio::time::timeout(Duration::from_secs(5), result)
+            .await
+            .expect("cancelled result should arrive"),
+        Err(TaskExecutionError::Cancelled)
+    ));
+}
+
+pub(crate) async fn assert_concurrent_pending_cancellation<H>(task: H)
+where
+    H: CancellableTaskHandle<usize, io::Error> + IntoFuture<Output = TaskResult<usize, io::Error>>,
+{
+    let cancellation = CancellableTaskHandle::cancellation_handle(&task);
+    let result = task.into_future();
+    let gate = Arc::new(Barrier::new(3));
+    let workers: Vec<_> = (0..2)
+        .map(|_| {
+            let gate = Arc::clone(&gate);
+            let cancellation = cancellation.clone();
+            std::thread::spawn(move || {
+                gate.wait();
+                cancellation.cancel()
+            })
+        })
+        .collect();
+    gate.wait();
+    let outcomes: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().expect("cancellation thread should finish"))
+        .collect();
+    assert_eq!(outcomes.iter().filter(|&&r| r == CancelResult::Cancelled).count(), 1);
+    assert_eq!(
+        outcomes.iter().filter(|&&r| r == CancelResult::AlreadyFinished).count(),
+        1
+    );
     assert!(matches!(
         tokio::time::timeout(Duration::from_secs(5), result)
             .await

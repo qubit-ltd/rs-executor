@@ -15,6 +15,7 @@ use std::time::Duration;
 use qubit_executor::ExecutorService;
 use qubit_rayon_executor::RayonExecutorService;
 
+use crate::internal::contract_assertions::assert_concurrent_pending_cancellation;
 use crate::internal::contract_assertions::assert_failure;
 use crate::internal::contract_assertions::assert_panic_recovery;
 use crate::internal::contract_assertions::assert_pending_cancellation;
@@ -128,6 +129,37 @@ fn test_rayon_pending_callable_can_be_cancelled() {
     service.shutdown();
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
     assert_eq!(calls.load(Ordering::Acquire), 0);
+}
+
+#[test]
+fn test_rayon_concurrent_pending_cancellation() {
+    crate::process_watchdog::run_test(
+        "rayon_contract_tests::test_rayon_concurrent_pending_cancellation",
+        "rayon-concurrent-pending-cancellation",
+        Duration::from_secs(30),
+        || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .expect("test runtime should build");
+            let (service, mut release, _) = blocked_service();
+            let calls = Arc::new(AtomicUsize::new(0));
+            let task_calls = Arc::clone(&calls);
+            let task = service
+                .submit_tracked_callable(move || {
+                    task_calls.fetch_add(1, Ordering::AcqRel);
+                    Ok::<usize, io::Error>(42)
+                })
+                .expect("queued task should be accepted");
+            runtime.block_on(assert_concurrent_pending_cancellation(task));
+            assert_eq!(calls.load(Ordering::Acquire), 0);
+            release.release();
+            service.shutdown();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+            assert_eq!(calls.load(Ordering::Acquire), 0);
+        },
+    )
+    .expect("watchdog should observe Rayon concurrent cancellation test finish");
 }
 
 #[test]

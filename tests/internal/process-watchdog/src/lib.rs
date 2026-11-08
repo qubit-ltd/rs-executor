@@ -27,12 +27,13 @@ use std::time::UNIX_EPOCH;
 
 const CHILD_MARKER_ENV: &str = "QUBIT_EXECUTOR_TEST_WATCHDOG_CHILD";
 const LOG_PREFIX: &str = "QUBIT_EXECUTOR_TEST_WATCHDOG_ENTERED:";
-pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(15);
+/// Default deadline for a supervised integration-test child process.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 static NEXT_LOG_ID: AtomicU64 = AtomicU64::new(0);
 
 /// Runs `body` in a supervised copy of the current integration-test binary.
-pub(crate) fn run_test(test_name: &str, marker: &str, timeout: Duration, body: impl FnOnce()) -> Result<(), String> {
+pub fn run_test(test_name: &str, marker: &str, timeout: Duration, body: impl FnOnce()) -> Result<(), String> {
     if env::var(CHILD_MARKER_ENV).as_deref() == Ok(marker) {
         println!("{LOG_PREFIX}{marker}");
         io::stdout()
