@@ -287,515 +287,611 @@ mod tests {
 
     #[test]
     fn test_scheduled_claim_can_start_after_stop() {
-        let core = SchedulerCore::new();
-        let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-        core.schedule(
-            tracked.task_id(),
-            Instant::now(),
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(42), slot)),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_scheduled_claim_can_start_after_stop",
+            "scheduled-worker-test_scheduled_claim_can_start_after_stop",
+            Duration::from_secs(60),
+            || {
+                let core = SchedulerCore::new();
+                let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+                core.schedule(
+                    tracked.task_id(),
+                    Instant::now(),
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(42), slot)),
+                )
+                .expect("queue due task");
+
+                let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
+                    panic!("due task must not wait for a deadline");
+                })
+                .expect("claim succeeds")
+                .expect("due task exists");
+                let active = WorkerActiveGuard::new(&core);
+                assert_eq!(tracked.status(), TaskStatus::Pending);
+
+                let report = core.stop();
+
+                assert_eq!((report.queued, report.running, report.cancelled), (0, 1, 0));
+                assert_eq!(tracked.status(), TaskStatus::Pending);
+                claimed();
+                drop(active);
+                assert_eq!(tracked.get().expect("claimed task may still run"), 42);
+                assert!(core.is_terminated());
+            },
         )
-        .expect("queue due task");
-
-        let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
-            panic!("due task must not wait for a deadline");
-        })
-        .expect("claim succeeds")
-        .expect("due task exists");
-        let active = WorkerActiveGuard::new(&core);
-        assert_eq!(tracked.status(), TaskStatus::Pending);
-
-        let report = core.stop();
-
-        assert_eq!((report.queued, report.running, report.cancelled), (0, 1, 0));
-        assert_eq!(tracked.status(), TaskStatus::Pending);
-        claimed();
-        drop(active);
-        assert_eq!(tracked.get().expect("claimed task may still run"), 42);
-        assert!(core.is_terminated());
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_scheduled_claim_can_be_cancelled_before_start() {
-        let core = SchedulerCore::new();
-        let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let task_calls = Arc::clone(&calls);
-        core.schedule(
-            tracked.task_id(),
-            Instant::now(),
-            Box::new(CompletableScheduledTask::new(
-                move || {
-                    task_calls.fetch_add(1, Ordering::AcqRel);
-                    Ok::<usize, ()>(42)
-                },
-                slot,
-            )),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_scheduled_claim_can_be_cancelled_before_start",
+            "scheduled-worker-test_scheduled_claim_can_be_cancelled_before_start",
+            Duration::from_secs(60),
+            || {
+                let core = SchedulerCore::new();
+                let (tracked, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+                let calls = Arc::new(AtomicUsize::new(0));
+                let task_calls = Arc::clone(&calls);
+                core.schedule(
+                    tracked.task_id(),
+                    Instant::now(),
+                    Box::new(CompletableScheduledTask::new(
+                        move || {
+                            task_calls.fetch_add(1, Ordering::AcqRel);
+                            Ok::<usize, ()>(42)
+                        },
+                        slot,
+                    )),
+                )
+                .expect("queue due task");
+
+                let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
+                    panic!("due task must not wait for a deadline");
+                })
+                .expect("claim succeeds")
+                .expect("due task exists");
+                let active = WorkerActiveGuard::new(&core);
+                assert_eq!(tracked.cancel(), CancelResult::Cancelled);
+                claimed();
+                drop(active);
+
+                assert_eq!(calls.load(Ordering::Acquire), 0);
+                assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
+                assert!(!core.state.with_read(|state| state.worker_active));
+            },
         )
-        .expect("queue due task");
-
-        let claimed = next_ready_task(&core, &mut |_, _| -> Result<(), ()> {
-            panic!("due task must not wait for a deadline");
-        })
-        .expect("claim succeeds")
-        .expect("due task exists");
-        let active = WorkerActiveGuard::new(&core);
-        assert_eq!(tracked.cancel(), CancelResult::Cancelled);
-        claimed();
-        drop(active);
-
-        assert_eq!(calls.load(Ordering::Acquire), 0);
-        assert!(matches!(tracked.get(), Err(TaskExecutionError::Cancelled)));
-        assert!(!core.state.with_read(|state| state.worker_active));
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_cancelled_due_entry_does_not_exit_worker() {
-        let core = Arc::new(SchedulerCore::new());
-        let ran = Arc::new(AtomicUsize::new(0));
-        let now = Instant::now();
-        core.schedule(
-            TaskId::new(1),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: true,
-                panic_on_run: false,
-                ran: Arc::clone(&ran),
-            }),
-        )
-        .expect("first entry should schedule");
-        core.schedule(
-            TaskId::new(2),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: false,
-                panic_on_run: false,
-                ran: Arc::clone(&ran),
-            }),
-        )
-        .expect("second entry should schedule");
-        core.shutdown();
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_cancelled_due_entry_does_not_exit_worker",
+            "scheduled-worker-test_cancelled_due_entry_does_not_exit_worker",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let ran = Arc::new(AtomicUsize::new(0));
+                let now = Instant::now();
+                core.schedule(
+                    TaskId::new(1),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: true,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("first entry should schedule");
+                core.schedule(
+                    TaskId::new(2),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("second entry should schedule");
+                core.shutdown();
 
-        ScheduledWorker::run(Arc::clone(&core));
+                ScheduledWorker::run(Arc::clone(&core));
 
-        assert_eq!(ran.load(Ordering::Acquire), 1);
-        assert!(!core.state.with_read(|state| state.worker_active));
-        assert!(core.is_terminated());
+                assert_eq!(ran.load(Ordering::Acquire), 1);
+                assert!(!core.state.with_read(|state| state.worker_active));
+                assert!(core.is_terminated());
+            },
+        )
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_panicking_started_entry_does_not_kill_worker() {
-        let core = Arc::new(SchedulerCore::new());
-        let ran = Arc::new(AtomicUsize::new(0));
-        let now = Instant::now();
-        core.schedule(
-            TaskId::new(3),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: false,
-                panic_on_run: true,
-                ran: Arc::clone(&ran),
-            }),
-        )
-        .expect("panicking entry should schedule");
-        core.schedule(
-            TaskId::new(4),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: false,
-                panic_on_run: false,
-                ran: Arc::clone(&ran),
-            }),
-        )
-        .expect("following entry should schedule");
-        core.shutdown();
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_panicking_started_entry_does_not_kill_worker",
+            "scheduled-worker-test_panicking_started_entry_does_not_kill_worker",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let ran = Arc::new(AtomicUsize::new(0));
+                let now = Instant::now();
+                core.schedule(
+                    TaskId::new(3),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: true,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("panicking entry should schedule");
+                core.schedule(
+                    TaskId::new(4),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("following entry should schedule");
+                core.shutdown();
 
-        ScheduledWorker::run(Arc::clone(&core));
+                ScheduledWorker::run(Arc::clone(&core));
 
-        assert_eq!(ran.load(Ordering::Acquire), 1);
-        assert!(!core.state.with_read(|state| state.worker_active));
-        assert!(core.is_terminated());
+                assert_eq!(ran.load(Ordering::Acquire), 1);
+                assert!(!core.state.with_read(|state| state.worker_active));
+                assert!(core.is_terminated());
+            },
+        )
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_panicking_task_payload_does_not_kill_worker() {
-        let core = Arc::new(SchedulerCore::new());
-        let (panicked, panicked_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let (succeeded, succeeded_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let now = Instant::now();
-        core.schedule(
-            TaskId::new(7),
-            now,
-            Box::new(CompletableScheduledTask::new(
-                || -> Result<usize, ()> { std::panic::panic_any(PanicOnDrop) },
-                panicked_slot,
-            )),
-        )
-        .expect("panicking callable should schedule");
-        core.schedule(
-            TaskId::new(8),
-            now,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(42), succeeded_slot)),
-        )
-        .expect("following callable should schedule");
-        core.shutdown();
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_panicking_task_payload_does_not_kill_worker",
+            "scheduled-worker-test_panicking_task_payload_does_not_kill_worker",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (panicked, panicked_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let (succeeded, succeeded_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let now = Instant::now();
+                core.schedule(
+                    TaskId::new(7),
+                    now,
+                    Box::new(CompletableScheduledTask::new(
+                        || -> Result<usize, ()> { std::panic::panic_any(PanicOnDrop) },
+                        panicked_slot,
+                    )),
+                )
+                .expect("panicking callable should schedule");
+                core.schedule(
+                    TaskId::new(8),
+                    now,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(42), succeeded_slot)),
+                )
+                .expect("following callable should schedule");
+                core.shutdown();
 
-        ScheduledWorker::run(Arc::clone(&core));
+                ScheduledWorker::run(Arc::clone(&core));
 
-        assert!(matches!(
-            panicked.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Panicked))
-        ));
-        assert!(matches!(succeeded.try_get(), TryGet::Ready(Ok(42))));
-        assert!(core.is_terminated());
+                assert!(matches!(
+                    panicked.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Panicked))
+                ));
+                assert!(matches!(succeeded.try_get(), TryGet::Ready(Ok(42))));
+                assert!(core.is_terminated());
+            },
+        )
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_panicking_start_does_not_kill_worker() {
-        let core = Arc::new(SchedulerCore::new());
-        let ran = Arc::new(AtomicUsize::new(0));
-        let now = Instant::now();
-        core.schedule(TaskId::new(3), now, Box::new(PanicOnStartEntry {}))
-            .expect("panicking entry should schedule");
-        core.schedule(
-            TaskId::new(4),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: false,
-                panic_on_run: false,
-                ran: Arc::clone(&ran),
-            }),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_panicking_start_does_not_kill_worker",
+            "scheduled-worker-test_panicking_start_does_not_kill_worker",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let ran = Arc::new(AtomicUsize::new(0));
+                let now = Instant::now();
+                core.schedule(TaskId::new(3), now, Box::new(PanicOnStartEntry {}))
+                    .expect("panicking entry should schedule");
+                core.schedule(
+                    TaskId::new(4),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("follow-up entry should schedule");
+                core.shutdown();
+
+                ScheduledWorker::run(Arc::clone(&core));
+
+                assert_eq!(ran.load(Ordering::Acquire), 1);
+                assert!(core.is_terminated());
+            },
         )
-        .expect("follow-up entry should schedule");
-        core.shutdown();
-
-        ScheduledWorker::run(Arc::clone(&core));
-
-        assert_eq!(ran.load(Ordering::Acquire), 1);
-        assert!(core.is_terminated());
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_panicking_skipped_entry_drop_does_not_kill_worker() {
-        let core = Arc::new(SchedulerCore::new());
-        let ran = Arc::new(AtomicUsize::new(0));
-        let now = Instant::now();
-        core.schedule(TaskId::new(5), now, Box::new(SkipWithPanickingDropEntry))
-            .expect("panicking drop entry should schedule");
-        core.schedule(
-            TaskId::new(6),
-            now,
-            Box::new(MaybeSkippedEntry {
-                skip: false,
-                panic_on_run: false,
-                ran: Arc::clone(&ran),
-            }),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_panicking_skipped_entry_drop_does_not_kill_worker",
+            "scheduled-worker-test_panicking_skipped_entry_drop_does_not_kill_worker",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let ran = Arc::new(AtomicUsize::new(0));
+                let now = Instant::now();
+                core.schedule(TaskId::new(5), now, Box::new(SkipWithPanickingDropEntry))
+                    .expect("panicking drop entry should schedule");
+                core.schedule(
+                    TaskId::new(6),
+                    now,
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .expect("follow-up entry should schedule");
+                core.shutdown();
+
+                ScheduledWorker::run(Arc::clone(&core));
+
+                assert_eq!(ran.load(Ordering::Acquire), 1);
+                assert!(!core.state.with_read(|state| state.worker_active));
+                assert!(core.is_terminated());
+            },
         )
-        .expect("follow-up entry should schedule");
-        core.shutdown();
-
-        ScheduledWorker::run(Arc::clone(&core));
-
-        assert_eq!(ran.load(Ordering::Acquire), 1);
-        assert!(!core.state.with_read(|state| state.worker_active));
-        assert!(core.is_terminated());
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_wait_error_cancels_queued_tasks_and_terminates() {
-        let core = Arc::new(SchedulerCore::new());
-        let (first, first_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let (second, second_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let deadline = Instant::now() + std::time::Duration::from_secs(60);
-        core.schedule(
-            TaskId::new(100),
-            deadline,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), first_slot)),
-        )
-        .expect("first entry should schedule");
-        core.schedule(
-            TaskId::new(101),
-            deadline,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(2), second_slot)),
-        )
-        .expect("second entry should schedule");
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_wait_error_cancels_queued_tasks_and_terminates",
+            "scheduled-worker-test_wait_error_cancels_queued_tasks_and_terminates",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (first, first_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let (second, second_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let deadline = Instant::now() + std::time::Duration::from_secs(60);
+                core.schedule(
+                    TaskId::new(100),
+                    deadline,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), first_slot)),
+                )
+                .expect("first entry should schedule");
+                core.schedule(
+                    TaskId::new(101),
+                    deadline,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(2), second_slot)),
+                )
+                .expect("second entry should schedule");
 
-        let exit = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| Err(()));
-        }));
-        assert!(exit.is_ok(), "wait error must not escape the worker");
-        assert!(matches!(
-            first.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Cancelled))
-        ));
-        assert!(matches!(
-            second.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Cancelled))
-        ));
-        assert_eq!(core.queued_count(), 0);
-        assert_eq!(core.running_count(), 0);
-        assert!(core.is_terminated());
-        assert_eq!(core.lifecycle(), crate::service::ExecutorServiceLifecycle::Terminated);
-        let (rejected_handle, rejected_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let rejected = core.schedule(
-            TaskId::new(102),
-            deadline,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(3), rejected_slot)),
-        );
-        assert!(matches!(rejected, Err(crate::service::SubmissionError::Shutdown)));
-        assert!(matches!(
-            rejected_handle.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Dropped))
-        ));
+                let exit = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| Err(()));
+                }));
+                assert!(exit.is_ok(), "wait error must not escape the worker");
+                assert!(matches!(
+                    first.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Cancelled))
+                ));
+                assert!(matches!(
+                    second.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Cancelled))
+                ));
+                assert_eq!(core.queued_count(), 0);
+                assert_eq!(core.running_count(), 0);
+                assert!(core.is_terminated());
+                assert_eq!(core.lifecycle(), crate::service::ExecutorServiceLifecycle::Terminated);
+                let (rejected_handle, rejected_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let rejected = core.schedule(
+                    TaskId::new(102),
+                    deadline,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(3), rejected_slot)),
+                );
+                assert!(matches!(rejected, Err(crate::service::SubmissionError::Shutdown)));
+                assert!(matches!(
+                    rejected_handle.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Dropped))
+                ));
+            },
+        )
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_waiter_panic_stops_worker_and_cancels_queued_tasks() {
-        let core = Arc::new(SchedulerCore::new());
-        let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        core.schedule(
-            TaskId::new(103),
-            Instant::now() + std::time::Duration::from_secs(60),
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), slot)),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_waiter_panic_stops_worker_and_cancels_queued_tasks",
+            "scheduled-worker-test_waiter_panic_stops_worker_and_cancels_queued_tasks",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                core.schedule(
+                    TaskId::new(103),
+                    Instant::now() + std::time::Duration::from_secs(60),
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), slot)),
+                )
+                .expect("entry should schedule");
+
+                ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| panic!("injected waiter panic"));
+
+                assert!(matches!(
+                    handle.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Cancelled))
+                ));
+                assert_eq!(core.queued_count(), 0);
+                assert!(core.is_terminated());
+            },
         )
-        .expect("entry should schedule");
-
-        ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| panic!("injected waiter panic"));
-
-        assert!(matches!(
-            handle.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Cancelled))
-        ));
-        assert_eq!(core.queued_count(), 0);
-        assert!(core.is_terminated());
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_wait_error_cancels_following_entries_after_cancel_payload_drop_panics() {
-        let core = Arc::new(SchedulerCore::new());
-        let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let deadline = Instant::now() + std::time::Duration::from_secs(60);
-        core.schedule(TaskId::new(104), deadline, Box::new(PanicOnCancelEntry))
-            .expect("panicking entry should schedule");
-        core.schedule(
-            TaskId::new(105),
-            deadline,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), slot)),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_wait_error_cancels_following_entries_after_cancel_payload_drop_panics",
+            "scheduled-worker-test_wait_error_cancels_following_entries_after_cancel_payload_drop_panics",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (handle, slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let deadline = Instant::now() + std::time::Duration::from_secs(60);
+                core.schedule(TaskId::new(104), deadline, Box::new(PanicOnCancelEntry))
+                    .expect("panicking entry should schedule");
+                core.schedule(
+                    TaskId::new(105),
+                    deadline,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), slot)),
+                )
+                .expect("following entry should schedule");
+
+                ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| Err(()));
+
+                assert!(matches!(
+                    handle.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Cancelled))
+                ));
+                assert_eq!(core.queued_count(), 0);
+                assert_eq!(core.running_count(), 0);
+                assert!(core.is_terminated());
+            },
         )
-        .expect("following entry should schedule");
-
-        ScheduledWorker::run_with_waiter(Arc::clone(&core), |_, _| Err(()));
-
-        assert!(matches!(
-            handle.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Cancelled))
-        ));
-        assert_eq!(core.queued_count(), 0);
-        assert_eq!(core.running_count(), 0);
-        assert!(core.is_terminated());
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_wait_failure_does_not_terminate_during_another_stop_drain() {
-        let core = Arc::new(SchedulerCore::new());
-        let (cancel_entered_tx, cancel_entered_rx) = mpsc::channel();
-        let (cancel_release_tx, cancel_release_rx) = mpsc::channel();
-        core.schedule(
-            TaskId::new(106),
-            Instant::now() + Duration::from_secs(60),
-            Box::new(BlockingCancelEntry {
-                entered: Some(cancel_entered_tx),
-                release: Some(cancel_release_rx),
-            }),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_wait_failure_does_not_terminate_during_another_stop_drain",
+            "scheduled-worker-test_wait_failure_does_not_terminate_during_another_stop_drain",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let (cancel_entered_tx, cancel_entered_rx) = mpsc::channel();
+                let (cancel_release_tx, cancel_release_rx) = mpsc::channel();
+                core.schedule(
+                    TaskId::new(106),
+                    Instant::now() + Duration::from_secs(60),
+                    Box::new(BlockingCancelEntry {
+                        entered: Some(cancel_entered_tx),
+                        release: Some(cancel_release_rx),
+                    }),
+                )
+                .expect("blocking cancellation entry should schedule");
+
+                let worker_core = Arc::clone(&core);
+                let (waiter_entered_tx, waiter_entered_rx) = mpsc::channel();
+                let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
+                let worker = thread::spawn(move || {
+                    ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
+                        waiter_entered_tx.send(()).expect("test should observe waiter entry");
+                        let _ = state.wait_for(delay);
+                        Err(())
+                    });
+                    let _ = worker_exited_tx.send(());
+                });
+                let waiter_entered = waiter_entered_rx.recv_timeout(Duration::from_secs(5));
+                // The worker holds the monitor while entering the waiter. This read
+                // completes only after wait_for releases the monitor to sleep.
+                let (probe_tx, probe_rx) = mpsc::channel();
+                let probe_core = Arc::clone(&core);
+                let probe = thread::spawn(move || {
+                    probe_core.state.with_read(|_| ());
+                    let _ = probe_tx.send(());
+                });
+                let monitor_released = probe_rx.recv_timeout(Duration::from_secs(5));
+                if monitor_released.is_ok() {
+                    probe.join().expect("monitor probe should return");
+                } else {
+                    drop(probe);
+                }
+
+                let stop_core = Arc::clone(&core);
+                let (stopper_exited_tx, stopper_exited_rx) = mpsc::channel();
+                let stopper = thread::spawn(move || {
+                    let _ = stop_core.stop();
+                    let _ = stopper_exited_tx.send(());
+                });
+                let cancel_entered = cancel_entered_rx.recv_timeout(Duration::from_secs(5));
+                let worker_exited_while_drain_blocked = worker_exited_rx.recv_timeout(Duration::from_secs(5));
+                let worker_exited_during_drain = worker_exited_while_drain_blocked.is_ok();
+                let (terminated_probe_tx, terminated_probe_rx) = mpsc::channel();
+                let terminated_probe_core = Arc::clone(&core);
+                let terminated_probe = thread::spawn(move || {
+                    let _ = terminated_probe_tx.send(terminated_probe_core.is_terminated());
+                });
+                let terminated_while_drain_blocked = terminated_probe_rx.recv_timeout(Duration::from_secs(5));
+                if terminated_while_drain_blocked.is_ok() {
+                    terminated_probe.join().expect("termination probe should return");
+                } else {
+                    drop(terminated_probe);
+                }
+
+                let _ = cancel_release_tx.send(());
+                let worker_exited = if worker_exited_while_drain_blocked.is_ok() {
+                    worker_exited_while_drain_blocked
+                } else {
+                    worker_exited_rx.recv_timeout(Duration::from_secs(5))
+                };
+                let worker_joined = if worker_exited.is_ok() {
+                    Some(worker.join())
+                } else {
+                    drop(worker);
+                    None
+                };
+                let stopper_exited = stopper_exited_rx.recv_timeout(Duration::from_secs(5));
+                let stopper_joined = if stopper_exited.is_ok() {
+                    Some(stopper.join())
+                } else {
+                    drop(stopper);
+                    None
+                };
+
+                assert!(waiter_entered.is_ok(), "worker should reach its deadline wait");
+                assert!(monitor_released.is_ok(), "waiter should release the scheduler monitor");
+                assert!(cancel_entered.is_ok(), "external stop should enter the drain");
+                assert!(
+                    worker_exited_during_drain,
+                    "failed worker should exit while another stop drains"
+                );
+                assert_eq!(terminated_while_drain_blocked, Ok(false));
+                assert!(
+                    matches!(worker_joined, Some(Ok(()))),
+                    "worker should exit during bounded cleanup"
+                );
+                assert!(
+                    matches!(stopper_joined, Some(Ok(()))),
+                    "external stop should finish during bounded cleanup"
+                );
+                let (final_probe_tx, final_probe_rx) = mpsc::channel();
+                let final_probe_core = Arc::clone(&core);
+                let final_probe = thread::spawn(move || {
+                    let _ = final_probe_tx.send(final_probe_core.is_terminated());
+                });
+                let terminated_after_drain = final_probe_rx.recv_timeout(Duration::from_secs(5));
+                if terminated_after_drain.is_ok() {
+                    final_probe.join().expect("final termination probe should return");
+                } else {
+                    drop(final_probe);
+                }
+                assert_eq!(terminated_after_drain, Ok(true));
+            },
         )
-        .expect("blocking cancellation entry should schedule");
-
-        let worker_core = Arc::clone(&core);
-        let (waiter_entered_tx, waiter_entered_rx) = mpsc::channel();
-        let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
-        let worker = thread::spawn(move || {
-            ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
-                waiter_entered_tx.send(()).expect("test should observe waiter entry");
-                let _ = state.wait_for(delay);
-                Err(())
-            });
-            let _ = worker_exited_tx.send(());
-        });
-        let waiter_entered = waiter_entered_rx.recv_timeout(Duration::from_secs(5));
-        // The worker holds the monitor while entering the waiter. This read
-        // completes only after wait_for releases the monitor to sleep.
-        let (probe_tx, probe_rx) = mpsc::channel();
-        let probe_core = Arc::clone(&core);
-        let probe = thread::spawn(move || {
-            probe_core.state.with_read(|_| ());
-            let _ = probe_tx.send(());
-        });
-        let monitor_released = probe_rx.recv_timeout(Duration::from_secs(5));
-        if monitor_released.is_ok() {
-            probe.join().expect("monitor probe should return");
-        } else {
-            drop(probe);
-        }
-
-        let stop_core = Arc::clone(&core);
-        let (stopper_exited_tx, stopper_exited_rx) = mpsc::channel();
-        let stopper = thread::spawn(move || {
-            let _ = stop_core.stop();
-            let _ = stopper_exited_tx.send(());
-        });
-        let cancel_entered = cancel_entered_rx.recv_timeout(Duration::from_secs(5));
-        let worker_exited_while_drain_blocked = worker_exited_rx.recv_timeout(Duration::from_secs(5));
-        let worker_exited_during_drain = worker_exited_while_drain_blocked.is_ok();
-        let (terminated_probe_tx, terminated_probe_rx) = mpsc::channel();
-        let terminated_probe_core = Arc::clone(&core);
-        let terminated_probe = thread::spawn(move || {
-            let _ = terminated_probe_tx.send(terminated_probe_core.is_terminated());
-        });
-        let terminated_while_drain_blocked = terminated_probe_rx.recv_timeout(Duration::from_secs(5));
-        if terminated_while_drain_blocked.is_ok() {
-            terminated_probe.join().expect("termination probe should return");
-        } else {
-            drop(terminated_probe);
-        }
-
-        let _ = cancel_release_tx.send(());
-        let worker_exited = if worker_exited_while_drain_blocked.is_ok() {
-            worker_exited_while_drain_blocked
-        } else {
-            worker_exited_rx.recv_timeout(Duration::from_secs(5))
-        };
-        let worker_joined = if worker_exited.is_ok() {
-            Some(worker.join())
-        } else {
-            drop(worker);
-            None
-        };
-        let stopper_exited = stopper_exited_rx.recv_timeout(Duration::from_secs(5));
-        let stopper_joined = if stopper_exited.is_ok() {
-            Some(stopper.join())
-        } else {
-            drop(stopper);
-            None
-        };
-
-        assert!(waiter_entered.is_ok(), "worker should reach its deadline wait");
-        assert!(monitor_released.is_ok(), "waiter should release the scheduler monitor");
-        assert!(cancel_entered.is_ok(), "external stop should enter the drain");
-        assert!(
-            worker_exited_during_drain,
-            "failed worker should exit while another stop drains"
-        );
-        assert_eq!(terminated_while_drain_blocked, Ok(false));
-        assert!(
-            matches!(worker_joined, Some(Ok(()))),
-            "worker should exit during bounded cleanup"
-        );
-        assert!(
-            matches!(stopper_joined, Some(Ok(()))),
-            "external stop should finish during bounded cleanup"
-        );
-        let (final_probe_tx, final_probe_rx) = mpsc::channel();
-        let final_probe_core = Arc::clone(&core);
-        let final_probe = thread::spawn(move || {
-            let _ = final_probe_tx.send(final_probe_core.is_terminated());
-        });
-        let terminated_after_drain = final_probe_rx.recv_timeout(Duration::from_secs(5));
-        if terminated_after_drain.is_ok() {
-            final_probe.join().expect("final termination probe should return");
-        } else {
-            drop(final_probe);
-        }
-        assert_eq!(terminated_after_drain, Ok(true));
+        .expect("watchdog should observe scheduled worker test finish");
     }
 
     #[test]
     fn test_scheduled_deadline_earlier_submission_wakes_waiter() {
-        let core = Arc::new(SchedulerCore::new());
-        let far_deadline = Instant::now() + Duration::from_secs(60);
-        let (far_handle, far_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        core.schedule(
-            TaskId::new(200),
-            far_deadline,
-            Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), far_slot)),
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_scheduled_deadline_earlier_submission_wakes_waiter",
+            "scheduled-worker-test_scheduled_deadline_earlier_submission_wakes_waiter",
+            Duration::from_secs(60),
+            || {
+                let core = Arc::new(SchedulerCore::new());
+                let far_deadline = Instant::now() + Duration::from_secs(60);
+                let (far_handle, far_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                core.schedule(
+                    TaskId::new(200),
+                    far_deadline,
+                    Box::new(CompletableScheduledTask::new(|| Ok::<usize, ()>(1), far_slot)),
+                )
+                .expect("far-future entry should schedule");
+
+                let (waiter_ready_tx, waiter_ready_rx) = mpsc::channel();
+                let (task_ran_tx, task_ran_rx) = mpsc::channel();
+                let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
+                let (early_handle, early_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
+                let fallback_exit = Arc::new(AtomicBool::new(false));
+                let worker_fallback_exit = Arc::clone(&fallback_exit);
+                let worker_core = Arc::clone(&core);
+                let worker = thread::spawn(move || {
+                    let mut first_wait = true;
+                    ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
+                        if first_wait {
+                            first_wait = false;
+                            waiter_ready_tx
+                                .send(())
+                                .expect("test should observe the first deadline wait");
+                        }
+                        let _ = state.wait_for(delay);
+                        if worker_fallback_exit.load(Ordering::Acquire) {
+                            return Err(());
+                        }
+                        Ok(())
+                    });
+                    let _ = worker_exited_tx.send(());
+                });
+
+                let waiter_ready = waiter_ready_rx.recv_timeout(Duration::from_secs(5));
+                let scheduled = if waiter_ready.is_ok() {
+                    core.schedule(
+                        TaskId::new(201),
+                        Instant::now(),
+                        Box::new(CompletableScheduledTask::new(
+                            move || {
+                                task_ran_tx.send(()).expect("early task observer exists");
+                                Ok::<usize, ()>(2)
+                            },
+                            early_slot,
+                        )),
+                    )
+                } else {
+                    Err(crate::service::SubmissionError::Shutdown)
+                };
+                let task_ran = if scheduled.is_ok() {
+                    task_ran_rx.recv_timeout(Duration::from_secs(5))
+                } else {
+                    Err(mpsc::RecvTimeoutError::Disconnected)
+                };
+
+                let _ = core.stop();
+                let mut worker_exited = worker_exited_rx.recv_timeout(Duration::from_millis(250));
+                if worker_exited.is_err() {
+                    fallback_exit.store(true, Ordering::Release);
+                    core.state.with_write_notify_all(|_| ());
+                    worker_exited = worker_exited_rx.recv_timeout(Duration::from_secs(5));
+                }
+                let worker_joined = if worker_exited.is_ok() {
+                    Some(worker.join())
+                } else {
+                    // Keep the test bounded if even the fallback cannot recover the worker.
+                    drop(worker);
+                    None
+                };
+
+                assert!(waiter_ready.is_ok(), "worker should enter the far deadline wait");
+                assert!(scheduled.is_ok(), "earlier entry should be accepted");
+                assert!(
+                    task_ran.is_ok(),
+                    "earlier entry should wake and run before the far deadline"
+                );
+                assert!(worker_exited.is_ok(), "worker should exit after stop");
+                assert!(
+                    matches!(worker_joined, Some(Ok(()))),
+                    "worker should exit without panicking"
+                );
+                assert!(matches!(early_handle.try_get(), TryGet::Ready(Ok(2))));
+                assert!(matches!(
+                    far_handle.try_get(),
+                    TryGet::Ready(Err(TaskExecutionError::Cancelled))
+                ));
+            },
         )
-        .expect("far-future entry should schedule");
-
-        let (waiter_ready_tx, waiter_ready_rx) = mpsc::channel();
-        let (task_ran_tx, task_ran_rx) = mpsc::channel();
-        let (worker_exited_tx, worker_exited_rx) = mpsc::channel();
-        let (early_handle, early_slot) = TaskEndpointPair::<usize, ()>::new().into_parts();
-        let fallback_exit = Arc::new(AtomicBool::new(false));
-        let worker_fallback_exit = Arc::clone(&fallback_exit);
-        let worker_core = Arc::clone(&core);
-        let worker = thread::spawn(move || {
-            let mut first_wait = true;
-            ScheduledWorker::run_with_waiter(worker_core, move |state, delay| {
-                if first_wait {
-                    first_wait = false;
-                    waiter_ready_tx
-                        .send(())
-                        .expect("test should observe the first deadline wait");
-                }
-                let _ = state.wait_for(delay);
-                if worker_fallback_exit.load(Ordering::Acquire) {
-                    return Err(());
-                }
-                Ok(())
-            });
-            let _ = worker_exited_tx.send(());
-        });
-
-        let waiter_ready = waiter_ready_rx.recv_timeout(Duration::from_secs(5));
-        let scheduled = if waiter_ready.is_ok() {
-            core.schedule(
-                TaskId::new(201),
-                Instant::now(),
-                Box::new(CompletableScheduledTask::new(
-                    move || {
-                        task_ran_tx.send(()).expect("early task observer exists");
-                        Ok::<usize, ()>(2)
-                    },
-                    early_slot,
-                )),
-            )
-        } else {
-            Err(crate::service::SubmissionError::Shutdown)
-        };
-        let task_ran = if scheduled.is_ok() {
-            task_ran_rx.recv_timeout(Duration::from_secs(5))
-        } else {
-            Err(mpsc::RecvTimeoutError::Disconnected)
-        };
-
-        let _ = core.stop();
-        let mut worker_exited = worker_exited_rx.recv_timeout(Duration::from_millis(250));
-        if worker_exited.is_err() {
-            fallback_exit.store(true, Ordering::Release);
-            core.state.with_write_notify_all(|_| ());
-            worker_exited = worker_exited_rx.recv_timeout(Duration::from_secs(5));
-        }
-        let worker_joined = if worker_exited.is_ok() {
-            Some(worker.join())
-        } else {
-            // Keep the test bounded if even the fallback cannot recover the worker.
-            drop(worker);
-            None
-        };
-
-        assert!(waiter_ready.is_ok(), "worker should enter the far deadline wait");
-        assert!(scheduled.is_ok(), "earlier entry should be accepted");
-        assert!(
-            task_ran.is_ok(),
-            "earlier entry should wake and run before the far deadline"
-        );
-        assert!(worker_exited.is_ok(), "worker should exit after stop");
-        assert!(
-            matches!(worker_joined, Some(Ok(()))),
-            "worker should exit without panicking"
-        );
-        assert!(matches!(early_handle.try_get(), TryGet::Ready(Ok(2))));
-        assert!(matches!(
-            far_handle.try_get(),
-            TryGet::Ready(Err(TaskExecutionError::Cancelled))
-        ));
+        .expect("watchdog should observe scheduled worker test finish");
     }
 }
