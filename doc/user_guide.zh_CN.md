@@ -142,7 +142,7 @@ fn main() {}
 
 具体的定时任务 handle 可以在原 handle 被 `into_future()` 消费前提供 `TaskCancellationHandle`。这样轮询结果 future 期间仍可取消任务。示例使用标准库实现的小型轮询循环和截止时间辅助函数，因此无需选择异步运行时：
 
-```rust
+```rust,executor_run
 use std::error::Error;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
@@ -279,7 +279,7 @@ Ok(())
 
 提交方法会按值消费 callable。`SubmissionError` 说明拒绝原因，但不会把 callable 还给调用方；如果提交后可能需要重试，应先把一次性业务数据保存在应用可继续访问的状态中。下面用一个占满队列的 filler 确保第一次提交会被拒绝。每次尝试只克隆 `Arc`，只有 callable 真正运行时才会取走数据，因此被拒绝的闭包销毁后，数据仍可用于重试。取消 filler 释放队列位置后再次提交，并检查任务结果和数据确实只消费了一次。其他生产者可能先占用刚释放的位置，所以后续仍要处理 `Saturated` 并继续保留数据；其他提交错误应返回给调用方，不要一概重试。
 
-```rust
+```rust,executor_run
 use std::io;
 use std::sync::Arc;
 use std::sync::Mutex;

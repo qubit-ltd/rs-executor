@@ -142,7 +142,7 @@ fn main() {}
 
 A concrete scheduled handle can provide a `TaskCancellationHandle` before the original handle is consumed by `into_future()`. This keeps cancellation available while the result future is being polled. The example uses a small standard-library polling loop and a deadline helper so it can run without choosing an async runtime:
 
-```rust
+```rust,executor_run
 use std::error::Error;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
@@ -284,7 +284,7 @@ For an optional queue limit, build the service with `SingleThreadScheduledExecut
 
 Submission methods consume callables by value. A `SubmissionError` reports why a task was rejected but does not return the callable, so keep the one-shot data in application-owned state before making a submission that may need retrying. In the example below, the queued filler makes the first rejection deterministic. Each attempt clones only an `Arc`; the payload is taken only if the callable actually runs, so rejecting and dropping an attempt leaves the payload available. After cancelling the filler to free the queue slot, the example resubmits and checks both the result and that the payload was consumed. Other producers may take the freed capacity first, so keep handling `Saturated` and retain the payload across further attempts. Return other submission errors to the caller rather than retrying them blindly.
 
-```rust
+```rust,executor_run
 use std::io;
 use std::sync::Arc;
 use std::sync::Mutex;
