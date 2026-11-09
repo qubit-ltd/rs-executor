@@ -20,7 +20,9 @@
 
 ## 回调、析构与 panic
 
-hook 在触发它的路径上同步运行，因此可能阻塞或 unwind。[`TaskState::publish_terminal_result`](../src/task/task_state.rs) 会在发送或丢弃结果时捕获普通 unwind；runner 路径也会在取消后丢弃尚未执行的 callable 时捕获 unwind（[`TaskSlot::start_and_complete`](../src/task/task_slot.rs)）。这不包含 abort 型 panic，也不包含 unwind 期间发生的 double panic。其他提供者回调或析构函数可能在这些捕获范围之外同步执行。不要在 callback 内重入需要其当前持有锁的操作，也不要在 hook 内等待同一任务或服务终止。
+hook 在发布事件的线程上同步执行，可能阻塞该线程。通过本 crate 的标准 `notify_*` 辅助函数调用时，hook 的普通 unwind 由 [`contain_hook_panic`](../src/hook/task_hook.rs) 捕获；告警日志器的 panic 也会被隔离。直接调用 `TaskHook::on_*` 方法不会自动获得这一保护。panic 隔离不能防止阻塞或死锁，不保证资源立即释放，也无法恢复 abort 型 panic 或 unwind 期间的双重 panic。现有回归覆盖了 [hook panic 隔离](../tests/hook/hook_tests.rs)和 [hook/日志器 panic 恢复](../tests/hook_recovery_tests.rs)。
+
+[`TaskState::publish_terminal_result`](../src/task/task_state.rs) 会在发送或丢弃结果时捕获普通 unwind；runner 路径也会在取消后丢弃尚未执行的 callable 时捕获 unwind（[`TaskSlot::start_and_complete`](../src/task/task_slot.rs)）。这不包含 abort 型 panic，也不包含 unwind 期间发生的 double panic。其他提供者回调或析构函数可能在这些捕获范围之外同步执行。不要在 callback 内重入需要其当前持有锁的操作，也不要在 hook 内等待同一任务或服务终止。
 
 ## 取消、清理与 join
 

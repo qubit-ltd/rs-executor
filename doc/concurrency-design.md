@@ -20,7 +20,9 @@ Task state answers what happened to one task. Queue membership represents entrie
 
 ## Callbacks, destructors, and panics
 
-Hooks run synchronously on the path that emits them and may therefore block or unwind. Result publication contains ordinary unwinding while sending or discarding a result in [`TaskState::publish_terminal_result`](../src/task/task_state.rs); runner paths also contain unwinding while discarding an unexecuted callable after cancellation ([`TaskSlot::start_and_complete`](../src/task/task_slot.rs)). This does not contain aborting panics or double panics during unwinding. Other provider callbacks or destructors may run synchronously outside those containment points. Do not reenter an operation that needs a lock held by the callback, or wait inside a hook for the same task or service to terminate.
+Hooks run synchronously on the thread publishing each event and can block that thread. When invoked through this crate's standard `notify_*` helpers, ordinary unwinding from a hook is caught by [`contain_hook_panic`](../src/hook/task_hook.rs); a panic from the warning logger is also contained. Calling a `TaskHook::on_*` method directly does not automatically use this protection. Panic containment does not prevent blocking or deadlocks, guarantee immediate resource release, or recover from aborting panics or double panics during unwinding. Existing regressions cover [hook panic isolation](../tests/hook/hook_tests.rs) and [hook/logger panic recovery](../tests/hook_recovery_tests.rs).
+
+Result publication contains ordinary unwinding while sending or discarding a result in [`TaskState::publish_terminal_result`](../src/task/task_state.rs); runner paths also contain unwinding while discarding an unexecuted callable after cancellation ([`TaskSlot::start_and_complete`](../src/task/task_slot.rs)). This does not contain aborting panics or double panics during unwinding. Other provider callbacks or destructors may run synchronously outside those containment points. Do not reenter an operation that needs a lock held by the callback, or wait inside a hook for the same task or service to terminate.
 
 ## Cancellation, cleanup, and joining
 
