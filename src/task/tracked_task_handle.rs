@@ -55,6 +55,7 @@ pub trait TrackedTaskHandle<R, E>: TaskResultHandle<R, E> {
     /// # Returns
     ///
     /// The current pending, running, or terminal task status.
+    #[must_use]
     fn status(&self) -> TaskStatus;
 
     /// Attempts to cancel the task while it is still pending.

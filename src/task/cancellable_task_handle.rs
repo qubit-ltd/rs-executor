@@ -49,5 +49,6 @@ pub trait CancellableTaskHandle<R, E>: TrackedTaskHandle<R, E> {
     ///
     /// The endpoint must preserve all executor-specific cleanup performed by
     /// the originating handle's cancellation method.
+    #[must_use]
     fn cancellation_handle(&self) -> TaskCancellationHandle;
 }
