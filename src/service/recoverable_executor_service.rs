@@ -56,10 +56,7 @@ pub trait RecoverableExecutorService: ExecutorService {
     /// * `C` - Callable to submit.
     /// * `R` - Successful result produced by the callable.
     /// * `E` - Error type produced by the callable.
-    fn try_submit_callable<C, R, E>(
-        &self,
-        task: C,
-    ) -> Result<Self::ResultHandle<R, E>, RejectedTask<C>>
+    fn try_submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, RejectedTask<C>>
     where
         C: Callable<R, E> + Send + 'static,
         R: Send + 'static,
