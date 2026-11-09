@@ -19,6 +19,8 @@ include = [
     "/README.zh_CN.md",
     "/doc/user_guide.md",
     "/doc/user_guide.zh_CN.md",
+    "/doc/concurrency-design.md",
+    "/doc/concurrency-design.zh_CN.md",
     "/examples/**",
     "/resources/**",
     "/src/**",
