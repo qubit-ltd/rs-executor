@@ -81,6 +81,12 @@ impl<R, E> TaskHandle<R, E> {
     /// `true` after the task succeeds, fails, panics, is cancelled, or loses
     /// its completion endpoint. The final result send may still be racing with
     /// this status observation.
+    /// A terminal state does not guarantee that the result has been published.
+    /// Even after this method returns `true`, [`Self::try_get`] may return
+    /// [`TryGet::Pending`](crate::TryGet::Pending) and [`Self::get`] may still
+    /// block. Use [`Self::try_get`] to observe result availability without
+    /// blocking. This method delegates to
+    /// [`TaskResultHandle::is_done`](crate::task::spi::TaskResultHandle::is_done).
     #[must_use]
     #[inline]
     pub fn is_done(&self) -> bool {

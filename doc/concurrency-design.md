@@ -1,0 +1,35 @@
+# Concurrency design
+
+This page records the concurrency contracts maintainers should preserve when changing task handles, service admission, or scheduling. The [简体中文版本](concurrency-design.zh_CN.md) describes the same guarantees and limits.
+
+## Responsibility boundaries
+
+[`Executor`](../src/executor/executor.rs) describes an execution strategy. [`ExecutorService`](../src/service/executor_service.rs) adds managed admission, lifecycle, and tracking of accepted work. The task SPI in [`task::spi`](../src/task/mod.rs) lets a provider connect its scheduling mechanism to standard handles and completion endpoints. Providers own their queues, workers, synchronization, and ordering; the SPI does not provide a scheduler or impose a universal queue policy. [`RecoverableExecutorService`](../src/service/recoverable_executor_service.rs) is an optional extension for providers that can return the original callable on rejection, not a requirement for every service.
+
+## Task state and result publication
+
+The principal lifecycle is `Pending` to `Running` and then to a terminal state, or `Pending` to `Cancelled`/`Dropped`. Competing terminal transitions use atomic state changes, so only one transition wins. Installing a terminal state and sending its result are separate steps: [`TaskState::publish_terminal_result`](../src/task/task_state.rs) sends after the state transition. Thus `is_done()` can be true while `try_get()` is still pending. The regression [`test_terminal_state_can_precede_result_publication`](../src/task/task_state.rs) holds the sender lock to verify this window; [`test_terminal_transition_has_one_winner`](../src/task/task_state.rs) verifies the terminal race.
+
+## Acceptance hooks and worker ordering
+
+Providers should accept a task only after submission succeeds. With hooks enabled, [`TaskSlot::accept`](../src/task/task_slot.rs) invokes the accepted callback synchronously. A provider must finish that call before exposing a cancellable handle or allowing its worker to start if accepted-event ordering is required. The built-in thread-per-task path uses [`TaskAdmissionGate`](../src/task/task_admission_gate.rs) to hold a spawned worker until acceptance publication. The SPI does not repair an unsupported call order such as cancellation or execution before acceptance returns. Without hooks, an open gate is a no-op; a custom queue must still define its own acceptance and worker ordering and should not copy the hook-enabled pattern without its synchronization requirements. See [`test_thread_per_task_executor_service_hook_events_are_ordered`](../tests/service/thread_per_task_executor_service_tests.rs) and the service admission race tests in that file.
+
+## Queue ownership, stop, and termination
+
+Task state answers what happened to one task. Queue membership represents entries still owned by the scheduler. `worker_active` represents an entry detached from the queue and owned by the worker; `stop_draining` represents queued entries that `stop` is cancelling outside the scheduler monitor. [`SchedulerState::can_terminate`](../src/schedule/scheduler_state.rs) requires a non-running lifecycle, an empty queue, no active worker entry, and no stop drain. [`SchedulerCore::stop`](../src/schedule/scheduler_core.rs) can return after requesting stop while a worker already owns a task; it cannot forcibly interrupt arbitrary running Rust code. The concurrent-drain and cancellation-panic cases are covered by [`test_concurrent_stop_waits_for_first_drain`](../src/schedule/scheduler_core.rs) and [`test_stop_discards_later_cancel_panics_and_drains_all_entries`](../src/schedule/scheduler_core.rs).
+
+## Callbacks, destructors, and panics
+
+Hooks run synchronously on the path that emits them and may therefore block or unwind. Result publication contains ordinary unwinding while sending or discarding a result in [`TaskState::publish_terminal_result`](../src/task/task_state.rs); runner paths also contain unwinding while discarding an unexecuted callable after cancellation ([`TaskSlot::start_and_complete`](../src/task/task_slot.rs)). This does not contain aborting panics or double panics during unwinding. Other provider callbacks or destructors may run synchronously outside those containment points. Do not reenter an operation that needs a lock held by the callback, or wait inside a hook for the same task or service to terminate.
+
+## Cancellation, cleanup, and joining
+
+Cancellation is a task-state decision, not proof that all captured values have been destroyed. A cancellation result can become observable before a concurrent cancellation path finishes dropping the queued callable. Service termination means the provider's accepted-work condition is satisfied; it is not a promise that every OS thread has been joined, thread-local destructors have run, or an external concurrent cancellation call has returned. The service lifecycle contract documents these boundaries in [`ExecutorService`](../src/service/executor_service.rs); scheduled cancellation and scheduler drain behavior are implemented in [`ScheduledTaskHandle::cancel`](../src/schedule/scheduled_task_handle.rs) and [`SchedulerCore::stop`](../src/schedule/scheduler_core.rs). Tests cover service termination and cancellation behavior in [`thread_per_task_executor_service_tests.rs`](../tests/service/thread_per_task_executor_service_tests.rs) and [`single_thread_scheduled_executor_service_tests.rs`](../tests/schedule/single_thread_scheduled_executor_service_tests.rs).
+
+## Recoverable submission
+
+On a recoverable rejection, ownership of the original callable is returned to the caller; it was not accepted and must not have run. The shared contract is [`RejectedTask`](../src/service/rejected_task.rs) and [`RecoverableExecutorService`](../src/service/recoverable_executor_service.rs). Providers may retain an inherent method that returns a provider-local rejection type and implement the shared trait by forwarding the reason and callable. These are compatible surfaces with different concrete rejection types. The independent adapter contract suite exercises retry and shutdown rejection in [`recoverable_contract_tests.rs`](../tests/adapter_contracts/tests/recoverable_contract_tests.rs).
+
+## Evidence and limits
+
+The links above pair each described invariant with implementation and regression coverage. Root `cargo test` does not include the independent `tests/adapter_contracts` Cargo workspace; run that workspace explicitly to check adapter behavior. Unit and integration tests exercise selected interleavings, not every possible thread schedule, and do not constitute a formal proof of all concurrent executions.
