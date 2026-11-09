@@ -60,6 +60,7 @@ version = "0.0.0"
 dependencies = [
  "qubit-executor",
  "qubit-executor-test-watchdog",
+ "qubit-function",
  "qubit-rayon-executor",
  "qubit-thread-pool",
  "qubit-tokio-executor",

@@ -11,3 +11,4 @@ mod thread_pool_contract_tests;
 mod tokio_contract_tests;
 
 use qubit_executor_test_watchdog as process_watchdog;
+mod recoverable_contract_tests;

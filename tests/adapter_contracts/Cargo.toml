@@ -10,6 +10,7 @@ autotests = false
 
 [dev-dependencies]
 qubit-executor = { path = "../.." }
+qubit-function = "^0.18"
 qubit-rayon-executor = { path = "../../../rs-rayon-executor" }
 qubit-thread-pool = { path = "../../../rs-thread-pool" }
 qubit-tokio-executor = { path = "../../../rs-tokio-executor" }
