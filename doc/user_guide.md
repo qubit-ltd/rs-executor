@@ -344,31 +344,74 @@ Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and 
 
 Some providers can implement the optional `RecoverableExecutorService` extension. Its `try_submit_callable` returns `Err(RejectedTask<C>)` only when the callable was not accepted. The `RejectedTask` owns the original callable and its captured values; split it with `into_parts()` to inspect the `SubmissionError` and decide what to do with that callable.
 
-```rust,ignore
-match service.try_submit_callable(task) {
-    Ok(handle) => {
-        // Accepted: observe execution through the returned handle.
-        let _ = handle;
+```rust
+use qubit_executor::{RecoverableExecutorService, RejectedTask};
+
+fn submit_or_recover<S, C>(service: &S, task: C)
+    -> Result<S::ResultHandle<usize, ()>, RejectedTask<C>>
+where
+    S: RecoverableExecutorService,
+    C: FnMut() -> Result<usize, ()> + Send + 'static,
+{
+    service.try_submit_callable(task)
+}
+
+fn main() {}
+```
+
+```rust,executor_run
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use qubit_executor::{DirectExecutor, Executor, RejectedTask};
+use qubit_executor::{SubmissionError, TrackedTask};
+
+struct Probe(Arc<AtomicUsize>);
+
+impl Drop for Probe {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
     }
-    Err(rejected) => {
-        let (reason, task) = rejected.into_parts();
-        match reason {
-            SubmissionError::Saturated => {
-                // Retain task and retry later, after capacity may have changed.
-            }
-            SubmissionError::Shutdown => {
-                // Retain, persist, or otherwise dispose of task in the application.
-            }
-            other => {
-                // Choose an application-specific disposition for other rejections.
-                let _ = (other, task);
-            }
-        }
+}
+
+fn submit<C>(ready: bool, task: C)
+    -> Result<TrackedTask<usize, ()>, RejectedTask<C>>
+where
+    C: FnMut() -> Result<usize, ()> + Send + 'static,
+{
+    if !ready {
+        return Err(RejectedTask::new(SubmissionError::Saturated, task));
     }
+    Ok(DirectExecutor::new().call(task).expect("direct submission"))
+}
+
+fn main() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let drops = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let probe = Probe(Arc::clone(&drops));
+    let payload = String::from("report");
+    let task = move || {
+        let _keep = &probe;
+        task_calls.fetch_add(1, Ordering::SeqCst);
+        Ok::<usize, ()>(payload.len())
+    };
+
+    let rejected = match submit(false, task) {
+        Err(rejected) => rejected,
+        Ok(_) => panic!("the simulated admission gate is closed"),
+    };
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    let (reason, task) = rejected.into_parts();
+    assert!(matches!(reason, SubmissionError::Saturated));
+    let handle = submit(true, task).expect("the simulated gate is open");
+    assert_eq!(handle.get().expect("task result"), 6);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 ```
 
-This is a generic sketch; `service` must implement `RecoverableExecutorService`, and `task` must meet the trait's callable bounds. `Saturated` can justify a later retry, but does not promise capacity will become available. Use a capacity notification, a finite retry policy with a delay, or an application queue; do not busy-loop. `Shutdown` means admission is closed, so retrying the same service is not useful. In every branch, the application chooses how long to retain the rejected callable and when to drop or persist it.
+This generic function shows the real provider call signature for the closure use case; it does not cover every `Callable` implementation. The following local `submit` function is only a deterministic ownership demonstration, not a `RecoverableExecutorService` implementation or a service-capacity test. It retries once. If a real provider rejects the second attempt, retain its `RejectedTask` or choose an explicit disposition. A `Saturated` rejection can justify a later retry, but does not promise capacity will become available. Use a capacity notification, a finite retry policy with a delay, or an application queue; do not busy-loop. `Shutdown` means admission is closed, so retrying the same service is not useful. In every branch, the application chooses how long to retain the rejected callable and when to drop or persist it.
 
 Dropping an async result future abandons that wait; it does not cancel work already accepted. A rejected callable is different: it was not accepted, and ownership remains with `RejectedTask` until the caller extracts or drops it. An `Ok(handle)` still means acceptance only, not that execution has started or succeeded.
 

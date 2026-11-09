@@ -339,31 +339,74 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 有些提供者可以选择实现 `RecoverableExecutorService` 扩展。调用 `try_submit_callable` 返回 `Err(RejectedTask<C>)` 时，表示 callable 未被接受。`RejectedTask` 持有原 callable 及其捕获值；调用 `into_parts()` 可以同时取出 `SubmissionError` 和 callable，再由应用决定下一步。
 
-```rust,ignore
-match service.try_submit_callable(task) {
-    Ok(handle) => {
-        // 已接受：通过返回的 handle 观察执行结果。
-        let _ = handle;
+```rust
+use qubit_executor::{RecoverableExecutorService, RejectedTask};
+
+fn submit_or_recover<S, C>(service: &S, task: C)
+    -> Result<S::ResultHandle<usize, ()>, RejectedTask<C>>
+where
+    S: RecoverableExecutorService,
+    C: FnMut() -> Result<usize, ()> + Send + 'static,
+{
+    service.try_submit_callable(task)
+}
+
+fn main() {}
+```
+
+```rust,executor_run
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use qubit_executor::{DirectExecutor, Executor, RejectedTask};
+use qubit_executor::{SubmissionError, TrackedTask};
+
+struct Probe(Arc<AtomicUsize>);
+
+impl Drop for Probe {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
     }
-    Err(rejected) => {
-        let (reason, task) = rejected.into_parts();
-        match reason {
-            SubmissionError::Saturated => {
-                // 保留 task，等容量可能变化后再尝试。
-            }
-            SubmissionError::Shutdown => {
-                // 由应用保留、持久化，或以其他方式处置 task。
-            }
-            other => {
-                // 其他拒绝原因由应用选择对应处理方式。
-                let _ = (other, task);
-            }
-        }
+}
+
+fn submit<C>(ready: bool, task: C)
+    -> Result<TrackedTask<usize, ()>, RejectedTask<C>>
+where
+    C: FnMut() -> Result<usize, ()> + Send + 'static,
+{
+    if !ready {
+        return Err(RejectedTask::new(SubmissionError::Saturated, task));
     }
+    Ok(DirectExecutor::new().call(task).expect("direct submission"))
+}
+
+fn main() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let drops = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let probe = Probe(Arc::clone(&drops));
+    let payload = String::from("report");
+    let task = move || {
+        let _keep = &probe;
+        task_calls.fetch_add(1, Ordering::SeqCst);
+        Ok::<usize, ()>(payload.len())
+    };
+
+    let rejected = match submit(false, task) {
+        Err(rejected) => rejected,
+        Ok(_) => panic!("the simulated admission gate is closed"),
+    };
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    let (reason, task) = rejected.into_parts();
+    assert!(matches!(reason, SubmissionError::Saturated));
+    let handle = submit(true, task).expect("the simulated gate is open");
+    assert_eq!(handle.get().expect("task result"), 6);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 ```
 
-这段代码展示处理流程；`service` 需要实现 `RecoverableExecutorService`，`task` 也必须满足该 trait 对 callable 的约束。`Saturated` 表示可以考虑稍后重试，但不保证届时一定有容量。可以等待容量通知、采用有延迟且有次数上限的重试策略，或交由应用队列调度；不要无间隔地反复尝试。`Shutdown` 表示服务已关闭接收，继续向同一服务重试没有意义。无论哪种情况，应用都要决定保留 callable 多久，以及何时丢弃或持久化它。
+这个泛型函数展示了闭包使用场景中的真实 provider 调用签名；它不涵盖所有 `Callable` 实现。后面的局部 `submit` 函数只是确定性的所有权演示，既不是 `RecoverableExecutorService` 实现，也不是服务容量测试。它只重试一次。如果真实 provider 第二次仍拒绝，应保留其 `RejectedTask` 或明确选择处置方式。`Saturated` 表示可以考虑稍后重试，但不保证届时一定有容量。可以等待容量通知、采用有延迟且有次数上限的重试策略，或交由应用队列调度；不要无间隔地反复尝试。`Shutdown` 表示服务已关闭接收，继续向同一服务重试没有意义。无论哪种情况，应用都要决定保留 callable 多久，以及何时丢弃或持久化它。
 
 丢弃异步结果 future 只会放弃这次等待，不会取消已经接受的任务。被拒绝的 callable 则尚未被服务接受；在调用方从 `RejectedTask` 中取出或丢弃之前，所有权仍由它持有。即使返回 `Ok(handle)`，也只说明提交已接受，不代表任务已经开始或成功。
 

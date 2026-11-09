@@ -53,7 +53,7 @@ fn test_markdown_rust_examples_compile() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Ran 4 opt-in Rust examples."),
-        "Markdown checker did not run all four opted-in examples:\n{stdout}"
+        stdout.contains("Ran 6 opt-in Rust examples."),
+        "Markdown checker did not run all six opted-in examples:\n{stdout}"
     );
 }
