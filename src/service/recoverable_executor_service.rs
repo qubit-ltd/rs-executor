@@ -16,8 +16,10 @@ use super::RejectedTask;
 /// This trait is separate from [`ExecutorService`], so existing services keep
 /// their existing submission contract. Implementations return `Err` only
 /// when a callable was not accepted; in that case the error owns the original
-/// callable and its captured values. An `Ok` result means the service accepted
-/// the callable, not that it has started or completed.
+/// callable and its captured values. Every `Err` returns that same callable
+/// without calling, cloning, or dropping it, and the service retains no right
+/// to execute it. An `Ok` result means the service accepted the callable, not
+/// that it has started or completed.
 ///
 /// # Example
 ///
