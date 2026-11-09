@@ -230,49 +230,79 @@ fn tokio_service(runtime: &Runtime) -> TokioRecoverable {
 
 #[test]
 fn test_rayon_recoverable_callable_can_be_retried_after_saturation() {
-    let service = rayon();
-    let (started_tx, started_rx) = mpsc::channel();
-    let (release_tx, release_rx) = mpsc::channel();
-    let (done_tx, done_rx) = mpsc::channel();
-    service
-        .submit_callable(move || {
-            started_tx.send(()).unwrap();
-            release_rx.recv_timeout(Duration::from_secs(20)).unwrap();
-            done_tx.send(()).unwrap();
-            Ok::<(), io::Error>(())
-        })
-        .unwrap();
-    started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    saturation_retry(&service, release_tx, done_rx);
+    crate::process_watchdog::run_test(
+        "recoverable_contract_tests::test_rayon_recoverable_callable_can_be_retried_after_saturation",
+        "recoverable-rayon-saturation-retry",
+        Duration::from_secs(30),
+        || {
+            let service = rayon();
+            let (started_tx, started_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let (done_tx, done_rx) = mpsc::channel();
+            service
+                .submit_callable(move || {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(20)).unwrap();
+                    done_tx.send(()).unwrap();
+                    Ok::<(), io::Error>(())
+                })
+                .unwrap();
+            started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            saturation_retry(&service, release_tx, done_rx);
+        },
+    )
+    .expect("watchdog should observe Rayon recoverable saturation retry");
 }
 
 #[test]
 fn test_tokio_recoverable_callable_can_be_retried_after_saturation() {
-    let runtime = runtime();
-    let service = tokio_service(&runtime);
-    let (started_tx, started_rx) = mpsc::channel();
-    let (release_tx, release_rx) = mpsc::channel();
-    let (done_tx, done_rx) = mpsc::channel();
-    service
-        .submit_callable(move || {
-            started_tx.send(()).unwrap();
-            release_rx.recv_timeout(Duration::from_secs(20)).unwrap();
-            done_tx.send(()).unwrap();
-            Ok::<(), io::Error>(())
-        })
-        .unwrap();
-    started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    saturation_retry(&service, release_tx, done_rx);
+    crate::process_watchdog::run_test(
+        "recoverable_contract_tests::test_tokio_recoverable_callable_can_be_retried_after_saturation",
+        "recoverable-tokio-saturation-retry",
+        Duration::from_secs(30),
+        || {
+            let runtime = runtime();
+            let service = tokio_service(&runtime);
+            let (started_tx, started_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let (done_tx, done_rx) = mpsc::channel();
+            service
+                .submit_callable(move || {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(20)).unwrap();
+                    done_tx.send(()).unwrap();
+                    Ok::<(), io::Error>(())
+                })
+                .unwrap();
+            started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            saturation_retry(&service, release_tx, done_rx);
+        },
+    )
+    .expect("watchdog should observe Tokio recoverable saturation retry");
 }
 
 #[test]
 fn test_rayon_recoverable_shutdown_returns_callable() {
-    shutdown_recovery(&rayon());
+    crate::process_watchdog::run_test(
+        "recoverable_contract_tests::test_rayon_recoverable_shutdown_returns_callable",
+        "recoverable-rayon-shutdown-recovery",
+        Duration::from_secs(30),
+        || shutdown_recovery(&rayon()),
+    )
+    .expect("watchdog should observe Rayon recoverable shutdown rejection");
 }
 #[test]
 fn test_tokio_recoverable_shutdown_returns_callable() {
-    let runtime = runtime();
-    shutdown_recovery(&tokio_service(&runtime));
+    crate::process_watchdog::run_test(
+        "recoverable_contract_tests::test_tokio_recoverable_shutdown_returns_callable",
+        "recoverable-tokio-shutdown-recovery",
+        Duration::from_secs(30),
+        || {
+            let runtime = runtime();
+            shutdown_recovery(&tokio_service(&runtime));
+        },
+    )
+    .expect("watchdog should observe Tokio recoverable shutdown rejection");
 }
 
 #[test]
