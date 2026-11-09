@@ -69,6 +69,8 @@ pub use crate::schedule::SingleThreadScheduledExecutorServiceBuilder;
 pub use crate::service::ExecutorService;
 pub use crate::service::ExecutorServiceBuilderError;
 pub use crate::service::ExecutorServiceLifecycle;
+pub use crate::service::RecoverableExecutorService;
+pub use crate::service::RejectedTask;
 pub use crate::service::StopReport;
 pub use crate::service::SubmissionError;
 pub use crate::service::ThreadPerTaskExecutorService;
