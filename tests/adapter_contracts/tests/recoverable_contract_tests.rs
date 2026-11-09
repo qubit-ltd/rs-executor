@@ -14,106 +14,11 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use qubit_executor::ExecutorService;
-use qubit_executor::ExecutorServiceLifecycle;
 use qubit_executor::RecoverableExecutorService;
-use qubit_executor::RejectedTask;
-use qubit_executor::StopReport;
 use qubit_executor::SubmissionError;
-use qubit_function::Callable;
-use qubit_function::Runnable;
 use qubit_rayon_executor::RayonExecutorService;
 use qubit_tokio_executor::TokioExecutorService;
 use tokio::runtime::Runtime;
-
-struct RayonRecoverable(RayonExecutorService);
-struct TokioRecoverable(TokioExecutorService);
-
-macro_rules! forward_service {
-    ($adapter:ty, $service:ty) => {
-        impl ExecutorService for $adapter {
-            type ResultHandle<R, E>
-                = <$service as ExecutorService>::ResultHandle<R, E>
-            where
-                R: Send + 'static,
-                E: Send + 'static;
-            type TrackedHandle<R, E>
-                = <$service as ExecutorService>::TrackedHandle<R, E>
-            where
-                R: Send + 'static,
-                E: Send + 'static;
-
-            fn submit<T, E>(&self, task: T) -> Result<(), SubmissionError>
-            where
-                T: Runnable<E> + Send + 'static,
-                E: Send + 'static,
-            {
-                self.0.submit(task)
-            }
-            fn submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, SubmissionError>
-            where
-                C: Callable<R, E> + Send + 'static,
-                R: Send + 'static,
-                E: Send + 'static,
-            {
-                self.0.submit_callable(task)
-            }
-            fn submit_tracked_callable<C, R, E>(&self, task: C) -> Result<Self::TrackedHandle<R, E>, SubmissionError>
-            where
-                C: Callable<R, E> + Send + 'static,
-                R: Send + 'static,
-                E: Send + 'static,
-            {
-                self.0.submit_tracked_callable(task)
-            }
-            fn shutdown(&self) {
-                self.0.shutdown()
-            }
-            fn stop(&self) -> StopReport {
-                self.0.stop()
-            }
-            fn lifecycle(&self) -> ExecutorServiceLifecycle {
-                self.0.lifecycle()
-            }
-            fn wait_termination(&self) {
-                self.0.wait_termination()
-            }
-            fn wait_termination_timeout(&self, timeout: Duration) -> bool {
-                self.0.wait_termination_timeout(timeout)
-            }
-        }
-    };
-}
-
-forward_service!(RayonRecoverable, RayonExecutorService);
-forward_service!(TokioRecoverable, TokioExecutorService);
-
-impl RecoverableExecutorService for RayonRecoverable {
-    fn try_submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, RejectedTask<C>>
-    where
-        C: Callable<R, E> + Send + 'static,
-        R: Send + 'static,
-        E: Send + 'static,
-    {
-        qubit_rayon_executor::RayonExecutorService::try_submit_callable(&self.0, task).map_err(|rejected| {
-            let (reason, task) = rejected.into_parts();
-            RejectedTask::new(reason, task)
-        })
-    }
-}
-
-impl RecoverableExecutorService for TokioRecoverable {
-    fn try_submit_callable<C, R, E>(&self, task: C) -> Result<Self::ResultHandle<R, E>, RejectedTask<C>>
-    where
-        C: Callable<R, E> + Send + 'static,
-        R: Send + 'static,
-        E: Send + 'static,
-    {
-        qubit_tokio_executor::TokioExecutorService::try_submit_callable(&self.0, task).map_err(|rejected| {
-            let (reason, task) = rejected.into_parts();
-            RejectedTask::new(reason, task)
-        })
-    }
-}
 
 struct DropCount(Arc<AtomicUsize>);
 impl Drop for DropCount {
@@ -204,14 +109,12 @@ fn shutdown_recovery<S: RecoverableExecutorService>(service: &S) {
     assert!(service.wait_termination_timeout(Duration::from_secs(5)));
 }
 
-fn rayon() -> RayonRecoverable {
-    RayonRecoverable(
-        RayonExecutorService::builder()
-            .num_threads(1)
-            .task_capacity(1)
-            .build()
-            .unwrap(),
-    )
+fn rayon() -> RayonExecutorService {
+    RayonExecutorService::builder()
+        .num_threads(1)
+        .task_capacity(1)
+        .build()
+        .unwrap()
 }
 fn runtime() -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
@@ -221,11 +124,15 @@ fn runtime() -> Runtime {
         .build()
         .unwrap()
 }
-fn tokio_service(runtime: &Runtime) -> TokioRecoverable {
-    TokioRecoverable(TokioExecutorService::with_task_capacity(
-        runtime.handle().clone(),
-        NonZeroUsize::new(1).unwrap(),
-    ))
+fn tokio_service(runtime: &Runtime) -> TokioExecutorService {
+    TokioExecutorService::with_task_capacity(runtime.handle().clone(), NonZeroUsize::new(1).unwrap())
+}
+
+#[test]
+fn test_native_services_implement_recoverable_contract() {
+    fn requires<S: RecoverableExecutorService>() {}
+    requires::<RayonExecutorService>();
+    requires::<TokioExecutorService>();
 }
 
 #[test]

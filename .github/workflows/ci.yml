@@ -32,13 +32,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: qubit-ltd/rs-rayon-executor
-          ref: 88ba9463f28ab1b2dbef7f49624b3530c3ea71ad
+          ref: 2caaa944acf2fb4dab977200b517ba1f59a759ce
           path: rs-rayon-executor
       - name: Check out Tokio adapter
         uses: actions/checkout@v4
         with:
           repository: qubit-ltd/rs-tokio-executor
-          ref: c73d4f5a03dd5000a1cf70c69ce0a1e176a48202
+          ref: 9228b957a95df7512873d5762431839f1e567b52
           path: rs-tokio-executor
       - name: Check out thread pool
         uses: actions/checkout@v4
