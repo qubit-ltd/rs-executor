@@ -99,6 +99,75 @@ impl Drop for BlockingPanicOnDrop {
     }
 }
 
+fn assert_same_deadline_order(cancel_middle: bool) {
+    let service = SingleThreadScheduledExecutorService::new("same-deadline").expect("scheduler should start");
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let blocker = service
+        .schedule(Duration::ZERO, move || {
+            entered_tx.send(()).expect("signal worker start");
+            release_rx.recv_timeout(Duration::from_secs(5)).expect("release worker");
+            Ok::<(), ()>(())
+        })
+        .expect("accept blocker");
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("worker should start blocker");
+
+    let deadline = Instant::now();
+    let (events_tx, events_rx) = mpsc::channel();
+    let mut handles = Vec::new();
+    for id in 0..3 {
+        let events = events_tx.clone();
+        handles.push((
+            id,
+            service
+                .schedule_callable_at(deadline, move || {
+                    events.send(id).expect("record execution order");
+                    Ok::<usize, ()>(id)
+                })
+                .expect("accept equal-deadline task"),
+        ));
+    }
+    drop(events_tx);
+    if cancel_middle {
+        assert_eq!(handles[1].1.cancel(), CancelResult::Cancelled);
+    }
+
+    release_tx.send(()).expect("release blocker");
+    let expected: Vec<usize> = if cancel_middle { vec![0, 2] } else { vec![0, 1, 2] };
+    for id in expected {
+        assert_eq!(
+            events_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("ordered task event"),
+            id
+        );
+    }
+
+    service.shutdown();
+    assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+    assert!(matches!(events_rx.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
+    blocker.get().expect("blocker should succeed");
+    for (id, handle) in handles {
+        if cancel_middle && id == 1 {
+            assert!(matches!(handle.get(), Err(TaskExecutionError::Cancelled)));
+        } else {
+            assert_eq!(handle.get().expect("task should succeed"), id);
+        }
+    }
+}
+
+#[test]
+fn test_same_deadline_preserves_submission_order() {
+    assert_same_deadline_order(false);
+}
+
+#[test]
+fn test_same_deadline_preserves_order_after_middle_cancellation() {
+    assert_same_deadline_order(true);
+}
+
 #[test]
 fn test_single_thread_scheduled_executor_service_runs_earliest_deadline_first() {
     let service =

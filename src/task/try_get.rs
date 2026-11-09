@@ -28,7 +28,7 @@ use super::TaskResult;
 /// match outcome {
 ///     TryGet::Ready(Ok(value)) => assert_eq!(value, 42),
 ///     TryGet::Ready(Err(_)) => panic!("the task failed"),
-///     TryGet::Pending(()) => panic!("the task is still pending"),
+///     TryGet::Pending(()) => panic!("the task result is not ready yet"),
 /// }
 /// ```
 pub enum TryGet<H, R, E> {
@@ -41,7 +41,11 @@ pub enum TryGet<H, R, E> {
         /// Final task result.
         TaskResult<R, E>,
     ),
-    /// The task has not completed and the handle is returned to the caller.
+    /// The task result is not available yet, and the handle is returned to the
+    /// caller.
+    ///
+    /// This does not imply that the task has a pending lifecycle status: a
+    /// terminal status may become visible before its result is published.
     ///
     /// # Parameters
     ///

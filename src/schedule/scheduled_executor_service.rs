@@ -67,7 +67,8 @@ pub trait ScheduledExecutorService: ExecutorService {
     ///
     /// Returns [`SubmissionError`] when the service refuses the task before
     /// accepting it, including [`SubmissionError::Saturated`] for a full
-    /// configured queue.
+    /// configured queue. An unrepresentable deadline returns
+    /// [`SubmissionError::InvalidDeadline`].
     #[inline]
     fn schedule<T, E>(&self, delay: Duration, task: T) -> Result<Self::TrackedHandle<(), E>, SubmissionError>
     where
