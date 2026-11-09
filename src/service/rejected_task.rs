@@ -68,6 +68,15 @@ impl<T> RejectedTask<T> {
 }
 
 impl<T> fmt::Debug for RejectedTask<T> {
+    /// Formats the rejection reason without formatting or visiting the task.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Formatter receiving the rejected task representation.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the rejection reason and type name.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("RejectedTask")
@@ -77,12 +86,27 @@ impl<T> fmt::Debug for RejectedTask<T> {
 }
 
 impl<T> fmt::Display for RejectedTask<T> {
+    /// Formats only the rejection reason without formatting or visiting task
+    /// data.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Formatter receiving the rejection reason.
+    ///
+    /// # Returns
+    ///
+    /// The result of formatting the rejection reason.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.reason.fmt(formatter)
     }
 }
 
 impl<T> Error for RejectedTask<T> {
+    /// Returns the submission rejection reason as the source error.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the rejection reason; task data is not visited.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(&self.reason)
     }
