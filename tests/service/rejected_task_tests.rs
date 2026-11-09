@@ -1,9 +1,18 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
-use qubit_executor::{RejectedTask, SubmissionError};
+use qubit_executor::RejectedTask;
+use qubit_executor::SubmissionError;
 
 struct NoDebugTask;
 

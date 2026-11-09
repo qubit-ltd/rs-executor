@@ -50,6 +50,12 @@ pub trait RecoverableExecutorService: ExecutorService {
     ///
     /// A result handle when the callable is accepted, or the rejection reason
     /// and original callable when it is not accepted.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `C` - Callable to submit.
+    /// * `R` - Successful result produced by the callable.
+    /// * `E` - Error type produced by the callable.
     fn try_submit_callable<C, R, E>(
         &self,
         task: C,
