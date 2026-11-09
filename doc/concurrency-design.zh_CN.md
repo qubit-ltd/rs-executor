@@ -22,7 +22,7 @@
 
 hook 在发布事件的线程上同步执行，可能阻塞该线程。通过本 crate 的标准 `notify_*` 辅助函数调用时，hook 的普通 unwind 由 [`contain_hook_panic`](../src/hook/task_hook.rs) 捕获；告警日志器的 panic 也会被隔离。直接调用 `TaskHook::on_*` 方法不会自动获得这一保护。panic 隔离不能防止阻塞或死锁，不保证资源立即释放，也无法恢复 abort 型 panic 或 unwind 期间的双重 panic。现有回归覆盖了 [hook panic 隔离](../tests/hook/hook_tests.rs)和 [hook/日志器 panic 恢复](../tests/hook_recovery_tests.rs)。
 
-[`TaskState::publish_terminal_result`](../src/task/task_state.rs) 会在发送或丢弃结果时捕获普通 unwind；runner 路径也会在取消后丢弃尚未执行的 callable 时捕获 unwind（[`TaskSlot::start_and_complete`](../src/task/task_slot.rs)）。这不包含 abort 型 panic，也不包含 unwind 期间发生的 double panic。其他提供者回调或析构函数可能在这些捕获范围之外同步执行。不要在 callback 内重入需要其当前持有锁的操作，也不要在 hook 内等待同一任务或服务终止。
+[`TaskState::publish_terminal_result`](../src/task/task_state.rs) 会在发送或丢弃结果时捕获普通 unwind；runner 路径也会在取消后丢弃尚未执行的 callable 时捕获 unwind（[`TaskSlot::start_and_complete`](../src/task/task_slot.rs)）。这不包含 abort 型 panic，也不包含 unwind 期间发生的 double panic。其他提供者回调或析构函数可能在这些捕获范围之外同步执行。提供者可能在持有调度锁时调用回调；不要在回调中调用需要获取同一锁的操作。生命周期或队列大小查询也可能获取该锁，具体取决于提供者实现，请查阅提供者的回调契约。内置的 `SingleThreadScheduledExecutorService` 当前没有公开的任务钩子配置入口，但内部定时条目仍可能使用钩子；其接纳回调在调度器监视器持有期间运行，不得重入需要该监视器的操作。独立适配器契约套件在[恢复测试](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/tests/recoverable_contract_tests.rs)中覆盖重试和关闭导致的拒绝。不要在 callback 内重入需要其当前持有锁的操作，也不要在 hook 内等待同一任务或服务终止。
 
 ## 取消、清理与 join
 
@@ -30,7 +30,7 @@ hook 在发布事件的线程上同步执行，可能阻塞该线程。通过本
 
 ## 可恢复提交
 
-可恢复拒绝会把原 callable 的所有权交还调用方；该 callable 未被接纳，也不应已经执行。共享契约见 [`RejectedTask`](../src/service/rejected_task.rs) 和 [`RecoverableExecutorService`](../src/service/recoverable_executor_service.rs)。提供者可以保留返回本地拒绝类型的 inherent 方法，并通过共享 trait 转发拒绝原因和 callable。这两个 API 表面兼容，但拒绝类型不同。独立适配器契约套件在 [`recoverable_contract_tests.rs`](../tests/adapter_contracts/tests/recoverable_contract_tests.rs) 中覆盖重试和因关闭导致的拒绝。
+可恢复拒绝会把原 callable 的所有权交还调用方；该 callable 未被接纳，也不应已经执行。共享契约见 [`RejectedTask`](../src/service/rejected_task.rs) 和 [`RecoverableExecutorService`](../src/service/recoverable_executor_service.rs)。提供者可以保留返回本地拒绝类型的 inherent 方法，并通过共享 trait 转发拒绝原因和 callable。这两个 API 表面兼容，但拒绝类型不同。独立适配器契约套件在[恢复测试](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/tests/recoverable_contract_tests.rs)中覆盖重试和因关闭导致的拒绝。
 
 ## 证据与限制
 

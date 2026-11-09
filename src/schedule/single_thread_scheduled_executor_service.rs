@@ -46,6 +46,10 @@ use crate::task::spi::TaskEndpointPair;
 /// not match each handle's `TaskStatus` at every instant. Termination waiting
 /// observes the scheduler service's termination condition; it does not join
 /// every OS thread or wait for unrelated concurrent cancellation cleanup.
+/// This service currently does not expose task-hook configuration. Internal
+/// scheduled entries may use hooks; their acceptance callbacks run while the
+/// scheduler monitor is held and must not re-enter operations that acquire
+/// that same monitor.
 ///
 /// # Examples
 ///

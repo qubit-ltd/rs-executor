@@ -36,6 +36,11 @@ use crate::service::SubmissionError;
 /// Callbacks run synchronously on the thread publishing the event; they are not
 /// forwarded to a dedicated observer thread. Depending on the executor and SPI
 /// caller, a callback may run while an internal or caller-owned lock is held.
+/// A provider may invoke a callback while holding its scheduling lock. Do not
+/// call operations that acquire that same lock from the callback; even a
+/// lifecycle or queue-size query may acquire it. Whether a particular query is
+/// safe depends on the provider's implementation, so consult its callback
+/// contract.
 /// Keep callbacks short and non-blocking. Do not re-enter the same
 /// [`TaskSlotCell`](crate::task::spi::TaskSlotCell) or wait for the current
 /// task or its owning service to terminate from a callback.

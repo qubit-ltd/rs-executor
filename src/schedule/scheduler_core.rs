@@ -206,6 +206,11 @@ impl SchedulerCore {
     /// # Panics
     ///
     /// Panics if `task_id` is already queued.
+    ///
+    /// Acceptance runs synchronously while the scheduler monitor is held. An
+    /// entry with a task hook must not re-enter this core from its accepted
+    /// callback through an operation that acquires the same monitor. This
+    /// includes lifecycle or queue queries, shutdown, stop, and scheduling.
     pub(crate) fn schedule(
         &self,
         task_id: TaskId,
