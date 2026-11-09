@@ -55,6 +55,7 @@ Execution strategy, task completion, and managed-service lifecycle have differen
 
 - `Executor` for fallible task execution strategies, with `DirectExecutor`, `DelayExecutor`, `ScheduleExecutor`, and `ThreadPerTaskExecutor`. Invocation count is defined by the concrete strategy, not by the trait.
 - `ExecutorService` for accepted-task tracking, graceful `shutdown()`, best-effort `stop()`, lifecycle inspection, and blocking termination waiting.
+- `RecoverableExecutorService` as an optional extension for providers that can return the original callable when submission is rejected. See [recovering a rejected submission](doc/user_guide.md#recover-a-rejected-submission); the built-in thread-per-task and scheduled services do not implement it.
 - `ThreadPerTaskExecutorService` plus `ScheduledExecutorService` and `SingleThreadScheduledExecutorService` for delayed or `Instant`-based submission.
 - `SingleThreadScheduledExecutorService::builder` can optionally bound queued tasks; a full configured queue rejects submissions with `SubmissionError::Saturated`. See the [user guide](doc/user_guide.md).
 - `TaskHandle`, `TrackedTask`, `TaskExecutionError`, and `TaskResult` for completion, status, cancellation, panic, failure, and dropped-endpoint semantics.

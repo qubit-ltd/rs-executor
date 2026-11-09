@@ -335,6 +335,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 实现 `TaskHook` 可以观察 `on_accepted`、`on_rejected`、`on_started` 和 `on_finished`。被拒绝的提交只触发 `on_rejected`，不会获得 task id。已接受任务先触发 `on_accepted`；任务在开始前取消时，可能触发没有 `on_started` 的 `on_finished`。钩子在发布事件的线程上同步运行，不会转发到专用观察线程。根据执行器和 SPI 调用方，钩子运行时可能持有内部锁或调用方自己的锁。不要在钩子中重入同一个 `TaskSlotCell`，也不要等待当前任务或所属服务终止。钩子应短小且非阻塞；记录原子计数或使用 `try_send` 等非阻塞通知都是合适做法。执行器会隔离钩子 panic。
 
+## 恢复被拒绝的提交
+
+有些提供者可以选择实现 `RecoverableExecutorService` 扩展。调用 `try_submit_callable` 返回 `Err(RejectedTask<C>)` 时，表示 callable 未被接受。`RejectedTask` 持有原 callable 及其捕获值；调用 `into_parts()` 可以同时取出 `SubmissionError` 和 callable，再由应用决定下一步。
+
+```rust,ignore
+match service.try_submit_callable(task) {
+    Ok(handle) => {
+        // 已接受：通过返回的 handle 观察执行结果。
+        let _ = handle;
+    }
+    Err(rejected) => {
+        let (reason, task) = rejected.into_parts();
+        match reason {
+            SubmissionError::Saturated => {
+                // 保留 task，等容量可能变化后再尝试。
+            }
+            SubmissionError::Shutdown => {
+                // 由应用保留、持久化，或以其他方式处置 task。
+            }
+            other => {
+                // 其他拒绝原因由应用选择对应处理方式。
+                let _ = (other, task);
+            }
+        }
+    }
+}
+```
+
+这段代码展示处理流程；`service` 需要实现 `RecoverableExecutorService`，`task` 也必须满足该 trait 对 callable 的约束。`Saturated` 表示可以考虑稍后重试，但不保证届时一定有容量。可以等待容量通知、采用有延迟且有次数上限的重试策略，或交由应用队列调度；不要无间隔地反复尝试。`Shutdown` 表示服务已关闭接收，继续向同一服务重试没有意义。无论哪种情况，应用都要决定保留 callable 多久，以及何时丢弃或持久化它。
+
+丢弃异步结果 future 只会放弃这次等待，不会取消已经接受的任务。被拒绝的 callable 则尚未被服务接受；在调用方从 `RejectedTask` 中取出或丢弃之前，所有权仍由它持有。即使返回 `Ok(handle)`，也只说明提交已接受，不代表任务已经开始或成功。
+
+该 trait 是提供者需要支持的扩展边界。Rayon 和 Tokio 集成需要由各自的提供者实现它；应用也可以为外部服务定义本地 newtype 包装，再为这个本地类型实现 trait。Rust 的孤儿规则不允许外部 crate 直接为两个外部类型——本 crate 的 trait 和外部提供者类型——补上这个实现。内置 `ThreadPerTaskExecutorService` 和定时服务目前都没有实现 `RecoverableExecutorService`。
+
+`qubit-execution-services` 的 Blocking 执行域中的 `OwnedWaitTask` 尚未迁移到此扩展。本次变更不承诺减少分配。
+
 ## 错误与诊断
 
 提交错误会在任务接受前返回：

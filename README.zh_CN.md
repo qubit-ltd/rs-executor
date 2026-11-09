@@ -55,6 +55,7 @@ Ok(())
 
 - `Executor` 用于可失败任务的执行策略抽象，并提供 `DirectExecutor`、`DelayExecutor`、`ScheduleExecutor` 和 `ThreadPerTaskExecutor`。任务调用次数由具体策略决定，trait 本身不作保证。
 - `ExecutorService` 用于跟踪已接受任务，支持优雅关闭 `shutdown()`、尽力停止 `stop()`、生命周期查询和阻塞式终止等待。
+- `RecoverableExecutorService` 是可选扩展：支持该能力的提供者会在拒绝提交时把原 callable 交还给调用方。参见[恢复被拒绝的提交](doc/user_guide.zh_CN.md#恢复被拒绝的提交)；内置的 thread-per-task 和定时服务尚未实现此扩展。
 - `ThreadPerTaskExecutorService` 提供基础托管服务；`ScheduledExecutorService` 与 `SingleThreadScheduledExecutorService` 支持延迟或基于 `Instant` 的任务提交。
 - `SingleThreadScheduledExecutorService::builder` 可选限制排队任务数；队列满时以 `SubmissionError::Saturated` 拒绝提交。详见[用户指南](doc/user_guide.zh_CN.md)。
 - `TaskHandle`、`TrackedTask`、`TaskExecutionError` 和 `TaskResult` 统一表示完成、状态、取消、panic、失败和完成端点丢失。

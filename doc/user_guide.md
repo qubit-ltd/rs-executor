@@ -340,6 +340,42 @@ Use `submit_tracked_callable` when status and pre-start cancellation are needed.
 
 Implement `TaskHook` to observe `on_accepted`, `on_rejected`, `on_started`, and `on_finished`. Rejected submissions receive only `on_rejected` and no task id. An accepted task receives `on_accepted` before later events; a task cancelled before starting may receive `on_finished` without `on_started`. Hooks run synchronously on the thread publishing each event, not on a dedicated observer thread. Depending on the executor and SPI caller, a hook may run while an internal or caller-owned lock is held. Do not re-enter the same `TaskSlotCell` or wait for the current task or its owning service to terminate from a hook. Keep hooks short and non-blocking; recording an atomic counter or using a non-blocking notification such as `try_send` is suitable. Hook panics are contained by the executor.
 
+## Recover a rejected submission
+
+Some providers can implement the optional `RecoverableExecutorService` extension. Its `try_submit_callable` returns `Err(RejectedTask<C>)` only when the callable was not accepted. The `RejectedTask` owns the original callable and its captured values; split it with `into_parts()` to inspect the `SubmissionError` and decide what to do with that callable.
+
+```rust,ignore
+match service.try_submit_callable(task) {
+    Ok(handle) => {
+        // Accepted: observe execution through the returned handle.
+        let _ = handle;
+    }
+    Err(rejected) => {
+        let (reason, task) = rejected.into_parts();
+        match reason {
+            SubmissionError::Saturated => {
+                // Retain task and retry later, after capacity may have changed.
+            }
+            SubmissionError::Shutdown => {
+                // Retain, persist, or otherwise dispose of task in the application.
+            }
+            other => {
+                // Choose an application-specific disposition for other rejections.
+                let _ = (other, task);
+            }
+        }
+    }
+}
+```
+
+This is a generic sketch; `service` must implement `RecoverableExecutorService`, and `task` must meet the trait's callable bounds. `Saturated` can justify a later retry, but does not promise capacity will become available. Use a capacity notification, a finite retry policy with a delay, or an application queue; do not busy-loop. `Shutdown` means admission is closed, so retrying the same service is not useful. In every branch, the application chooses how long to retain the rejected callable and when to drop or persist it.
+
+Dropping an async result future abandons that wait; it does not cancel work already accepted. A rejected callable is different: it was not accepted, and ownership remains with `RejectedTask` until the caller extracts or drops it. An `Ok(handle)` still means acceptance only, not that execution has started or succeeded.
+
+This optional trait is a provider boundary. Rayon and Tokio integrations need their provider to implement it, or an application can define a local newtype adapter around a foreign service and implement the trait for that local type. Rust's orphan rules prevent an external crate from implementing this crate's trait directly for both an external provider type and this external trait. The built-in `ThreadPerTaskExecutorService` and scheduled services do not currently implement `RecoverableExecutorService`.
+
+The `qubit-execution-services` blocking domain's `OwnedWaitTask` has not migrated to this extension. This change makes no allocation-reduction claim.
+
 ## Errors and Diagnostics
 
 Submission errors are returned before a task is accepted:
