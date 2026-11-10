@@ -1,6 +1,6 @@
 # Executor adapter contracts
 
-This independent Cargo test fixture runs shared executor-service contract assertions against the Rayon and Tokio adapters and both thread pool implementations. It uses the sibling checkout layout expected by its path dependencies:
+This independent Cargo test fixture runs shared executor-service contract assertions against the Rayon and Tokio adapters and both thread pool implementations. It requires four sibling checkouts:
 
 ```text
 rust-common/
@@ -10,12 +10,17 @@ rust-common/
 └── rs-tokio-executor/
 ```
 
-From the `rs-executor` repository root, run:
+Local runs use the current working trees in those sibling directories. CI checks out adapter revisions pinned in `.github/workflows/ci.yml`. The fixture lockfile pins registry dependencies; sibling path dependencies resolve to the checked-out source trees and do not pin their Git revisions.
+
+From the `rs-executor` repository root, verify the resolved source paths and run the fixture:
 
 ```bash
-cargo test --manifest-path tests/adapter_contracts/Cargo.toml
+cargo metadata --locked --format-version 1 --manifest-path tests/adapter_contracts/Cargo.toml > /tmp/executor-adapter-metadata.json
+python3 -B tests/internal/check_adapter_sources.py --metadata /tmp/executor-adapter-metadata.json
+cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml
 ```
 
+The process watchdog used by both the root integration tests and this fixture is shared from `tests/internal/process_watchdog.rs`.
 The fixture checks successful results, business failures, shutdown rejection, cancellation of work known to be pending, Running task cancellation, and that dropping either an unpolled or polled result future does not cancel queued work. The Running cancellation case waits for an explicit started handshake, checks `AlreadyRunning`, releases the callable, verifies its original value, then checks `AlreadyFinished`. It checks concurrent cancellation against pending work across Rayon, Tokio, and the fixed and dynamic thread pools: two cancellation calls race, one must cancel, one must report that the task is already finished, and the cancelled result must arrive. These checks verify the observable contract and task termination; they do not prove every possible thread interleaving. Shared coverage runs against Rayon, Tokio blocking, and the fixed and dynamic thread pools. Its local path patch ensures all providers use this checkout of `qubit-executor`.
 
 Each provider also has a `stop_contract` case. A one-worker blocker keeps one accepted task running while a tracked task is queued. Stop must reject later submissions, cancel the pending task without invoking its callable, and leave termination unobserved with a zero timeout until the blocker is released. After release, the blocker result must arrive and termination must be observed. The tests intentionally do not compare `StopReport` fields: the providers document different counting rules. Rayon reports running, queued, and cancelled work; Tokio reports a snapshot plus tracked blocking jobs aborted before their closures start; fixed and dynamic pools use count-based reports, with the dynamic pool counting only jobs removed and cancelled by that stop call. Tokio coverage uses `TokioExecutorService` and blocking closures, not the separate asynchronous IO service.

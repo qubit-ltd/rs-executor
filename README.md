@@ -84,7 +84,7 @@ The crate requires Rust 1.94 or newer.
 - [API documentation](https://docs.rs/qubit-executor)
 - [简体中文 README](README.zh_CN.md)
 
-Cross-adapter contract tests run in a separate Cargo workspace and are not included in the root `cargo test`. With sibling checkouts of `rs-rayon-executor`, `rs-tokio-executor`, and `rs-thread-pool`, run `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml` from this repository root. See [adapter contract tests](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/README.md) for the directory layout and coverage boundaries. CI pins adapter revisions in `.github/workflows/ci.yml`; local results depend on the sibling revisions checked out.
+Cross-adapter contract tests run in a separate Cargo workspace and are not included in the root `cargo test`. With sibling checkouts of `rs-executor`, `rs-rayon-executor`, `rs-tokio-executor`, and `rs-thread-pool`, run `cargo metadata --locked --format-version 1 --manifest-path tests/adapter_contracts/Cargo.toml > /tmp/executor-adapter-metadata.json` followed by `python3 -B tests/internal/check_adapter_sources.py --metadata /tmp/executor-adapter-metadata.json`, then run `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml`. The fixture uses the current sibling working trees locally; CI checks out adapter revisions pinned in `.github/workflows/ci.yml`. See [adapter contract tests](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/README.md) for the directory layout and coverage boundaries.
 
 ## Testing
 

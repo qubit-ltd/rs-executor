@@ -18,6 +18,59 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  package-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out executor
+        uses: actions/checkout@v4
+      - name: Install project Rust toolchain
+        run: rustup toolchain install 1.94.0 --profile minimal
+      - name: Package and verify published crate
+        run: cargo package --locked
+      - name: Test the packaged crate
+        shell: bash
+        run: |
+          metadata="$RUNNER_TEMP/executor-package-metadata.json"
+          cargo metadata --locked --format-version 1 --no-deps > "$metadata"
+          package_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["packages"][0]["name"])' "$metadata")"
+          package_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["packages"][0]["version"])' "$metadata")"
+          archive="target/package/${package_name}-${package_version}.crate"
+          destination="$RUNNER_TEMP/executor-package"
+          mkdir -p "$destination"
+          python3 - "$archive" "$destination" <<'PY'
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          archive, destination = map(Path, sys.argv[1:])
+          with tarfile.open(archive, "r:gz") as package:
+              package.extractall(destination, filter="data")
+          manifests = list(destination.glob("*/Cargo.toml"))
+          if len(manifests) != 1:
+              raise SystemExit(f"expected one extracted Cargo.toml, found {manifests}")
+          root = manifests[0].parent
+          required = (
+              "tests/internal/process_watchdog.rs",
+              "tests/internal/check_adapter_sources.py",
+              "tests/internal/check_adapter_sources_tests.py",
+              "README.md",
+              "README.zh_CN.md",
+              "doc/user_guide.md",
+              "doc/user_guide.zh_CN.md",
+              "doc/concurrency-design.md",
+              "doc/concurrency-design.zh_CN.md",
+          )
+          missing = [path for path in required if not (root / path).is_file()]
+          if missing:
+              raise SystemExit(f"packaged crate is missing required files: {missing}")
+          print(f"Testing extracted package at {root}")
+          PY
+          manifest="$(find "$destination" -mindepth 2 -maxdepth 2 -name Cargo.toml -print -quit)"
+          cargo test --locked --manifest-path "$manifest"
+
   adapter-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -54,6 +107,12 @@ jobs:
         run: |
           ln -s ../../.infra tests/adapter_contracts/.infra
           ./.infra/bin/infra-tool.sh rs-infra-dependency --project tests/adapter_contracts check
+      - name: Check adapter dependency sources
+        working-directory: rs-executor
+        run: |
+          python3 -B -m unittest discover -s tests/internal -p check_adapter_sources_tests.py
+          cargo metadata --locked --format-version 1 --manifest-path tests/adapter_contracts/Cargo.toml > "$RUNNER_TEMP/executor-adapter-metadata.json"
+          python3 -B tests/internal/check_adapter_sources.py --metadata "$RUNNER_TEMP/executor-adapter-metadata.json"
       - name: Run adapter contract tests
         working-directory: rs-executor
         run: cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml

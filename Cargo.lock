@@ -138,7 +138,6 @@ dependencies = [
  "parking_lot",
  "qubit-atomic",
  "qubit-collections",
- "qubit-executor-test-watchdog",
  "qubit-fast-cas",
  "qubit-function",
  "qubit-lock",
@@ -146,10 +145,6 @@ dependencies = [
  "thiserror",
  "tokio",
 ]
-
-[[package]]
-name = "qubit-executor-test-watchdog"
-version = "0.0.0"
 
 [[package]]
 name = "qubit-fast-cas"

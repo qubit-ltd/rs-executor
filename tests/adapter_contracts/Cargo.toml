@@ -9,17 +9,16 @@ autotests = false
 [workspace]
 
 [dev-dependencies]
-qubit-executor = { path = "../../", version = "^0.9" }
+qubit-executor = { path = "../../../rs-executor", version = "^0.9" }
 qubit-function = "^0.18"
 qubit-rayon-executor = { path = "../../../rs-rayon-executor", version = "^0.9" }
-qubit-thread-pool = { version = "^0.12" }
+qubit-thread-pool = { path = "../../../rs-thread-pool", version = "^0.12" }
 qubit-tokio-executor = { path = "../../../rs-tokio-executor", version = "^0.12" }
 tokio = { version = "^1.54", features = ["rt-multi-thread", "sync", "time"] }
-qubit-executor-test-watchdog = { path = "../internal/process-watchdog", version = "^0.0" }
 
 [[test]]
 name = "contracts_tests"
 path = "tests/contracts_tests.rs"
 
 [patch.crates-io]
-qubit-executor = { path = "../.." }
+qubit-executor = { path = "../../../rs-executor" }

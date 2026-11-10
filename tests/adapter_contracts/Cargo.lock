@@ -59,7 +59,6 @@ name = "executor-adapter-contracts"
 version = "0.0.0"
 dependencies = [
  "qubit-executor",
- "qubit-executor-test-watchdog",
  "qubit-function",
  "qubit-rayon-executor",
  "qubit-thread-pool",
@@ -196,10 +195,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "qubit-executor-test-watchdog"
-version = "0.0.0"
-
-[[package]]
 name = "qubit-fast-cas"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,8 +240,6 @@ dependencies = [
 [[package]]
 name = "qubit-thread-pool"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "133ab372ccd645a5a683abd45e738234ff9bb5f39e78c3a2d6e324581bad6478"
 dependencies = [
  "crossbeam-deque",
  "qubit-argument",
