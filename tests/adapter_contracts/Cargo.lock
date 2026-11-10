@@ -224,8 +224,6 @@ dependencies = [
 [[package]]
 name = "qubit-rayon-executor"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1f096d9bcdc97bc9064f2f67c04570a44bd8a3ac205d12e4e0cb73e1cd0cd74"
 dependencies = [
  "parking_lot",
  "qubit-executor",
