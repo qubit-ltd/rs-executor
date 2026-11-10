@@ -3,6 +3,7 @@ name = "qubit-executor"
 version = "0.9.1"
 edition = "2024"
 rust-version = "1.94"
+autobenches = false
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/qubit-ltd/rs-executor"
@@ -21,6 +22,7 @@ include = [
     "/doc/user_guide.zh_CN.md",
     "/doc/concurrency-design.md",
     "/doc/concurrency-design.zh_CN.md",
+    "/benches/**",
     "/examples/**",
     "/resources/**",
     "/src/**",
@@ -38,6 +40,10 @@ doctest = true
 [[bench]]
 name = "scheduled_executor_bench"
 harness = false
+
+[[test]]
+name = "scheduled_benchmark_statistics"
+path = "benches/statistics.rs"
 
 [dependencies]
 log = "^0.4"
