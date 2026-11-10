@@ -163,6 +163,39 @@ impl<R, E> TrackedTask<R, E> {
         self.handle.state.status()
     }
 
+    /// Creates an independent, read-only observer of this task's status.
+    ///
+    /// The returned closure reads a fresh status snapshot each time it is
+    /// called. It does not cancel the task or consume its result. A terminal
+    /// status can become visible before the task result is published, so this
+    /// observer does not indicate that the result is ready. The closure keeps
+    /// the shared task state alive and remains usable after this handle is
+    /// consumed into a future.
+    ///
+    /// ```
+    /// use std::future::IntoFuture;
+    /// use qubit_executor::TaskStatus;
+    /// use qubit_executor::task::spi::TaskEndpointPair;
+    ///
+    /// let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    /// let observe = task.status_observer();
+    /// let future = IntoFuture::into_future(task);
+    /// assert!(slot.run(|| Ok(42)));
+    /// assert_eq!(observe(), TaskStatus::Succeeded);
+    /// drop(future);
+    /// assert_eq!(observe(), TaskStatus::Succeeded);
+    /// ```
+    #[must_use = "retain the observer to read task status after consuming the handle"]
+    #[inline]
+    pub fn status_observer(&self) -> impl Fn() -> TaskStatus + Send + Sync + 'static + use<R, E>
+    where
+        R: Send + 'static,
+        E: Send + 'static,
+    {
+        let state = Arc::clone(&self.handle.state);
+        move || state.status()
+    }
+
     /// Returns the identifier assigned to this task.
     ///
     /// # Returns

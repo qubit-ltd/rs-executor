@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::future::IntoFuture;
 use std::io;
 use std::sync::Arc;
 use std::sync::Barrier;
@@ -21,6 +22,59 @@ use qubit_executor::hook::NoopTaskHook;
 use qubit_executor::hook::TaskHook;
 use qubit_executor::hook::TaskId;
 use qubit_executor::task::spi::TaskEndpointPair;
+
+fn assert_send_sync_static<T: Send + Sync + 'static>(_: &T) {}
+
+#[test]
+fn test_status_observer_tracks_terminal_states_without_consuming_results() {
+    let (task, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    assert_send_sync_static(&observe);
+    assert_eq!(observe(), TaskStatus::Pending);
+    let running = slot.try_start().ok().expect("pending slot starts");
+    assert_eq!(observe(), TaskStatus::Running);
+    assert!(running.complete(Ok(42)));
+    assert_eq!(observe(), TaskStatus::Succeeded);
+    assert_eq!(task.get().expect("observer does not consume result"), 42);
+
+    let (task, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    assert!(slot.run(|| Err(io::Error::other("failure"))));
+    assert_eq!(observe(), TaskStatus::Failed);
+    assert!(task.get().is_err());
+
+    let (task, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    assert!(slot.run(|| -> Result<usize, io::Error> { panic!("task panic") }));
+    assert_eq!(observe(), TaskStatus::Panicked);
+    assert!(task.get().is_err());
+
+    let (task, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    assert!(slot.cancel_unstarted());
+    assert_eq!(observe(), TaskStatus::Cancelled);
+    assert!(task.get().is_err());
+
+    let (task, slot) = TaskEndpointPair::<usize, io::Error>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    drop(slot);
+    assert_eq!(observe(), TaskStatus::Dropped);
+    assert!(task.get().is_err());
+}
+
+#[test]
+fn test_status_observer_survives_handle_into_future() {
+    let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+    let observe = task.status_observer();
+    assert_eq!(observe(), TaskStatus::Pending);
+    let future = IntoFuture::into_future(task);
+    let running = slot.try_start().ok().expect("pending slot starts");
+    assert_eq!(observe(), TaskStatus::Running);
+    assert!(running.complete(Ok(42)));
+    assert_eq!(observe(), TaskStatus::Succeeded);
+    drop(future);
+    assert_eq!(observe(), TaskStatus::Succeeded);
+}
 
 #[derive(Default)]
 struct RecordingHook {
