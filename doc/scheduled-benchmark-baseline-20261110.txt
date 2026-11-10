@@ -1,0 +1,23 @@
+# Scheduled executor benchmark baseline
+
+- Captured: 2026-11-10 16:11 UTC
+- Command: `timeout 600s cargo bench --bench scheduled_executor_bench`
+- Result: exit 0; 15 measured rounds, one warmup per workload, 64 timer samples per round, 10,000 immediate tasks, and 1,000 far-future cancellation tasks.
+- Source revision: `6859571acdce091266222c0ec743208a10b51f43` (`implementation/exe-benchmark-20261110`). The benchmark code, manifest, and lockfile matched this commit. The two benchmark guides were untracked during capture; they do not affect the benchmark executable.
+- Cargo.lock SHA-256: `cea49ac111a8ad48c8d623c5ada29223cf7923893d6b6764d64d907c6d7d99e4`
+- OS: Linux `mas-server`, kernel `6.8.0-147-generic`, Ubuntu, `x86_64`
+- CPU: Intel Xeon E5-2680 v4 @ 2.40 GHz; 56 logical CPUs
+- Rust toolchain: `rustc 1.94.0 (4a4ef493e 2026-03-02)`, LLVM 21.1.8
+- Host load before capture: load average `0.91 / 0.40 / 0.20`. The only other Cargo process observed was a long-running `cargo test --locked keep_alive` in `rs-thread-pool`; it and its child both used 0.0% CPU. No other build, coverage, or benchmark job was running.
+
+## Summary values
+
+| Workload | Summary |
+| --- | --- |
+| `sequential` | median total 170,537,828 ns; median task p50 16,903 ns; median task p95 19,929 ns |
+| `batch` | median total 15,830,993 ns; median task p50 8,392,415 ns; median task p95 13,010,721 ns |
+| `future_deadline` | median start-lateness p50 80,091 ns; p95 93,736 ns |
+| `earlier_deadline` | median start-lateness p50 86,354 ns; p95 101,060 ns |
+| `cancel_far_future` | median cancel total 2,340,396 ns; per-task average 2,340 ns; queue after cancel 0; captured values dropped 1,000 |
+
+The full benchmark stdout and stderr are preserved in [scheduled-benchmark-baseline-20261110.stdout](scheduled-benchmark-baseline-20261110.stdout) and [scheduled-benchmark-baseline-20261110.stderr](scheduled-benchmark-baseline-20261110.stderr). These values establish a machine-specific baseline; they are not a comparison or an improvement claim.
