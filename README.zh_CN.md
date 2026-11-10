@@ -84,7 +84,7 @@ qubit-executor = "0.9"
 - [API 文档](https://docs.rs/qubit-executor)
 - [English README](README.md)
 
-下游适配器契约测试位于独立 Cargo workspace，根目录的 `cargo test` 不会运行它。准备好同级目录中的 `rs-executor`、`rs-rayon-executor`、`rs-tokio-executor` 和 `rs-thread-pool` 后，在本仓库根目录先运行 `cargo metadata --locked --format-version 1 --manifest-path tests/adapter_contracts/Cargo.toml > /tmp/executor-adapter-metadata.json` 和 `python3 -B tests/internal/check_adapter_sources.py --metadata /tmp/executor-adapter-metadata.json`，再运行 `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml`。本地 fixture 使用当前同级工作树；CI 使用 `.github/workflows/ci.yml` 中固定提交的适配器版本。目录布局和覆盖边界见[适配器契约测试说明](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/README.md)。
+下游适配器契约测试位于独立 Cargo workspace，根目录的 `cargo test` 不会运行它。准备好同级目录中的 `rs-executor`、`rs-rayon-executor`、`rs-tokio-executor` 和 `rs-thread-pool` 后，在本仓库根目录先运行 `python3 -B -m unittest discover -s tests/internal -p check_adapter_sources_tests.py`，再运行 `cargo metadata --locked --format-version 1 --manifest-path tests/adapter_contracts/Cargo.toml > /tmp/executor-adapter-metadata.json` 和 `python3 -B tests/internal/check_adapter_sources.py --metadata /tmp/executor-adapter-metadata.json`，最后运行 `cargo test --locked --manifest-path tests/adapter_contracts/Cargo.toml`。本地 fixture 使用当前同级工作树；CI 使用 `.github/workflows/ci.yml` 中固定提交的适配器版本。目录布局和覆盖边界见[适配器契约测试说明](https://github.com/qubit-ltd/rs-executor/blob/main/tests/adapter_contracts/README.md)。
 
 ## 测试
 
