@@ -32,6 +32,12 @@ use crate::internal::discard_panic_payload;
 /// accepted work before it starts, such as during
 /// [`crate::ExecutorService::stop`], should call [`Self::cancel_unstarted`] so
 /// callers observe [`crate::TaskExecutionError::Cancelled`] instead.
+/// Publishing a terminal result, including by dropping this endpoint, may
+/// synchronously invoke a registered result Waker on the publishing thread,
+/// whether or not a task hook is configured. Any provider-owned lock held by
+/// the caller remains held during publication or drop; move the endpoint out
+/// of such a lock before publishing, cancelling, or destroying it when the
+/// Waker may re-enter provider operations.
 ///
 /// # Type Parameters
 ///
@@ -95,6 +101,11 @@ impl<R, E> TaskSlot<R, E> {
     /// finished lifecycle hook with [`crate::TaskStatus::Cancelled`]. If it has
     /// not been accepted, cancellation still releases result waiters but does
     /// not emit lifecycle hook events.
+    /// Publishing the cancellation result may synchronously invoke a
+    /// registered result Waker on this thread even without a task hook. Caller
+    /// locks remain held; providers should move the slot out of their lock
+    /// before cancelling it while preserving their queue accounting and
+    /// admission protocol.
     ///
     /// # Returns
     ///
@@ -211,6 +222,10 @@ impl<R, E> TaskSlot<R, E> {
 
 impl<R, E> Drop for TaskSlot<R, E> {
     /// Publishes a dropped-result error when the runner endpoint is abandoned.
+    ///
+    /// Publication may synchronously invoke a registered result Waker on this
+    /// thread, even without a task hook. Locks held by the caller are not
+    /// released automatically.
     #[inline]
     fn drop(&mut self) {
         if let Some(state) = &self.state {

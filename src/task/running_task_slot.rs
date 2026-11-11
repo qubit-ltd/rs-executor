@@ -21,6 +21,12 @@ use super::task_state::TaskState;
 /// under their own queue locks before removing the task from their pending
 /// structures. Dropping a running slot before completion reports
 /// [`crate::TaskExecutionError::Dropped`].
+/// Publishing a terminal result, including by dropping this endpoint, may
+/// synchronously invoke a registered result Waker on the publishing thread,
+/// whether or not a task hook is configured. Any provider-owned lock held by
+/// the caller remains held during publication or drop; move the endpoint out
+/// of such a lock before publishing or destroying it when the Waker may
+/// re-enter provider operations.
 ///
 /// For an accepted task with a hook, a successful start invokes
 /// [`TaskHook::on_started`](crate::hook::TaskHook::on_started)
@@ -85,6 +91,9 @@ impl<R, E> RunningTaskSlot<R, E> {
     /// acknowledge delivery to a receiver: the receiver may have been dropped,
     /// in which case the result is discarded. `false` if the state no longer
     /// allows completion or the supplied result is not a normal completion.
+    /// Publishing a terminal result may synchronously invoke a registered
+    /// result Waker on this thread, even without a task hook. Caller locks
+    /// remain held during publication.
     #[inline]
     pub fn complete(mut self, result: TaskResult<R, E>) -> bool {
         let completed = self.state().try_complete(result, self.state().is_accepted());
@@ -140,6 +149,10 @@ impl<R, E> RunningTaskSlot<R, E> {
 
 impl<R, E> Drop for RunningTaskSlot<R, E> {
     /// Publishes a dropped-result error when the running endpoint is abandoned.
+    ///
+    /// Publication may synchronously invoke a registered result Waker on this
+    /// thread, even without a task hook. Locks held by the caller are not
+    /// released automatically.
     #[inline]
     fn drop(&mut self) {
         if let Some(state) = &self.state {
