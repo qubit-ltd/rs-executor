@@ -200,6 +200,9 @@ mod tests {
                 let result = next_ready_task(&core, &mut |state, interval| {
                     waits += 1;
                     assert_eq!(interval, Duration::from_secs(3600));
+                    if waits == 1 {
+                        return Ok(());
+                    }
                     while let Some(entry) = state.tasks.pop_first() {
                         detached.push(entry);
                     }
@@ -208,7 +211,7 @@ mod tests {
                 })
                 .unwrap();
                 assert!(result.is_none());
-                assert_eq!(waits, 1);
+                assert_eq!(waits, 2);
                 assert_eq!(ran.load(Ordering::Acquire), 0);
                 assert!(core.is_terminated());
                 drop(detached);
@@ -242,6 +245,9 @@ mod tests {
                     waits += 1;
                     assert!(interval > Duration::ZERO);
                     assert!(interval <= Duration::from_secs(60));
+                    if waits == 1 {
+                        return Ok(());
+                    }
                     while let Some(entry) = state.tasks.pop_first() {
                         detached.push(entry);
                     }
@@ -250,7 +256,7 @@ mod tests {
                 })
                 .unwrap();
                 assert!(result.is_none());
-                assert_eq!(waits, 1);
+                assert_eq!(waits, 2);
                 assert_eq!(ran.load(Ordering::Acquire), 0);
                 assert!(core.is_terminated());
                 drop(detached);
