@@ -49,7 +49,8 @@ impl DirectExecutor {
         Self::default()
     }
 
-    /// Returns a copy of this executor using the supplied task hook.
+    /// Consumes this executor and returns it configured with the supplied task
+    /// hook.
     ///
     /// # Parameters
     ///

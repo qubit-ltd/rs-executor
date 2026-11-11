@@ -112,6 +112,13 @@ impl<R, E> TaskSlot<R, E> {
     /// original pending slot is returned so the caller can inspect or drop it;
     /// the user callable must not be executed in that case.
     ///
+    /// For an accepted task with a hook, a successful start invokes
+    /// [`TaskHook::on_started`](crate::hook::TaskHook::on_started)
+    /// synchronously on the calling thread before this method returns. Any
+    /// caller-held queue lock remains held during that callback. The hook must
+    /// not re-enter operations that acquire the same lock or wait for this task
+    /// or its owning service to terminate.
+    ///
     /// # Returns
     ///
     /// `Ok(RunningTaskSlot)` if this call won the pending-to-running race, or
@@ -155,8 +162,10 @@ impl<R, E> TaskSlot<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if the closure was executed and its result was published, or
-    /// `false` if the task had already been completed by cancellation.
+    /// `true` if the closure was executed and this call completed the task and
+    /// processed result publication, or `false` if the task had already been
+    /// completed by cancellation. A `true` result does not acknowledge delivery
+    /// to a receiver; if the receiver was dropped, the result is discarded.
     #[inline]
     pub(crate) fn start_and_complete<F>(self, task: F) -> bool
     where
@@ -183,8 +192,10 @@ impl<R, E> TaskSlot<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if the callable ran and published a result, or `false` if the
-    /// task had already been cancelled.
+    /// `true` if the callable ran and this call completed the task and
+    /// processed result publication, or `false` if the task had already been
+    /// cancelled. A `true` result does not acknowledge delivery to a receiver;
+    /// if the receiver was dropped, the result is discarded.
     /// If cancellation won before start, unwinding while discarding the
     /// unexecuted callable is contained and the existing `Cancelled` result is
     /// preserved. This applies to ordinary unwinding, not aborting panics or a

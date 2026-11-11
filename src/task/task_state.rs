@@ -138,7 +138,11 @@ impl<R, E> TaskState<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if this call published a cancellation result.
+    /// `true` if this call won the pending-to-cancelled transition and
+    /// processed result publication, or `false` if another terminal path had
+    /// already won. A `true` result does not acknowledge delivery to a
+    /// receiver; if the receiver was dropped, the cancellation result is
+    /// discarded.
     #[inline]
     pub(crate) fn try_cancel_pending(&self) -> bool {
         let notify_hook = self.is_accepted();
@@ -159,7 +163,10 @@ impl<R, E> TaskState<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if this call published a dropped-result error.
+    /// `true` if this call won the transition to dropped and processed result
+    /// publication, or `false` if another terminal path had already won. A
+    /// `true` result does not acknowledge delivery to a receiver; if the
+    /// receiver was dropped, the dropped-result error is discarded.
     #[inline]
     pub(crate) fn try_drop_unfinished(&self, notify_hook: bool) -> bool {
         let result = Err(TaskExecutionError::Dropped);
@@ -180,8 +187,11 @@ impl<R, E> TaskState<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if this call published the terminal result, or `false` if the
-    /// task was not running or another terminal path already won.
+    /// `true` if this call won the running-to-allowed-completion transition
+    /// and processed result publication, or `false` if the task was not
+    /// running, another terminal path already won, or the result was not a
+    /// normal completion. A `true` result does not acknowledge delivery to
+    /// a receiver; if the receiver was dropped, the result is discarded.
     pub(crate) fn try_complete(&self, result: TaskResult<R, E>, notify_hook: bool) -> bool {
         let status = TaskStatus::from_result(&result);
         if !self.status.try_complete(status) {
@@ -191,8 +201,9 @@ impl<R, E> TaskState<R, E> {
         true
     }
 
-    /// Sends the terminal result and emits the finished hook after a won
-    /// transition.
+    /// Attempts to send the terminal result and emits the finished hook after
+    /// a won transition. If the receiver has been dropped, the result is
+    /// discarded.
     ///
     /// # Parameters
     ///

@@ -22,6 +22,13 @@ use super::task_state::TaskState;
 /// structures. Dropping a running slot before completion reports
 /// [`crate::TaskExecutionError::Dropped`].
 ///
+/// For an accepted task with a hook, a successful start invokes
+/// [`TaskHook::on_started`](crate::hook::TaskHook::on_started)
+/// synchronously on the calling thread. If the caller holds a queue lock while
+/// starting the task, that lock remains held during the callback. The hook
+/// must not re-enter operations that acquire the same lock or wait for this
+/// task or its owning service to terminate.
+///
 /// # Type Parameters
 ///
 /// * `R` - The value produced when the task succeeds.
@@ -73,8 +80,11 @@ impl<R, E> RunningTaskSlot<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if the result was published, or `false` if the state was no
-    /// longer running or the result does not represent normal task completion.
+    /// `true` if this call won the transition from running to an allowed
+    /// completion state and processed result publication. This does not
+    /// acknowledge delivery to a receiver: the receiver may have been dropped,
+    /// in which case the result is discarded. `false` if the state no longer
+    /// allows completion or the supplied result is not a normal completion.
     #[inline]
     pub fn complete(mut self, result: TaskResult<R, E>) -> bool {
         let completed = self.state().try_complete(result, self.state().is_accepted());
@@ -97,8 +107,10 @@ impl<R, E> RunningTaskSlot<R, E> {
     ///
     /// # Returns
     ///
-    /// `true` if the callable result was published, or `false` if completion
-    /// was no longer possible.
+    /// `true` if completion won and result publication was processed, or
+    /// `false` if completion was no longer possible. A `true` result does not
+    /// acknowledge delivery to a receiver; if the receiver was dropped, the
+    /// result is discarded.
     ///
     /// # Type Parameters
     ///
