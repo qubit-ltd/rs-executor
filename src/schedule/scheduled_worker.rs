@@ -101,6 +101,7 @@ fn stop_after_worker_failure(core: &SchedulerCore) {
 }
 
 /// Obtains the next due task without retaining the monitor during task work.
+/// Waits in bounded slices and rechecks the original deadline after every wake.
 ///
 /// # Parameters
 ///
@@ -132,7 +133,8 @@ where
         let deadline = *first.order();
         let now = Instant::now();
         if deadline > now {
-            waiter(&mut state, deadline.saturating_duration_since(now))?;
+            let remaining = deadline.saturating_duration_since(now);
+            waiter(&mut state, remaining.min(Duration::from_secs(3600)))?;
             continue;
         }
         let entry = state
@@ -173,6 +175,89 @@ mod tests {
     use crate::hook::TaskId;
     use crate::task::TryGet;
     use crate::task::spi::TaskEndpointPair;
+
+    #[test]
+    fn test_deadline_wait_is_bounded() {
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_deadline_wait_is_bounded",
+            "scheduled-worker-test_deadline_wait_is_bounded",
+            Duration::from_secs(60),
+            || {
+                let core = SchedulerCore::new();
+                let ran = Arc::new(AtomicUsize::new(0));
+                core.schedule(
+                    TaskId::new(101),
+                    Instant::now().checked_add(Duration::from_secs(7200)).unwrap(),
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .unwrap();
+                let mut waits = 0;
+                let mut detached = Vec::new();
+                let result = next_ready_task(&core, &mut |state, interval| {
+                    waits += 1;
+                    assert_eq!(interval, Duration::from_secs(3600));
+                    while let Some(entry) = state.tasks.pop_first() {
+                        detached.push(entry);
+                    }
+                    state.lifecycle = crate::service::ExecutorServiceLifecycle::ShuttingDown;
+                    Ok(())
+                })
+                .unwrap();
+                assert!(result.is_none());
+                assert_eq!(waits, 1);
+                assert_eq!(ran.load(Ordering::Acquire), 0);
+                assert!(core.is_terminated());
+                drop(detached);
+            },
+        )
+        .expect("watchdog should observe bounded deadline wait test finish");
+    }
+
+    #[test]
+    fn test_short_deadline_wait_preserves_remaining_duration() {
+        crate::internal::test_watchdog_tests::run_test(
+            "schedule::scheduled_worker::tests::test_short_deadline_wait_preserves_remaining_duration",
+            "scheduled-worker-test_short_deadline_wait_preserves_remaining_duration",
+            Duration::from_secs(60),
+            || {
+                let core = SchedulerCore::new();
+                let ran = Arc::new(AtomicUsize::new(0));
+                core.schedule(
+                    TaskId::new(102),
+                    Instant::now().checked_add(Duration::from_secs(60)).unwrap(),
+                    Box::new(MaybeSkippedEntry {
+                        skip: false,
+                        panic_on_run: false,
+                        ran: Arc::clone(&ran),
+                    }),
+                )
+                .unwrap();
+                let mut waits = 0;
+                let mut detached = Vec::new();
+                let result = next_ready_task(&core, &mut |state, interval| {
+                    waits += 1;
+                    assert!(interval > Duration::ZERO);
+                    assert!(interval <= Duration::from_secs(60));
+                    while let Some(entry) = state.tasks.pop_first() {
+                        detached.push(entry);
+                    }
+                    state.lifecycle = crate::service::ExecutorServiceLifecycle::ShuttingDown;
+                    Ok(())
+                })
+                .unwrap();
+                assert!(result.is_none());
+                assert_eq!(waits, 1);
+                assert_eq!(ran.load(Ordering::Acquire), 0);
+                assert!(core.is_terminated());
+                drop(detached);
+            },
+        )
+        .expect("watchdog should observe short deadline wait test finish");
+    }
 
     struct MaybeSkippedEntry {
         skip: bool,

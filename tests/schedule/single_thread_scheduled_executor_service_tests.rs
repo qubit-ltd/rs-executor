@@ -401,6 +401,54 @@ fn test_single_thread_scheduled_executor_service_rejects_unrepresentable_delay()
 }
 
 #[test]
+fn test_far_future_deadline_keeps_service_usable() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_far_future_deadline_keeps_service_usable",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "scheduled-far-future-deadline-service-usable",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let service = SingleThreadScheduledExecutorService::new("far-future-deadline")
+                .expect("scheduled service should start");
+            let now = Instant::now();
+            let mut lo = 0_u64;
+            let mut hi = u64::MAX;
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2 + 1;
+                if now.checked_add(Duration::from_secs(mid)).is_some() {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            let far = service
+                .schedule_callable_at(now + Duration::from_secs(lo), || Ok::<(), ()>(()))
+                .expect("maximum representable future deadline should schedule");
+            let (result_tx, result_rx) = mpsc::channel();
+            let immediate = service
+                .schedule_callable(Duration::ZERO, move || {
+                    result_tx.send(42).expect("test should observe immediate result");
+                    Ok::<usize, ()>(42)
+                })
+                .expect("immediate task should schedule behind future task");
+            assert_eq!(
+                result_rx.recv_timeout(Duration::from_secs(5)),
+                Ok(42),
+                "immediate task should run while a far-future task is queued"
+            );
+            assert_eq!(far.cancel(), CancelResult::Cancelled);
+            service.shutdown();
+            assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+            assert!(matches!(far.get(), Err(TaskExecutionError::Cancelled)));
+            assert_eq!(immediate.get().expect("immediate callable should succeed"), 42);
+        },
+    )
+    .expect("watchdog should observe far-future deadline service test finish");
+}
+
+#[test]
 fn test_single_thread_scheduled_executor_service_wait_termination_timeout_handles_max_duration() {
     let service =
         SingleThreadScheduledExecutorService::new("test-termination-overflow").expect("scheduled service should start");
