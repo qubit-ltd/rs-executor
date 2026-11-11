@@ -28,6 +28,7 @@ use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
+use crate::internal::contract_assertions::assert_shutdown_drain;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
 use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
@@ -507,6 +508,17 @@ pool_contract_tests!(
     fixed_pool
 );
 
+#[test]
+fn test_fixed_pool_shutdown_drain_contract() {
+    crate::process_watchdog::run_test(
+        "thread_pool_contract_tests::test_fixed_pool_shutdown_drain_contract",
+        "fixed-pool-shutdown-drain-contract",
+        Duration::from_secs(60),
+        || assert_shutdown_drain(fixed_pool()),
+    )
+    .expect("watchdog should observe fixed pool shutdown drain contract");
+}
+
 pool_contract_tests!(
     test_dynamic_successful_callable_returns_its_value,
     test_dynamic_callable_failure_preserves_error_kind,
@@ -518,3 +530,14 @@ pool_contract_tests!(
     test_dynamic_panic_recovery,
     dynamic_pool
 );
+
+#[test]
+fn test_dynamic_pool_shutdown_drain_contract() {
+    crate::process_watchdog::run_test(
+        "thread_pool_contract_tests::test_dynamic_pool_shutdown_drain_contract",
+        "dynamic-pool-shutdown-drain-contract",
+        Duration::from_secs(60),
+        || assert_shutdown_drain(dynamic_pool()),
+    )
+    .expect("watchdog should observe dynamic pool shutdown drain contract");
+}

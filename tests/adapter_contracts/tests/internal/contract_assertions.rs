@@ -253,6 +253,94 @@ where
     );
 }
 
+pub(crate) fn assert_shutdown_drain<S>(service: S)
+where
+    S: ExecutorService,
+    S::ResultHandle<(), io::Error>: IntoFuture<Output = TaskResult<(), io::Error>>,
+    S::ResultHandle<usize, io::Error>: IntoFuture<Output = TaskResult<usize, io::Error>>,
+{
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+
+    struct ReleaseGuard(Option<mpsc::Sender<()>>);
+
+    impl Drop for ReleaseGuard {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let mut release = ReleaseGuard(Some(release_tx));
+    let blocker = service
+        .submit_callable(move || {
+            started_tx.send(()).expect("blocker observer should exist");
+            release_rx
+                .recv_timeout(Duration::from_secs(30))
+                .expect("blocker should be released within thirty seconds");
+            Ok::<(), io::Error>(())
+        })
+        .expect("blocker should be accepted");
+    started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("blocker should start");
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let task_calls = Arc::clone(&calls);
+    let queued = service
+        .submit_callable(move || {
+            task_calls.fetch_add(1, Ordering::SeqCst);
+            Ok::<usize, io::Error>(42)
+        })
+        .expect("queued callable should be accepted");
+
+    service.shutdown();
+    assert!(matches!(
+        service.submit_callable(|| Ok::<usize, io::Error>(0)),
+        Err(SubmissionError::Shutdown)
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert!(
+        !service.wait_termination_timeout(Duration::ZERO),
+        "running blocker must keep service alive"
+    );
+
+    if let Some(sender) = release.0.take() {
+        sender.send(()).expect("blocker release receiver should exist");
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("test runtime should build");
+    let (blocker_result, queued_result) = runtime.block_on(async {
+        (
+            tokio::time::timeout(Duration::from_secs(5), blocker.into_future()).await,
+            tokio::time::timeout(Duration::from_secs(5), queued.into_future()).await,
+        )
+    });
+    assert_eq!(
+        blocker_result
+            .expect("blocker result should arrive within five seconds")
+            .expect("blocker should succeed"),
+        ()
+    );
+    assert_eq!(
+        queued_result
+            .expect("queued result should arrive within five seconds")
+            .expect("queued callable should succeed"),
+        42
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(
+        service.wait_termination_timeout(Duration::from_secs(5)),
+        "service should terminate after draining accepted work"
+    );
+}
+
 pub(crate) async fn assert_runs_after_future_drop<F, O>(task: impl IntoFuture, release: F, observe: O)
 where
     F: FnOnce(),

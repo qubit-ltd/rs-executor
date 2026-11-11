@@ -22,6 +22,7 @@ use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
+use crate::internal::contract_assertions::assert_shutdown_drain;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
 use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
@@ -210,6 +211,24 @@ fn test_rayon_stop_contract() {
         },
     )
     .expect("watchdog should observe Rayon stop contract");
+}
+
+#[test]
+fn test_rayon_shutdown_drain_contract() {
+    crate::process_watchdog::run_test(
+        "rayon_contract_tests::test_rayon_shutdown_drain_contract",
+        "rayon-shutdown-drain-contract",
+        Duration::from_secs(60),
+        || {
+            assert_shutdown_drain(
+                RayonExecutorService::builder()
+                    .num_threads(1)
+                    .build()
+                    .expect("Rayon service should build"),
+            );
+        },
+    )
+    .expect("watchdog should observe Rayon shutdown drain contract");
 }
 
 #[test]

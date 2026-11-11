@@ -24,6 +24,7 @@ use crate::internal::contract_assertions::assert_pending_cancellation;
 use crate::internal::contract_assertions::assert_running_cancellation;
 use crate::internal::contract_assertions::assert_runs_after_future_drop;
 use crate::internal::contract_assertions::assert_runs_after_polled_future_drop;
+use crate::internal::contract_assertions::assert_shutdown_drain;
 use crate::internal::contract_assertions::assert_shutdown_rejection;
 use crate::internal::contract_assertions::assert_stop_contract;
 use crate::internal::contract_assertions::assert_success;
@@ -208,6 +209,22 @@ fn test_tokio_stop_contract() {
         },
     )
     .expect("watchdog should observe Tokio stop contract");
+}
+
+#[test]
+fn test_tokio_shutdown_drain_contract() {
+    crate::process_watchdog::run_test(
+        "tokio_contract_tests::test_tokio_shutdown_drain_contract",
+        "tokio-shutdown-drain-contract",
+        Duration::from_secs(60),
+        || {
+            let runtime = runtime();
+            assert_shutdown_drain(TokioExecutorService::new(runtime.handle().clone()));
+            // Keep the runtime alive through the service's termination wait.
+            drop(runtime);
+        },
+    )
+    .expect("watchdog should observe Tokio shutdown drain contract");
 }
 
 #[test]
