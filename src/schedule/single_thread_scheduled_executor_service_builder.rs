@@ -55,6 +55,11 @@ impl SingleThreadScheduledExecutorServiceBuilder {
 
     /// Sets the scheduler thread stack size.
     ///
+    /// An explicit zero is rejected by [`build`](Self::build) with
+    /// [`ExecutorServiceBuilderError::ZeroStackSize`]. Unlike this builder,
+    /// [`SingleThreadScheduledExecutorService::with_stack_size`] passes an
+    /// explicit zero to the standard library and platform.
+    ///
     /// # Parameters
     ///
     /// * `stack_size` - Requested stack size in bytes; must be greater than
@@ -90,6 +95,11 @@ impl SingleThreadScheduledExecutorServiceBuilder {
     }
 
     /// Starts the configured scheduled service.
+    ///
+    /// An explicitly configured zero stack size is rejected with
+    /// [`ExecutorServiceBuilderError::ZeroStackSize`]. The legacy
+    /// [`SingleThreadScheduledExecutorService::with_stack_size`] constructor
+    /// delegates an explicit zero to the standard library and platform instead.
     ///
     /// # Errors
     ///

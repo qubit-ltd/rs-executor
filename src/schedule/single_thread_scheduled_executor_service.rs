@@ -120,6 +120,14 @@ impl SingleThreadScheduledExecutorService {
     /// Starts a new scheduled service with an optional scheduler thread stack
     /// size.
     ///
+    /// For compatibility, an explicit zero stack size is passed to the
+    /// standard library and platform rather than rejected here. The platform
+    /// may adjust the requested size or thread creation may fail. Use
+    /// [`SingleThreadScheduledExecutorServiceBuilder::stack_size`] and
+    /// [`SingleThreadScheduledExecutorServiceBuilder::build`] when an explicit
+    /// zero must be rejected with
+    /// [`ExecutorServiceBuilderError::ZeroStackSize`].
+    ///
     /// # Parameters
     ///
     /// * `thread_name` - Name for the scheduler thread; must not contain a NUL

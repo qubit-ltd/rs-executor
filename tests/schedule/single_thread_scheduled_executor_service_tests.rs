@@ -1346,3 +1346,24 @@ fn test_scheduled_builder_defaults_and_validates_configuration() {
     let _ = legacy_stack.stop();
     assert!(legacy_stack.wait_termination_timeout(Duration::from_secs(5)));
 }
+
+#[test]
+fn test_legacy_scheduled_zero_stack_size_delegates_to_platform() {
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_legacy_scheduled_zero_stack_size_delegates_to_platform",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "legacy-scheduled-zero-stack",
+        Duration::from_secs(30),
+        || match SingleThreadScheduledExecutorService::with_stack_size("legacy-zero-stack", Some(0)) {
+            Ok(service) => {
+                service.shutdown();
+                assert!(service.wait_termination_timeout(Duration::from_secs(5)));
+            }
+            Err(ExecutorServiceBuilderError::SpawnWorker { .. }) => {}
+            Err(error) => panic!("unexpected legacy zero-stack error: {error:?}"),
+        },
+    )
+    .expect("legacy zero-stack test should finish under watchdog");
+}
