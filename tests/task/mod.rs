@@ -11,6 +11,7 @@ mod task_endpoint_pair_tests;
 mod task_execution_error_tests;
 mod task_handle_state_tests;
 mod task_handle_tests;
+mod task_publication_waker_tests;
 mod task_runner_tests;
 mod task_slot_cell_tests;
 mod task_slot_tests;
