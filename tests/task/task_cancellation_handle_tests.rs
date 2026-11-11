@@ -60,81 +60,103 @@ fn test_dropping_cancellation_handle_does_not_cancel() {
 
 #[test]
 fn test_cancellation_handle_and_legacy_cancel_have_one_winner() {
-    let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let endpoint = task.cancellation_handle();
-    let endpoint_clone = endpoint.clone();
-    let barrier = Arc::new(Barrier::new(3));
-    let first_barrier = Arc::clone(&barrier);
-    let first = thread::spawn(move || {
-        first_barrier.wait();
-        endpoint.cancel()
-    });
-    let second_barrier = Arc::clone(&barrier);
-    let second = thread::spawn(move || {
-        second_barrier.wait();
-        endpoint_clone.cancel()
-    });
-    barrier.wait();
-    let legacy = task.cancel();
-    let results = [first.join().unwrap(), second.join().unwrap(), legacy];
-    assert_eq!(results.iter().filter(|&&r| r == CancelResult::Cancelled).count(), 1);
-    assert_eq!(
-        results.iter().filter(|&&r| r == CancelResult::AlreadyFinished).count(),
-        2
-    );
-    assert!(!slot.run(|| Ok(42)));
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_cancellation_handle_and_legacy_cancel_have_one_winner",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "cancellation-handle-legacy-one-winner",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+            let endpoint = task.cancellation_handle();
+            let endpoint_clone = endpoint.clone();
+            let barrier = Arc::new(Barrier::new(3));
+            let first_barrier = Arc::clone(&barrier);
+            let first = thread::spawn(move || {
+                first_barrier.wait();
+                endpoint.cancel()
+            });
+            let second_barrier = Arc::clone(&barrier);
+            let second = thread::spawn(move || {
+                second_barrier.wait();
+                endpoint_clone.cancel()
+            });
+            barrier.wait();
+            let legacy = task.cancel();
+            let results = [first.join().unwrap(), second.join().unwrap(), legacy];
+            assert_eq!(results.iter().filter(|&&r| r == CancelResult::Cancelled).count(), 1);
+            assert_eq!(
+                results.iter().filter(|&&r| r == CancelResult::AlreadyFinished).count(),
+                2
+            );
+            assert!(!slot.run(|| Ok(42)));
+        },
+    )
+    .expect("watchdog should observe concurrent cancellation finish");
 }
 
 #[test]
 fn test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner() {
-    struct DropSignal(Arc<AtomicUsize>);
-    impl Drop for DropSignal {
-        fn drop(&mut self) {
-            self.0.fetch_add(1, Ordering::SeqCst);
-        }
-    }
+    crate::internal::process_watchdog::run_test(
+        &format!(
+            "{}::test_cancellation_adapter_cleanup_runs_only_for_the_concurrent_winner",
+            module_path!().strip_prefix("r#mod::").unwrap_or(module_path!())
+        ),
+        "cancellation-adapter-concurrent-cleanup",
+        crate::internal::process_watchdog::DEFAULT_TIMEOUT,
+        || {
+            struct DropSignal(Arc<AtomicUsize>);
+            impl Drop for DropSignal {
+                fn drop(&mut self) {
+                    self.0.fetch_add(1, Ordering::SeqCst);
+                }
+            }
 
-    let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
-    let inner = task.cancellation_handle();
-    let cleanup_count = Arc::new(AtomicUsize::new(0));
-    let drops = Arc::new(AtomicUsize::new(0));
-    let signal = DropSignal(Arc::clone(&drops));
-    let cleanup = Arc::clone(&cleanup_count);
-    let adapted = TaskCancellationHandle::new(move || {
-        let _ = &signal;
-        let result = inner.cancel();
-        if result == CancelResult::Cancelled {
-            cleanup.fetch_add(1, Ordering::SeqCst);
-        }
-        result
-    });
-    let clone = adapted.clone();
-    let main_thread_clone = adapted.clone();
-    let barrier = Arc::new(Barrier::new(3));
-    let first_barrier = Arc::clone(&barrier);
-    let first = thread::spawn(move || {
-        first_barrier.wait();
-        adapted.cancel()
-    });
-    let second_barrier = Arc::clone(&barrier);
-    let second = thread::spawn(move || {
-        second_barrier.wait();
-        clone.cancel()
-    });
-    barrier.wait();
-    let main_thread_result = main_thread_clone.cancel();
-    drop(main_thread_clone);
-    let results = [first.join().unwrap(), second.join().unwrap(), main_thread_result];
-    assert_eq!(
-        results
-            .iter()
-            .filter(|&&result| result == CancelResult::Cancelled)
-            .count(),
-        1
-    );
-    assert_eq!(cleanup_count.load(Ordering::SeqCst), 1);
-    assert!(!slot.run(|| Ok(42)));
-    assert_eq!(drops.load(Ordering::SeqCst), 1);
+            let (task, slot) = TaskEndpointPair::<usize, ()>::new().into_tracked_parts();
+            let inner = task.cancellation_handle();
+            let cleanup_count = Arc::new(AtomicUsize::new(0));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let signal = DropSignal(Arc::clone(&drops));
+            let cleanup = Arc::clone(&cleanup_count);
+            let adapted = TaskCancellationHandle::new(move || {
+                let _ = &signal;
+                let result = inner.cancel();
+                if result == CancelResult::Cancelled {
+                    cleanup.fetch_add(1, Ordering::SeqCst);
+                }
+                result
+            });
+            let clone = adapted.clone();
+            let main_thread_clone = adapted.clone();
+            let barrier = Arc::new(Barrier::new(3));
+            let first_barrier = Arc::clone(&barrier);
+            let first = thread::spawn(move || {
+                first_barrier.wait();
+                adapted.cancel()
+            });
+            let second_barrier = Arc::clone(&barrier);
+            let second = thread::spawn(move || {
+                second_barrier.wait();
+                clone.cancel()
+            });
+            barrier.wait();
+            let main_thread_result = main_thread_clone.cancel();
+            drop(main_thread_clone);
+            let results = [first.join().unwrap(), second.join().unwrap(), main_thread_result];
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|&&result| result == CancelResult::Cancelled)
+                    .count(),
+                1
+            );
+            assert_eq!(cleanup_count.load(Ordering::SeqCst), 1);
+            assert!(!slot.run(|| Ok(42)));
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+        },
+    )
+    .expect("watchdog should observe concurrent cancellation cleanup finish");
 }
 
 #[test]
