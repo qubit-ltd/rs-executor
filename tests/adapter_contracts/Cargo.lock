@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-executor"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "log",
  "oneshot",
@@ -229,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-state-machine"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d1b1db5c9341c2861a0242ffa4d53d62fe507f57e28a1127dd4353eeea27c2a"
+checksum = "9e56a0be1c20692eec5dd59695b1fa3e8416b2a2fb20a5c3086ad301926e4fce"
 dependencies = [
  "qubit-fast-cas",
  "thiserror",
