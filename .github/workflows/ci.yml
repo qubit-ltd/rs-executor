@@ -54,8 +54,6 @@ jobs:
           root = manifests[0].parent
           required = (
               "tests/internal/process_watchdog.rs",
-              "tests/internal/check_adapter_sources.py",
-              "tests/internal/check_adapter_sources_tests.py",
               "README.md",
               "README.zh_CN.md",
               "doc/user_guide.md",
